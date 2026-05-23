@@ -1,0 +1,228 @@
+{
+  "AR TianNiuGB BD": {
+    "bold": "artianniugb_bd.otf"
+  },
+  "AR UDJingXiHeiGB BD": {
+    "bold": "arudjingxiheie1g30_bd.otf"
+  },
+  "AXIS Basic ProN": {
+    "bold": "AxisBrotherBasicProN-B.otf"
+  },
+  "AXIS Cond ProN": {
+    "regular": "AxisBrotherCondProN-R.otf"
+  },
+  "Atlanta": {
+    "bold": "BRATLBS0.TTF",
+    "italic": "BRATLIS0.TTF",
+    "regular": "BRATLRS0.TTF",
+    "boldItalic": "BRATLVS0.TTF"
+  },
+  "BR Face J1": {
+    "regular": "BRFACEJ1.TTF"
+  },
+  "BR Face J2": {
+    "regular": "BRFACEJ2.TTF"
+  },
+  "BR Face J3": {
+    "regular": "BRFACEJ3.TTF"
+  },
+  "BR Face J4": {
+    "regular": "BRFACEJ4.TTF"
+  },
+  "BR-OCRB": {
+    "regular": "BROCBRT0.TTF"
+  },
+  "Belgium": {
+    "regular": "BRBELRT0.TTF"
+  },
+  "Berlin": {
+    "regular": "BRBLIBS0.TTF"
+  },
+  "Bermuda Script": {
+    "regular": "BRBERRT0.TTF"
+  },
+  "Brougham": {
+    "bold": "BRBROBS0.TTF",
+    "italic": "BRBROIS0.TTF",
+    "regular": "BRBRORS0.TTF",
+    "boldItalic": "BRBROVS0.TTF"
+  },
+  "Brunei": {
+    "bold": "BRBRNBS0.TTF",
+    "regular": "BRBRNRS0.TTF"
+  },
+  "Brussels": {
+    "bold": "BRBRUBS0.TTF",
+    "italic": "BRBRUIS0.TTF",
+    "regular": "BRBRURS0.TTF",
+    "boldItalic": "BRBRUVS0.TTF"
+  },
+  "Brussels Condensed": {
+    "bold": "brbrcbt0.ttf",
+    "italic": "brbrcit0.ttf",
+    "regular": "brbrcrt0.ttf",
+    "boldItalic": "brbrcvt0.ttf"
+  },
+  "Calgary": {
+    "boldItalic": "BRCALIS0.TTF"
+  },
+  "Connecticut": {
+    "italic": "BRCONRC0.TTF"
+  },
+  "Copenhagen": {
+    "bold": "BRCOPBS0.TTF",
+    "italic": "BRCOPIS0.TTF",
+    "regular": "BRCOPRS0.TTF",
+    "boldItalic": "BRCOPVS0.TTF"
+  },
+  "CopperplateTMed": {
+    "regular": "c041014t2_2.ttf"
+  },
+  "Coronet IB": {
+    "regular": "c093000ib_4.ttf"
+  },
+  "DomCasualD": {
+    "regular": "d013013d.ttf"
+  },
+  "FetteMitD": {
+    "regular": "f005000d_2.ttf"
+  },
+  "FuturaT": {
+    "regular": "f011003t_2.ttf"
+  },
+  "Germany": {
+    "regular": "BRGERRT0.TTF"
+  },
+  "Guatemala": {
+    "bold": "BRGUABC0.TTF",
+    "italic": "BRGUAIC0.TTF",
+    "regular": "BRGUARC0.TTF",
+    "boldItalic": "BRGUAVC0.TTF"
+  },
+  "Helsinki": {
+    "bold": "BRHELBS0.TTF",
+    "italic": "BRHELIS0.TTF",
+    "regular": "BRHELRS0.TTF",
+    "boldItalic": "BRHELVS0.TTF"
+  },
+  "Helsinki Narrow": {
+    "bold": "BRHENBS0.TTF",
+    "italic": "BRHENIS0.TTF",
+    "regular": "BRHENRS0.TTF",
+    "boldItalic": "BRHENVS0.TTF"
+  },
+  "ImpactURW": {
+    "regular": "i014003t_2.ttf"
+  },
+  "Istanbul": {
+    "regular": "BRISTRT0.TTF"
+  },
+  "Koubai Kyokasho": {
+    "regular": "BRKOUMW0.TTF"
+  },
+  "Letter Gothic": {
+    "bold": "BRLGOBC0.TTF",
+    "italic": "BRLGOIC0.TTF",
+    "regular": "BRLGORC0.TTF"
+  },
+  "Misugi Gothic-B": {
+    "regular": "BRMISBW0.TTF"
+  },
+  "Misugi Gothic-L": {
+    "regular": "BRMISLW0.TTF"
+  },
+  "Misugi Gothic-M": {
+    "regular": "BRMISMW0.TTF"
+  },
+  "Oklahoma": {
+    "bold": "BROKLBC0.TTF",
+    "italic": "BROKLIC0.TTF",
+    "regular": "BROKLRC0.TTF",
+    "boldItalic": "BROKLVC0.TTF"
+  },
+  "PT Dingbats 1": {
+    "regular": "BRDB1RT0.TTF"
+  },
+  "PT Dingbats 2": {
+    "regular": "BRDB2RT0.TTF"
+  },
+  "PT Dingbats 3": {
+    "regular": "BRDB3RT0.TTF"
+  },
+  "PT Dingbats 4": {
+    "regular": "BRDB4RT0.TTF"
+  },
+  "PT Symbol 1": {
+    "regular": "brsy1rt0.ttf"
+  },
+  "PT Symbol 2": {
+    "regular": "brsy2rt0.ttf"
+  },
+  "PT Utah Condensed": {
+    "bold": "BRUTCBT0.TTF",
+    "italic": "BRUTCIT0.TTF",
+    "regular": "BRUTCRT0.TTF",
+    "boldItalic": "BRUTCVT0.TTF"
+  },
+  "PT??": {
+    "regular": "PTRK-MM.otf"
+  },
+  "PTC Dingbats2": {
+    "regular": "PtcDingbats2.otf"
+  },
+  "PTC Dingbats3": {
+    "regular": "PtcDingbats3.otf"
+  },
+  "PTRoundToday": {
+    "bold": "PTRoundToday-B.otf"
+  },
+  "Portugal": {
+    "bold": "BRPORBS0.TTF",
+    "italic": "BRPORIS0.TTF",
+    "regular": "BRPORRS0.TTF",
+    "boldItalic": "BRPORVS0.TTF"
+  },
+  "Renka Gyosho": {
+    "regular": "BRRENMW0.TTF"
+  },
+  "Ryuga Pensho": {
+    "regular": "BRRYUMW0.TTF"
+  },
+  "San Diego": {
+    "regular": "BRSANRT0.TTF"
+  },
+  "TBPGothic": {
+    "regular": "TBGoStd-SuperLight.otf"
+  },
+  "TBPGothicPro": {
+    "bold": "TBGoPro-Bold.otf",
+    "regular": "TBGoPro-Regular.otf"
+  },
+  "TBPRGothicPro": {
+    "regular": "TBRGoPro-SuperLight.otf"
+  },
+  "TBPYokobutoMincho": {
+    "bold": "TBYMinStd-Heavy.otf"
+  },
+  "TBShinKai": {
+    "bold": "TRoShinKaiStd-Md.otf"
+  },
+  "Touka Maru Gothic-L": {
+    "regular": "BRTOULW0.TTF"
+  },
+  "US": {
+    "regular": "BRUS_RT0.TTF"
+  },
+  "Utah": {
+    "bold": "BRUTABC0.TTF",
+    "italic": "BRUTAIC0.TTF",
+    "regular": "BRUTARC0.TTF",
+    "boldItalic": "BRUTAVC0.TTF"
+  },
+  "Wazakura Mincho-B": {
+    "regular": "BRWAZBW0.TTF"
+  },
+  "Wazakura Mincho-M": {
+    "regular": "BRWAZMW0.TTF"
+  }
+}
