@@ -12,6 +12,7 @@ if ! flock -n 9; then
 fi
 
 echo "rebuilding..."
+./scripts/pi-usb-setup.sh
 docker compose build
 docker compose up -d
 ./scripts/pi-verify.sh || true
