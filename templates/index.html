@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ptlabel</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { font: 16px/1.4 system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; }
+    h1 { font-size: 1.2rem; }
+    #status { font-size: .85rem; padding: .3rem .6rem; border-radius: 6px; display: inline-block; }
+    .ok { background: #1c7c3c; color: #fff; }
+    .bad { background: #b03030; color: #fff; }
+    .printing { background: #9a6700; color: #fff; }
+    textarea { width: 100%; min-height: 2.5rem; font: inherit; padding: .5rem; box-sizing: border-box; }
+    button { font: inherit; padding: .45rem .9rem; cursor: pointer; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .row { display: flex; gap: .5rem; margin: .5rem 0; align-items: center; flex-wrap: wrap; }
+    .settings { display: flex; flex-direction: column; gap: .35rem; margin: .5rem 0; }
+    .settings .row { margin: 0; gap: .65rem; }
+    .settings label { font-size: .9rem; white-space: nowrap; }
+    .settings input[type=number] { width: 3.25rem; }
+    .settings select { min-width: 9rem; max-width: 14rem; }
+    label { display: flex; align-items: center; gap: .35rem; }
+    input[type=number] { width: 4rem; font: inherit; padding: .25rem .4rem; }
+    input[type=number]:disabled { opacity: .5; }
+    select { font: inherit; padding: .25rem .4rem; max-width: 12rem; }
+    input[type=number].narrow { width: 2.5rem; }
+    .primary { background: #2a6cf0; color: #fff; border: 0; border-radius: 6px; }
+    .queue-header { display: flex; justify-content: space-between; align-items: center; margin: 1rem 0 .35rem; }
+    .queue-header h2 { font-size: 1rem; margin: 0; }
+    .queue-table { display: grid; grid-template-columns: 1fr auto auto auto; gap: .35rem .5rem; align-items: center; }
+    .queue-table .head { font-size: .75rem; text-transform: uppercase; letter-spacing: .03em; opacity: .65; padding-bottom: .15rem; border-bottom: 1px solid #8884; }
+    #queue { display: contents; }
+    .queue-row { display: contents; }
+    .queue-row img { height: calc(var(--tape-display-mm, {{ tape_height_mm }}) * 1mm); width: auto; background: #fff; border-radius: 3px; }
+    .queue-row .remove { padding: .2rem .45rem; font-size: .85rem; }
+    .recent-section { margin-top: 1.5rem; }
+    .recent-table { grid-template-columns: 1fr auto auto; }
+    #recent { display: contents; }
+    .recent-row { display: contents; }
+    .recent-row img { height: calc(var(--tape-display-mm, {{ tape_height_mm }}) * 1mm); width: auto; background: #fff; border-radius: 3px; opacity: .85; }
+    .recent-qty { font-size: .9rem; opacity: .75; min-width: 2.5rem; text-align: center; }
+  </style>
+</head>
+<body>
+  <h1>Label printer <span id="status" class="bad">checking...</span></h1>
+
+  <textarea id="text" placeholder="One label per line"></textarea>
+
+  <div class="settings">
+    <div class="row">
+      <label>Font <select id="fontFamily"></select></label>
+      <label><input type="checkbox" id="bold" checked> Bold</label>
+      <label><input type="checkbox" id="italic"> Italic</label>
+    </div>
+    <div class="row">
+      <label>Size <input type="number" id="fontSize" value="74" min="10" max="128"></label>
+      <label>V align <input type="number" id="vAlign" value="5" min="-32" max="32"></label>
+      <label>Spacing <input type="number" id="letterSpacing" value="-1" min="-5" max="20" step="0.5"></label>
+      <label>Margin <input type="number" id="marginH" value="16" min="0" max="128"></label>
+    </div>
+    <div class="row">
+      <label>Qty <input type="number" id="qty" class="narrow" value="1" min="1" max="99"></label>
+    </div>
+  </div>
+
+  <div class="queue-header">
+    <h2>Queue (<span id="count">0</span>)</h2>
+    <button id="printBtn" class="primary">Print all</button>
+  </div>
+
+  <div class="queue-table">
+    <div class="head">Label preview</div>
+    <div class="head">Quantity</div>
+    <div class="head"></div>
+    <div class="head"></div>
+    <div id="queue"></div>
+  </div>
+
+  <div id="recentSection" class="recent-section" hidden>
+    <div class="queue-header">
+      <h2>Recently printed</h2>
+    </div>
+    <div class="queue-table recent-table">
+      <div class="head">Label preview</div>
+      <div class="head">Quantity</div>
+      <div class="head"></div>
+      <div id="recent"></div>
+    </div>
+  </div>
+
+  <script>
+    const labels = [];
+    const recent = [];
+    const $ = (id) => document.getElementById(id);
+    const PREFS_KEY = "ptlabel.prefs";
+    const STATE_KEY = "ptlabel.state";
+    const RECENT_KEY = "ptlabel.recent";
+    const QUEUE_MAX = 50;
+    const RECENT_MAX = 30;
+    const DEFAULT_PREFS = {
+      fontFamily: "Helsinki",
+      bold: true,
+      italic: false,
+      fontSize: 74,
+      vAlign: 5,
+      letterSpacing: -1,
+      marginH: 16
+    };
+    const TAPE_MM = {{ tape_height_mm }};
+    let fontCatalog = {};
+    let syncTimer = null;
+    let previewSeq = 0;
+    let printInFlight = 0;
+    let statusTimer = null;
+
+    function updateTapeScale() {
+      const scale = window.devicePixelRatio > 1 ? 72 / 96 : 1;
+      document.documentElement.style.setProperty("--tape-display-mm", String(TAPE_MM * scale));
+    }
+
+    function labelLines(text) {
+      return text.split("\n").map((s) => s.trim()).filter(Boolean);
+    }
+
+    function readPrefs() {
+      try {
+        const raw = localStorage.getItem(PREFS_KEY);
+        if (!raw) return { ...DEFAULT_PREFS };
+        return { ...DEFAULT_PREFS, ...JSON.parse(raw) };
+      } catch {
+        return { ...DEFAULT_PREFS };
+      }
+    }
+
+    function savePrefs() {
+      localStorage.setItem(PREFS_KEY, JSON.stringify({
+        fontFamily: $("fontFamily").value,
+        bold: $("bold").checked,
+        italic: $("italic").checked,
+        fontSize: parseInt($("fontSize").value, 10) || 74,
+        vAlign: parseInt($("vAlign").value, 10) || 0,
+        letterSpacing: parseFloat($("letterSpacing").value) || 0,
+        marginH: parseInt($("marginH").value, 10) || 16
+      }));
+    }
+
+    function applyPrefs(prefs) {
+      $("fontSize").value = prefs.fontSize;
+      $("bold").checked = prefs.bold;
+      $("italic").checked = prefs.italic;
+      $("vAlign").value = prefs.vAlign;
+      $("letterSpacing").value = prefs.letterSpacing;
+      $("marginH").value = prefs.marginH ?? prefs.marginStart ?? 16;
+      if (fontCatalog[prefs.fontFamily]) {
+        $("fontFamily").value = prefs.fontFamily;
+      }
+      updateStyleToggles();
+    }
+
+    function updateStyleToggles() {
+      const variants = fontCatalog[$("fontFamily").value] || {};
+      $("bold").disabled = !variants.bold && !variants.boldItalic;
+      $("italic").disabled = !variants.italic && !variants.boldItalic;
+      if ($("bold").disabled) $("bold").checked = false;
+      if ($("italic").disabled) $("italic").checked = false;
+    }
+
+    function renderOpts() {
+      return {
+        font_size: parseInt($("fontSize").value, 10) || 74,
+        font_family: $("fontFamily").value,
+        bold: $("bold").checked,
+        italic: $("italic").checked,
+        v_align: parseInt($("vAlign").value, 10) || 0,
+        letter_spacing: parseFloat($("letterSpacing").value) || 0,
+        margin_h: parseInt($("marginH").value, 10) || 16
+      };
+    }
+
+    function defaultQty() {
+      return Math.max(1, Math.min(99, parseInt($("qty").value, 10) || 1));
+    }
+
+    function itemPayload(item) {
+      return {
+        text: item.text,
+        qty: item.qty || 1,
+        font_size: item.font_size,
+        font_family: item.font_family,
+        bold: item.bold,
+        italic: item.italic,
+        v_align: item.v_align,
+        letter_spacing: item.letter_spacing,
+        margin_h: item.margin_h
+      };
+    }
+
+    function itemOpts(item) {
+      return {
+        font_size: item.font_size,
+        font_family: item.font_family,
+        bold: item.bold,
+        italic: item.italic,
+        v_align: item.v_align,
+        letter_spacing: item.letter_spacing,
+        margin_h: item.margin_h
+      };
+    }
+
+    function optsMatch(a, b) {
+      return a.font_size === b.font_size
+        && a.font_family === b.font_family
+        && a.bold === b.bold
+        && a.italic === b.italic
+        && a.v_align === b.v_align
+        && a.letter_spacing === b.letter_spacing
+        && a.margin_h === b.margin_h;
+    }
+
+    function labelsTotal() {
+      return labels.reduce((n, item) => n + (item.qty || 1), 0);
+    }
+
+    function itemKey(item) {
+      return JSON.stringify(itemPayload(item));
+    }
+
+    function saveRecent() {
+      localStorage.setItem(RECENT_KEY, JSON.stringify(recent.map((item) => itemPayload(item))));
+    }
+
+    function loadRecent() {
+      try {
+        const raw = localStorage.getItem(RECENT_KEY);
+        if (!raw) return [];
+        const items = JSON.parse(raw);
+        if (!Array.isArray(items)) return [];
+        return items.slice(0, RECENT_MAX);
+      } catch {
+        return [];
+      }
+    }
+
+    function recordPrint(items) {
+      for (let i = items.length - 1; i >= 0; i--) {
+        const item = items[i];
+        const key = itemKey(item);
+        for (let j = recent.length - 1; j >= 0; j--) {
+          if (itemKey(recent[j]) === key) recent.splice(j, 1);
+        }
+        recent.unshift({ ...itemPayload(item), png: item.png || null });
+      }
+      recent.splice(RECENT_MAX);
+      saveRecent();
+      renderRecent();
+    }
+
+    function requeueItem(item) {
+      const line = item.text;
+      const draft = $("text").value.trim();
+      $("text").value = draft ? draft + "\n" + line : line;
+      scheduleSync();
+    }
+
+    function saveState() {
+      localStorage.setItem(STATE_KEY, JSON.stringify({
+        draft: $("text").value,
+        items: labels.map((item) => itemPayload(item))
+      }));
+    }
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STATE_KEY);
+        if (raw) {
+          const data = JSON.parse(raw);
+          return {
+            draft: typeof data.draft === "string" ? data.draft : "",
+            items: Array.isArray(data.items) ? data.items.slice(-QUEUE_MAX) : []
+          };
+        }
+        const legacy = localStorage.getItem("ptlabel.queue");
+        if (legacy) {
+          const data = JSON.parse(legacy);
+          const items = Array.isArray(data.items) ? data.items.slice(-QUEUE_MAX) : [];
+          return { draft: items.map((i) => i.text).join("\n"), items };
+        }
+      } catch {}
+      return { draft: "", items: [] };
+    }
+
+    function flushSync() {
+      clearTimeout(syncTimer);
+      syncTimer = null;
+      const lines = labelLines($("text").value);
+      const opts = renderOpts();
+      const qtyDefault = defaultQty();
+      const next = lines.map((text, i) => {
+        const prev = labels[i];
+        if (prev && prev.text === text && optsMatch(prev, opts)) return prev;
+        return { text, qty: prev?.qty ?? qtyDefault, png: null, ...opts };
+      });
+      labels.length = 0;
+      labels.push(...next.slice(-QUEUE_MAX));
+      saveState();
+    }
+
+    function setTextareaFromLabels() {
+      $("text").value = labels.map((item) => item.text).join("\n");
+    }
+
+    function removeLabel(index) {
+      labels.splice(index, 1);
+      setTextareaFromLabels();
+      saveState();
+      renderTable();
+    }
+
+    async function loadFonts() {
+      const r = await (await fetch("/api/fonts")).json();
+      const sel = $("fontFamily");
+      sel.innerHTML = "";
+      fontCatalog = {};
+      for (const fam of r.families) {
+        fontCatalog[fam.name] = Object.fromEntries(fam.variants.map((v) => [v, true]));
+        const opt = document.createElement("option");
+        opt.value = fam.name;
+        opt.textContent = fam.name;
+        sel.append(opt);
+      }
+      applyPrefs(readPrefs());
+    }
+
+    function setStatus(text, cls) {
+      const el = $("status");
+      el.textContent = text;
+      el.className = cls;
+    }
+
+    async function refreshStatus() {
+      try {
+        const r = await (await fetch("/api/status")).json();
+        if (r.printing || printInFlight > 0) {
+          setStatus("printing", "printing");
+          return;
+        }
+        setStatus(r.ok ? "ready" : "not found", r.ok ? "ok" : "bad");
+      } catch {
+        setStatus("error", "bad");
+      }
+    }
+
+    function startStatusPolling() {
+      if (statusTimer) return;
+      statusTimer = setInterval(refreshStatus, printInFlight > 0 ? 2000 : 30000);
+    }
+
+    function stopStatusPolling() {
+      if (statusTimer) {
+        clearInterval(statusTimer);
+        statusTimer = null;
+      }
+    }
+
+    function resetStatusPolling() {
+      stopStatusPolling();
+      startStatusPolling();
+    }
+
+    async function previewText(text, opts) {
+      const r = await (await fetch("/api/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, ...opts })
+      })).json();
+      if (!r.ok) return null;
+      return r.png;
+    }
+
+    async function fetchPreview(item) {
+      item.png = await previewText(item.text, itemOpts(item));
+      return item.png;
+    }
+
+    function scheduleSync() {
+      saveState();
+      clearTimeout(syncTimer);
+      syncTimer = setTimeout(syncFromTextarea, 500);
+    }
+
+    async function syncFromTextarea() {
+      const lines = labelLines($("text").value);
+      const opts = renderOpts();
+      const qtyDefault = defaultQty();
+      const next = lines.map((text, i) => {
+        const prev = labels[i];
+        if (prev && prev.text === text && optsMatch(prev, opts)) {
+          return prev;
+        }
+        return {
+          text,
+          qty: prev?.qty ?? qtyDefault,
+          png: null,
+          ...opts
+        };
+      });
+
+      labels.length = 0;
+      labels.push(...next.slice(-QUEUE_MAX));
+
+      const seq = ++previewSeq;
+      await Promise.all(labels.filter((item) => !item.png).map(fetchPreview));
+      if (seq !== previewSeq) return;
+
+      saveState();
+      renderTable();
+    }
+
+    async function refreshAllPreviews() {
+      const opts = renderOpts();
+      for (const item of labels) {
+        Object.assign(item, opts);
+        item.png = null;
+      }
+      const seq = ++previewSeq;
+      await Promise.all(labels.map(fetchPreview));
+      if (seq !== previewSeq) return;
+      saveState();
+      renderTable();
+    }
+
+    async function printItems(items, { clearOnSuccess = false } = {}) {
+      if (items.length === 0) return false;
+      printInFlight++;
+      setStatus("printing", "printing");
+      resetStatusPolling();
+      try {
+        const r = await (await fetch("/api/print", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ labels: items.map(itemPayload) })
+        })).json();
+        if (!r.ok) {
+          alert("Print failed: " + r.err);
+          return false;
+        }
+        recordPrint(items);
+        if (clearOnSuccess) {
+          labels.length = 0;
+          $("text").value = "";
+          saveState();
+          renderTable();
+        }
+        return true;
+      } finally {
+        printInFlight--;
+        resetStatusPolling();
+        refreshStatus();
+      }
+    }
+
+    function renderTable() {
+      $("count").textContent = labelsTotal();
+      const container = $("queue");
+      container.innerHTML = "";
+      labels.forEach((item, i) => {
+        const row = document.createElement("div");
+        row.className = "queue-row";
+
+        const img = document.createElement("img");
+        if (item.png) img.src = item.png;
+        img.alt = "";
+
+        const qty = document.createElement("input");
+        qty.type = "number";
+        qty.className = "narrow";
+        qty.min = "1";
+        qty.max = "99";
+        qty.value = item.qty || 1;
+        qty.onchange = () => {
+          item.qty = Math.max(1, Math.min(99, parseInt(qty.value, 10) || 1));
+          qty.value = item.qty;
+          saveState();
+          renderTable();
+        };
+
+        const printOne = document.createElement("button");
+        printOne.textContent = "Print";
+        printOne.onclick = async () => {
+          printOne.disabled = true;
+          try {
+            await printItems([item]);
+          } finally {
+            printOne.disabled = false;
+          }
+        };
+
+        const remove = document.createElement("button");
+        remove.className = "remove";
+        remove.textContent = "Remove";
+        remove.onclick = () => removeLabel(i);
+
+        row.append(img, qty, printOne, remove);
+        container.append(row);
+      });
+      $("printBtn").disabled = labels.length === 0;
+    }
+
+    function renderRecent() {
+      const section = $("recentSection");
+      const container = $("recent");
+      container.innerHTML = "";
+      section.hidden = recent.length === 0;
+      recent.forEach((item) => {
+        const row = document.createElement("div");
+        row.className = "recent-row";
+
+        const img = document.createElement("img");
+        if (item.png) img.src = item.png;
+        img.alt = "";
+
+        const qty = document.createElement("span");
+        qty.className = "recent-qty";
+        qty.textContent = item.qty || 1;
+
+        const requeue = document.createElement("button");
+        requeue.textContent = "Add";
+        requeue.onclick = () => requeueItem(item);
+
+        row.append(img, qty, requeue);
+        container.append(row);
+      });
+    }
+
+    function onControlChange() {
+      savePrefs();
+      refreshAllPreviews();
+    }
+
+    for (const id of ["fontSize", "fontFamily", "bold", "italic", "vAlign", "letterSpacing", "marginH"]) {
+      $(id).addEventListener("input", onControlChange);
+      $(id).addEventListener("change", onControlChange);
+    }
+    $("text").addEventListener("input", scheduleSync);
+
+    $("printBtn").onclick = async () => {
+      if (labels.length === 0) return;
+      $("printBtn").disabled = true;
+      try {
+        await printItems(labels, { clearOnSuccess: true });
+      } finally {
+        $("printBtn").disabled = labels.length === 0;
+      }
+    };
+
+    refreshStatus();
+    startStatusPolling();
+    updateTapeScale();
+    window.addEventListener("resize", updateTapeScale);
+    window.addEventListener("beforeunload", () => {
+      flushSync();
+    });
+
+    loadFonts().then(async () => {
+      const { draft, items } = loadState();
+      $("text").value = draft;
+      for (const item of items) {
+        labels.push({ ...item, png: null });
+      }
+      for (const item of loadRecent()) {
+        recent.push({ ...item, png: null });
+      }
+      renderRecent();
+      if (draft && labelLines(draft).length !== labels.length) {
+        await syncFromTextarea();
+      } else {
+        renderTable();
+        await Promise.all(labels.map(fetchPreview));
+        renderTable();
+      }
+      await Promise.all(recent.filter((item) => !item.png).map(fetchPreview));
+      renderRecent();
+    });
+  </script>
+</body>
+</html>

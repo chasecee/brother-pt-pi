@@ -1,0 +1,9 @@
+[Unit]
+Description=ptlabel git poll deploy
+
+[Service]
+Type=oneshot
+WorkingDirectory=%PTLABEL_ROOT%
+Environment=PTLABEL_ROOT=%PTLABEL_ROOT%
+Environment=PTLABEL_BRANCH=main
+ExecStart=%PTLABEL_ROOT%/scripts/pi-watch.sh

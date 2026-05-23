@@ -1,0 +1,16 @@
+services:
+  ptlabel:
+    image: ptlabel:latest
+    container_name: ptlabel
+    build: .
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    privileged: true
+    volumes:
+      - /dev/bus/usb:/dev/bus/usb
+    environment:
+      CHAIN_PRINT: /usr/local/bin/chain-print
+      LABEL_FONT_SIZE: "74"
+      TAPE_HEIGHT_PX: "112"
+      TAPE_HEIGHT_MM: "18"

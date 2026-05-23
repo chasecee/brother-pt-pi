@@ -1,0 +1,10 @@
+[Unit]
+Description=ptlabel git poll deploy timer
+
+[Timer]
+OnBootSec=30
+OnUnitActiveSec=60
+AccuracySec=1
+
+[Install]
+WantedBy=timers.target
