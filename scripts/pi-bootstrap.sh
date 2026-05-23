@@ -22,7 +22,9 @@ fi
 
 cd "$ROOT"
 git config pull.ff only
-chmod +x scripts/pi-rebuild.sh scripts/pi-watch.sh scripts/pi-verify.sh
+chmod +x scripts/pi-rebuild.sh scripts/pi-watch.sh scripts/pi-verify.sh scripts/pi-usb-setup.sh
+
+./scripts/pi-usb-setup.sh
 
 SERVICE="/etc/systemd/system/ptlabel-watch.service"
 sed "s|%PTLABEL_ROOT%|$ROOT|g" deploy/ptlabel-watch.service | sudo tee "$SERVICE" >/dev/null

@@ -20,9 +20,9 @@ fn connect() -> Result<(PTouch, ptouch::device::Status, ptouch::device::Media)> 
         device: PTouchDevice::PtP710Bt,
         index: 0,
         timeout_milliseconds: 2000,
-        no_reset: cfg!(target_os = "macos"),
+        no_reset: true,
         usb_no_claim: false,
-        usb_no_detach: true,
+        usb_no_detach: cfg!(target_os = "macos"),
         no_status_fetch: false,
     };
 

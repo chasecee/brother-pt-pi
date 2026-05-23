@@ -1,0 +1,1 @@
+ACTION=="bind", SUBSYSTEM=="usb", DRIVER=="usblp", ATTRS{idVendor}=="04f9", ATTRS{idProduct}=="20af", RUN+="/bin/sh -c 'echo -n %k > /sys/bus/usb/drivers/usblp/unbind'"
