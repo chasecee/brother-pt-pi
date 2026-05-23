@@ -76,10 +76,43 @@ def _chain_print_binary() -> str | None:
     return shutil.which("chain-print")
 
 
+def _usb_sysfs_reset() -> bool:
+    # Toggle authorized 0→1 to force re-enumeration of a USB-suspended device.
+    sysfs_root = Path("/sys/bus/usb/devices")
+    if not sysfs_root.is_dir():
+        return False
+    for dev in sysfs_root.iterdir():
+        vendor_f = dev / "idVendor"
+        product_f = dev / "idProduct"
+        authorized_f = dev / "authorized"
+        if not (vendor_f.exists() and product_f.exists() and authorized_f.exists()):
+            continue
+        try:
+            if vendor_f.read_text().strip() == "04f9" and product_f.read_text().strip() == "20af":
+                authorized_f.write_text("0\n")
+                time.sleep(1.0)
+                authorized_f.write_text("1\n")
+                return True
+        except OSError:
+            continue
+    return False
+
+
 def wake_printer() -> StatusResult:
     binary = _chain_print_binary()
     if not binary:
         return StatusResult(ok=False, info="", err="chain-print not found")
+
+    if not usb_ready():
+        return StatusResult(
+            ok=False,
+            info="",
+            err="printer not found on USB — press the power button",
+        )
+
+    _usb_sysfs_reset()
+    time.sleep(2.0)
+
     try:
         with _lock:
             r = subprocess.run(
@@ -114,6 +147,13 @@ def _print_pngs(pngs: list[str]) -> PrintResult:
     try:
         for attempt in range(retries):
             if attempt:
+                if not usb_ready():
+                    return PrintResult(
+                        ok=False,
+                        out="",
+                        err="printer not found on USB — press the power button",
+                        count=len(pngs),
+                    )
                 if "connect" in last.err.lower() or "usb" in last.err.lower():
                     wake_printer()
                 time.sleep(delay * attempt)

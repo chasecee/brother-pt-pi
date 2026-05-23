@@ -9,6 +9,7 @@ services:
     privileged: true
     volumes:
       - /dev/bus/usb:/dev/bus/usb
+      - /sys/bus/usb/devices:/sys/bus/usb/devices
     environment:
       CHAIN_PRINT: /usr/local/bin/chain-print
       LABEL_FONT_SIZE: "74"
