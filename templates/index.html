@@ -44,7 +44,7 @@
   </style>
 </head>
 <body>
-  <h1>Label printer <span id="status" class="bad">checking...</span></h1>
+  <h1>Label printer <span id="status" class="bad">checking...</span> <button id="wakeBtn" type="button" hidden>Wake</button></h1>
 
   <textarea id="text" placeholder="One label per line"></textarea>
 
@@ -335,8 +335,27 @@
 
     function setStatus(text, cls) {
       const el = $("status");
+      const wakeBtn = $("wakeBtn");
       el.textContent = text;
       el.className = cls;
+      wakeBtn.hidden = cls === "ok" || cls === "printing";
+    }
+
+    async function wakePrinter() {
+      const wakeBtn = $("wakeBtn");
+      wakeBtn.disabled = true;
+      setStatus("waking...", "printing");
+      try {
+        const r = await (await fetch("/api/wake", { method: "POST" })).json();
+        if (!r.ok) {
+          alert("Wake failed: " + (r.err || "unknown"));
+        }
+      } catch {
+        alert("Wake failed");
+      } finally {
+        wakeBtn.disabled = false;
+        refreshStatus();
+      }
     }
 
     async function refreshStatus() {
@@ -557,6 +576,7 @@
 
     refreshStatus();
     startStatusPolling();
+    $("wakeBtn").onclick = wakePrinter;
     updateTapeScale();
     window.addEventListener("resize", updateTapeScale);
     window.addEventListener("beforeunload", () => {

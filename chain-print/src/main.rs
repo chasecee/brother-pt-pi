@@ -12,6 +12,8 @@ use ptouch::{Options, PTouch};
 struct Args {
     #[arg(long, default_value_t = 0)]
     pad: usize,
+    #[arg(long, help = "Connect and fetch status to wake the printer")]
+    wake: bool,
     files: Vec<String>,
 }
 
@@ -50,6 +52,11 @@ fn try_connect(opts: &Options) -> Result<(PTouch, ptouch::device::Status, ptouch
 
 fn main() -> Result<()> {
     let args = Args::parse();
+    if args.wake {
+        let (_, status, _) = connect()?;
+        println!("ready media_width={}", status.media_width);
+        return Ok(());
+    }
     if args.files.is_empty() {
         anyhow::bail!("no images");
     }

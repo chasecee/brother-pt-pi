@@ -3,7 +3,7 @@ import os
 
 from flask import Flask, jsonify, render_template, request
 
-from printer import LabelJob, get_backend, is_printing, usb_ready
+from printer import LabelJob, get_backend, is_printing, usb_ready, wake_printer
 from render import RenderOpts, list_fonts, tape_height_mm
 
 app = Flask(__name__)
@@ -124,6 +124,19 @@ def preview():
         return jsonify(ok=True, png="data:image/png;base64," + b64)
     finally:
         os.unlink(path)
+
+
+@app.route("/api/wake", methods=["POST"])
+def do_wake():
+    if is_printing():
+        return jsonify(ok=False, err="printing"), 409
+    try:
+        r = wake_printer()
+        if not r.ok:
+            return jsonify(ok=False, err=r.err), 500
+        return jsonify(ok=True, info=r.info)
+    except Exception as e:
+        return jsonify(ok=False, err=str(e)), 500
 
 
 @app.route("/api/print", methods=["POST"])

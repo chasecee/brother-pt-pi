@@ -76,6 +76,27 @@ def _chain_print_binary() -> str | None:
     return shutil.which("chain-print")
 
 
+def wake_printer() -> StatusResult:
+    binary = _chain_print_binary()
+    if not binary:
+        return StatusResult(ok=False, info="", err="chain-print not found")
+    try:
+        with _lock:
+            r = subprocess.run(
+                [binary, "--wake"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+        if r.returncode == 0:
+            info = r.stdout.strip() or "ready"
+            return StatusResult(ok=True, info=info, err="")
+        err = r.stderr.strip() or r.stdout.strip() or "wake failed"
+        return StatusResult(ok=False, info="", err=err)
+    except subprocess.TimeoutExpired:
+        return StatusResult(ok=False, info="", err="wake timed out")
+
+
 def _print_pngs(pngs: list[str]) -> PrintResult:
     binary = _chain_print_binary()
     if not binary:
@@ -93,6 +114,8 @@ def _print_pngs(pngs: list[str]) -> PrintResult:
     try:
         for attempt in range(retries):
             if attempt:
+                if "connect" in last.err.lower() or "usb" in last.err.lower():
+                    wake_printer()
                 time.sleep(delay * attempt)
             r = _run(cmd)
             if r.returncode == 0:
