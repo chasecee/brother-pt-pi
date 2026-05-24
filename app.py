@@ -3,8 +3,10 @@ import os
 
 from flask import Flask, jsonify, render_template, request
 
-from printer import LabelJob, get_backend, is_printing, usb_ready, wake_printer
-from render import RenderOpts, list_fonts, tape_height_mm
+import media as tape_media
+from printer import LabelJob, is_printing, print_labels, query_media, usb_ready, wake_printer
+from render import RenderOpts, effective_tape_height, list_fonts, render_png, tape_height_mm
+from storage import get_state, record_print, update_state
 
 app = Flask(__name__)
 
@@ -44,7 +46,7 @@ def parse_opts(data: dict) -> RenderOpts:
     except (TypeError, ValueError):
         letter_spacing = -1.0
 
-    margin_h = _clamp_int(data.get("margin_h", data.get("margin_start")), 16)
+    margin_h = _clamp_int(data.get("margin_h"), tape_media.default_margin_h())
 
     return RenderOpts(
         font_size=font_size,
@@ -57,29 +59,39 @@ def parse_opts(data: dict) -> RenderOpts:
     )
 
 
-def parse_label(data) -> LabelJob | None:
-    if isinstance(data, str):
-        text = data.strip()
-        return LabelJob(text=text, opts=RenderOpts()) if text else None
-    if isinstance(data, dict):
-        text = (data.get("text") or "").strip()
-        if not text:
-            return None
-        return LabelJob(text=text, opts=parse_opts(data))
-    return None
+def parse_label(data: dict) -> LabelJob | None:
+    text = (data.get("text") or "").strip()
+    if not text:
+        return None
+    return LabelJob(text=text, opts=parse_opts(data))
 
 
 def expand_labels(items) -> list[LabelJob]:
     jobs: list[LabelJob] = []
     for item in items:
+        if not isinstance(item, dict):
+            continue
         job = parse_label(item)
         if not job:
             continue
-        qty = 1
-        if isinstance(item, dict):
-            qty = _clamp_int(item.get("qty"), 1, lo=1, hi=99)
+        qty = _clamp_int(item.get("qty"), 1, lo=1, hi=99)
         jobs.extend([job] * qty)
     return jobs
+
+
+def _media_response(result):
+    return jsonify(
+        ok=result.ok,
+        width_mm=result.width_mm,
+        kind=result.kind,
+        height_px=result.height_px,
+        tape_color=result.tape_color,
+        text_color=result.text_color,
+        errors=result.errors,
+        ready=result.ready,
+        preset=result.preset,
+        err=result.err,
+    )
 
 
 @app.route("/")
@@ -100,11 +112,44 @@ def fonts():
     return jsonify(families=families)
 
 
+@app.route("/api/state")
+def state_get():
+    return jsonify(get_state())
+
+
+@app.route("/api/state", methods=["PUT"])
+def state_put():
+    data = request.json or {}
+    fields = {}
+    if "prefs" in data:
+        fields["prefs"] = data["prefs"]
+    if "draft" in data:
+        fields["draft"] = data["draft"]
+    if "queue" in data:
+        fields["queue"] = data["queue"]
+    if not fields:
+        return jsonify(ok=False, err="no fields"), 400
+    try:
+        return jsonify(update_state(**fields))
+    except Exception as e:
+        return jsonify(ok=False, err=str(e)), 500
+
+
 @app.route("/api/status")
 def status():
     printing = is_printing()
     connected = usb_ready()
     return jsonify(ok=connected, printing=printing, info="", err="")
+
+
+@app.route("/api/media")
+def media():
+    if is_printing():
+        return jsonify(ok=False, err="printing"), 409
+    result = query_media()
+    if not result.ok:
+        return _media_response(result), 500
+    return _media_response(result)
 
 
 @app.route("/api/preview", methods=["POST"])
@@ -115,7 +160,7 @@ def preview():
         return jsonify(ok=False, err="empty"), 400
     opts = parse_opts(data)
     try:
-        path = get_backend().render_png(text, opts)
+        path = render_png(text, opts, tape_h=effective_tape_height())
     except Exception as e:
         return jsonify(ok=False, err=str(e)), 500
     try:
@@ -134,7 +179,7 @@ def do_wake():
         r = wake_printer()
         if not r.ok:
             return jsonify(ok=False, err=r.err), 500
-        return jsonify(ok=True, info=r.info)
+        return jsonify(ok=True, info=r.info, media=r.media)
     except Exception as e:
         return jsonify(ok=False, err=str(e)), 500
 
@@ -142,14 +187,16 @@ def do_wake():
 @app.route("/api/print", methods=["POST"])
 def do_print():
     data = request.json or {}
-    labels = expand_labels(data.get("labels", []))
+    raw_labels = data.get("labels", [])
+    labels = expand_labels(raw_labels)
     if not labels:
         return jsonify(ok=False, err="no labels"), 400
     try:
-        r = get_backend().print_labels(labels)
+        r = print_labels(labels)
         if not r.ok:
             return jsonify(ok=False, err=r.err), 500
-        return jsonify(ok=True, out=r.out, count=r.count)
+        recent = record_print(raw_labels)
+        return jsonify(ok=True, out=r.out, count=r.count, recent=recent)
     except Exception as e:
         return jsonify(ok=False, err=str(e)), 500
 

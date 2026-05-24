@@ -58,7 +58,7 @@
       <label>Size <input type="number" id="fontSize" value="74" min="10" max="128"></label>
       <label>V align <input type="number" id="vAlign" value="5" min="-32" max="32"></label>
       <label>Spacing <input type="number" id="letterSpacing" value="-1" min="-5" max="20" step="0.5"></label>
-      <label>Margin <input type="number" id="marginH" value="16" min="0" max="128"></label>
+      <label>Margin <input type="number" id="marginH" value="24" min="0" max="128"></label>
     </div>
     <div class="row">
       <label>Qty <input type="number" id="qty" class="narrow" value="1" min="1" max="99"></label>
@@ -94,11 +94,7 @@
     const labels = [];
     const recent = [];
     const $ = (id) => document.getElementById(id);
-    const PREFS_KEY = "ptlabel.prefs";
-    const STATE_KEY = "ptlabel.state";
-    const RECENT_KEY = "ptlabel.recent";
     const QUEUE_MAX = 50;
-    const RECENT_MAX = 30;
     const DEFAULT_PREFS = {
       fontFamily: "Helsinki",
       bold: true,
@@ -106,44 +102,122 @@
       fontSize: 74,
       vAlign: 5,
       letterSpacing: -1,
-      marginH: 16
+      marginH: 24
     };
-    const TAPE_MM = {{ tape_height_mm }};
+    let tapeMm = {{ tape_height_mm }};
     let fontCatalog = {};
     let syncTimer = null;
+    let stateSaveTimer = null;
     let previewSeq = 0;
     let printInFlight = 0;
     let statusTimer = null;
+    let mediaTimer = null;
+    let usbOk = false;
+    let detectedMedia = null;
+    let lastAppliedWidth = null;
 
     function updateTapeScale() {
       const scale = window.devicePixelRatio > 1 ? 72 / 96 : 1;
-      document.documentElement.style.setProperty("--tape-display-mm", String(TAPE_MM * scale));
+      document.documentElement.style.setProperty("--tape-display-mm", String(tapeMm * scale));
     }
 
     function labelLines(text) {
       return text.split("\n").map((s) => s.trim()).filter(Boolean);
     }
 
-    function readPrefs() {
-      try {
-        const raw = localStorage.getItem(PREFS_KEY);
-        if (!raw) return { ...DEFAULT_PREFS };
-        return { ...DEFAULT_PREFS, ...JSON.parse(raw) };
-      } catch {
-        return { ...DEFAULT_PREFS };
-      }
-    }
-
-    function savePrefs() {
-      localStorage.setItem(PREFS_KEY, JSON.stringify({
+    function currentPrefs() {
+      return {
         fontFamily: $("fontFamily").value,
         bold: $("bold").checked,
         italic: $("italic").checked,
         fontSize: parseInt($("fontSize").value, 10) || 74,
         vAlign: parseInt($("vAlign").value, 10) || 0,
         letterSpacing: parseFloat($("letterSpacing").value) || 0,
-        marginH: parseInt($("marginH").value, 10) || 16
-      }));
+        marginH: parseInt($("marginH").value, 10) || 24
+      };
+    }
+
+    async function pushServerState(partial) {
+      try {
+        const resp = await fetch("/api/state", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(partial)
+        });
+        if (!resp.ok) {
+          const r = await resp.json().catch(() => ({}));
+          alert("Save failed: " + (r.err || resp.statusText));
+        }
+      } catch {
+        alert("Save failed");
+      }
+    }
+
+    function flushStateSave() {
+      clearTimeout(stateSaveTimer);
+      stateSaveTimer = null;
+      fetch("/api/state", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          draft: $("text").value,
+          queue: labels.map(itemPayload),
+          prefs: currentPrefs()
+        }),
+        keepalive: true
+      });
+    }
+
+    function scheduleStateSave() {
+      clearTimeout(stateSaveTimer);
+      stateSaveTimer = setTimeout(() => {
+        pushServerState({
+          draft: $("text").value,
+          queue: labels.map(itemPayload),
+          prefs: currentPrefs()
+        });
+      }, 500);
+    }
+
+    function savePrefs() {
+      pushServerState({ prefs: currentPrefs() });
+    }
+
+    function saveState() {
+      scheduleStateSave();
+    }
+
+    async function loadServerState() {
+      const r = await (await fetch("/api/state")).json();
+      applyPrefs({ ...DEFAULT_PREFS, ...(r.prefs || {}) });
+      $("text").value = r.draft || "";
+      labels.length = 0;
+      for (const item of r.queue || []) {
+        labels.push({ ...item, png: null });
+      }
+      recent.length = 0;
+      for (const item of r.recent || []) {
+        recent.push({ ...item, png: null });
+      }
+    }
+
+    function applyPreset(preset) {
+      if (!preset || preset.width_mm === lastAppliedWidth) return;
+      lastAppliedWidth = preset.width_mm;
+      $("fontSize").value = preset.font_size;
+      $("marginH").value = preset.margin_h;
+      $("vAlign").value = preset.v_align;
+      tapeMm = preset.width_mm;
+      updateTapeScale();
+      savePrefs();
+    }
+
+    function applyMedia(data) {
+      if (!data || !data.ok) return;
+      detectedMedia = data;
+      if (data.width_mm) tapeMm = data.width_mm;
+      updateTapeScale();
+      applyPreset(data.preset);
     }
 
     function applyPrefs(prefs) {
@@ -152,7 +226,7 @@
       $("italic").checked = prefs.italic;
       $("vAlign").value = prefs.vAlign;
       $("letterSpacing").value = prefs.letterSpacing;
-      $("marginH").value = prefs.marginH ?? prefs.marginStart ?? 16;
+      $("marginH").value = prefs.marginH;
       if (fontCatalog[prefs.fontFamily]) {
         $("fontFamily").value = prefs.fontFamily;
       }
@@ -175,7 +249,7 @@
         italic: $("italic").checked,
         v_align: parseInt($("vAlign").value, 10) || 0,
         letter_spacing: parseFloat($("letterSpacing").value) || 0,
-        margin_h: parseInt($("marginH").value, 10) || 16
+        margin_h: parseInt($("marginH").value, 10) || 24
       };
     }
 
@@ -223,37 +297,13 @@
       return labels.reduce((n, item) => n + (item.qty || 1), 0);
     }
 
-    function itemKey(item) {
-      return JSON.stringify(itemPayload(item));
-    }
-
-    function saveRecent() {
-      localStorage.setItem(RECENT_KEY, JSON.stringify(recent.map((item) => itemPayload(item))));
-    }
-
-    function loadRecent() {
-      try {
-        const raw = localStorage.getItem(RECENT_KEY);
-        if (!raw) return [];
-        const items = JSON.parse(raw);
-        if (!Array.isArray(items)) return [];
-        return items.slice(0, RECENT_MAX);
-      } catch {
-        return [];
+    async function applyRecentFromServer(items) {
+      recent.length = 0;
+      for (const item of items || []) {
+        recent.push({ ...item, png: null });
       }
-    }
-
-    function recordPrint(items) {
-      for (let i = items.length - 1; i >= 0; i--) {
-        const item = items[i];
-        const key = itemKey(item);
-        for (let j = recent.length - 1; j >= 0; j--) {
-          if (itemKey(recent[j]) === key) recent.splice(j, 1);
-        }
-        recent.unshift({ ...itemPayload(item), png: item.png || null });
-      }
-      recent.splice(RECENT_MAX);
-      saveRecent();
+      renderRecent();
+      await Promise.all(recent.filter((item) => !item.png).map(fetchPreview));
       renderRecent();
     }
 
@@ -262,33 +312,6 @@
       const draft = $("text").value.trim();
       $("text").value = draft ? draft + "\n" + line : line;
       scheduleSync();
-    }
-
-    function saveState() {
-      localStorage.setItem(STATE_KEY, JSON.stringify({
-        draft: $("text").value,
-        items: labels.map((item) => itemPayload(item))
-      }));
-    }
-
-    function loadState() {
-      try {
-        const raw = localStorage.getItem(STATE_KEY);
-        if (raw) {
-          const data = JSON.parse(raw);
-          return {
-            draft: typeof data.draft === "string" ? data.draft : "",
-            items: Array.isArray(data.items) ? data.items.slice(-QUEUE_MAX) : []
-          };
-        }
-        const legacy = localStorage.getItem("ptlabel.queue");
-        if (legacy) {
-          const data = JSON.parse(legacy);
-          const items = Array.isArray(data.items) ? data.items.slice(-QUEUE_MAX) : [];
-          return { draft: items.map((i) => i.text).join("\n"), items };
-        }
-      } catch {}
-      return { draft: "", items: [] };
     }
 
     function flushSync() {
@@ -304,7 +327,7 @@
       });
       labels.length = 0;
       labels.push(...next.slice(-QUEUE_MAX));
-      saveState();
+      flushStateSave();
     }
 
     function setTextareaFromLabels() {
@@ -330,7 +353,7 @@
         opt.textContent = fam.name;
         sel.append(opt);
       }
-      applyPrefs(readPrefs());
+      applyPrefs({ ...DEFAULT_PREFS });
     }
 
     function setStatus(text, cls) {
@@ -341,6 +364,28 @@
       wakeBtn.hidden = cls === "ok" || cls === "printing";
     }
 
+    function updateStatusDisplay() {
+      if (printInFlight > 0) {
+        setStatus("printing", "printing");
+        return;
+      }
+      if (!usbOk) {
+        setStatus("not found", "bad");
+        return;
+      }
+      if (detectedMedia && detectedMedia.width_mm) {
+        let text = detectedMedia.width_mm + " mm";
+        if (detectedMedia.errors && detectedMedia.errors.includes("no_media")) {
+          text += " · no media";
+        } else if (detectedMedia.tape_color && detectedMedia.text_color) {
+          text += " · " + detectedMedia.tape_color + "/" + detectedMedia.text_color;
+        }
+        setStatus(text, "ok");
+        return;
+      }
+      setStatus("ready", "ok");
+    }
+
     async function wakePrinter() {
       const wakeBtn = $("wakeBtn");
       wakeBtn.disabled = true;
@@ -349,25 +394,46 @@
         const r = await (await fetch("/api/wake", { method: "POST" })).json();
         if (!r.ok) {
           alert("Wake failed: " + (r.err || "unknown"));
+          return;
         }
+        usbOk = true;
+        applyMedia(r.media);
       } catch {
         alert("Wake failed");
       } finally {
         wakeBtn.disabled = false;
-        refreshStatus();
+        await refreshStatus();
+        updateStatusDisplay();
       }
     }
 
     async function refreshStatus() {
       try {
         const r = await (await fetch("/api/status")).json();
+        usbOk = !!r.ok;
         if (r.printing || printInFlight > 0) {
-          setStatus("printing", "printing");
+          updateStatusDisplay();
           return;
         }
-        setStatus(r.ok ? "ready" : "not found", r.ok ? "ok" : "bad");
+        updateStatusDisplay();
       } catch {
+        usbOk = false;
         setStatus("error", "bad");
+      }
+    }
+
+    async function refreshMedia() {
+      if (printInFlight > 0) return;
+      try {
+        const resp = await fetch("/api/media");
+        if (resp.status === 409) return;
+        const r = await resp.json();
+        if (r.ok) {
+          applyMedia(r);
+        }
+        updateStatusDisplay();
+      } catch {
+        updateStatusDisplay();
       }
     }
 
@@ -380,6 +446,18 @@
       if (statusTimer) {
         clearInterval(statusTimer);
         statusTimer = null;
+      }
+    }
+
+    function startMediaPolling() {
+      if (mediaTimer) return;
+      mediaTimer = setInterval(refreshMedia, 60000);
+    }
+
+    function stopMediaPolling() {
+      if (mediaTimer) {
+        clearInterval(mediaTimer);
+        mediaTimer = null;
       }
     }
 
@@ -453,7 +531,7 @@
     async function printItems(items, { clearOnSuccess = false } = {}) {
       if (items.length === 0) return false;
       printInFlight++;
-      setStatus("printing", "printing");
+      updateStatusDisplay();
       resetStatusPolling();
       try {
         const r = await (await fetch("/api/print", {
@@ -465,11 +543,11 @@
           alert("Print failed: " + r.err);
           return false;
         }
-        recordPrint(items);
+        await applyRecentFromServer(r.recent);
         if (clearOnSuccess) {
           labels.length = 0;
           $("text").value = "";
-          saveState();
+          await pushServerState({ draft: "", queue: [] });
           renderTable();
         }
         return true;
@@ -477,6 +555,7 @@
         printInFlight--;
         resetStatusPolling();
         refreshStatus();
+        refreshMedia();
       }
     }
 
@@ -574,8 +653,9 @@
       }
     };
 
-    refreshStatus();
+    refreshStatus().then(refreshMedia);
     startStatusPolling();
+    startMediaPolling();
     $("wakeBtn").onclick = wakePrinter;
     updateTapeScale();
     window.addEventListener("resize", updateTapeScale);
@@ -584,15 +664,9 @@
     });
 
     loadFonts().then(async () => {
-      const { draft, items } = loadState();
-      $("text").value = draft;
-      for (const item of items) {
-        labels.push({ ...item, png: null });
-      }
-      for (const item of loadRecent()) {
-        recent.push({ ...item, png: null });
-      }
+      await loadServerState();
       renderRecent();
+      const draft = $("text").value;
       if (draft && labelLines(draft).length !== labels.length) {
         await syncFromTextarea();
       } else {

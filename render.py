@@ -6,6 +6,8 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
+import media as tape_media
+
 ROOT = Path(__file__).resolve().parent
 FONTS_DIR = ROOT / "fonts"
 CATALOG_PATH = FONTS_DIR / "catalog.json"
@@ -22,14 +24,11 @@ class RenderOpts:
     italic: bool = False
     v_align: int = 5
     letter_spacing: float = -1.0
-    margin_h: int = 16
+    margin_h: int = 24
 
 
 def _margin_h(opts: RenderOpts) -> int:
-    default = int(os.environ.get("LABEL_PAD_PX", "16"))
-    if opts.margin_h is not None:
-        return max(0, opts.margin_h)
-    return default
+    return max(0, opts.margin_h)
 
 
 def load_catalog() -> dict:
@@ -83,7 +82,7 @@ def tape_height_px() -> int:
     px = os.environ.get("TAPE_HEIGHT_PX", "").strip()
     if px.isdigit() and int(px) > 0:
         return int(px)
-    return 112
+    return tape_media.BASELINE_HEIGHT_PX
 
 
 def tape_height_mm() -> float:
@@ -93,14 +92,19 @@ def tape_height_mm() -> float:
             return float(mm)
         except ValueError:
             pass
-    return 18.0
+    return float(tape_media.BASELINE_MM)
 
 
-def default_font_size() -> int:
-    px = os.environ.get("LABEL_FONT_SIZE", "74").strip()
-    if px.isdigit() and int(px) > 0:
-        return int(px)
-    return 74
+def effective_tape_height() -> int:
+    try:
+        from printer import cached_media
+
+        cached = cached_media()
+        if cached and cached.get("height_px"):
+            return int(cached["height_px"])
+    except ImportError:
+        pass
+    return tape_height_px()
 
 
 def _line_height(font: ImageFont.FreeTypeFont) -> int:
@@ -161,16 +165,16 @@ def _ink_center_offset(
     return (tape_h - (ink[3] - ink[1])) // 2 - ink[1]
 
 
-def render_png(text: str, opts: RenderOpts | None = None) -> str:
+def render_png(text: str, opts: RenderOpts | None = None, tape_h: int | None = None) -> str:
     opts = opts or RenderOpts()
     path = resolve_font_file(opts.font_family, opts.bold, opts.italic)
-    tape_h = tape_height_px()
+    tape_h = tape_h if tape_h is not None else effective_tape_height()
     margin_start, margin_end = _margin_h(opts), _margin_h(opts)
     line_gap = int(os.environ.get("LABEL_LINE_GAP_PX", "4"))
     lines = text.split("\n") or [""]
     spacing = float(opts.letter_spacing or 0)
 
-    size = opts.font_size or default_font_size()
+    size = opts.font_size
     font = ImageFont.truetype(str(path), size)
     line_h = _line_height(font)
     widths = _line_widths(lines, font, spacing)

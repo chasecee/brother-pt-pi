@@ -1,7 +1,5 @@
 IMAGE := ptlabel:latest
 TAR := ptlabel-arm64.tar.gz
-MEDIA ?= tze18mm
-BROTHER_FONTS := /Applications/P-touch Editor.app/Contents/Frameworks/BRLBXWrapperMac.framework/Versions/A/Resources/fonts.bundle
 
 .PHONY: build run mac-dev mac-print fonts save load deploy help
 

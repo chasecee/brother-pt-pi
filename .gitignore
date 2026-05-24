@@ -5,3 +5,4 @@ chain-print/target
 .rebuild.lock
 __pycache__/
 *.pyc
+data/

@@ -10,8 +10,11 @@ services:
     volumes:
       - /dev/bus/usb:/dev/bus/usb
       - /sys/bus/usb/devices:/sys/bus/usb/devices
+      - ./data:/app/data
     environment:
       CHAIN_PRINT: /usr/local/bin/chain-print
+      PTLABEL_DATA_DIR: /app/data
       LABEL_FONT_SIZE: "74"
+      LABEL_PAD_PX: "24"
       TAPE_HEIGHT_PX: "112"
       TAPE_HEIGHT_MM: "18"

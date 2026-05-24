@@ -1,21 +1,28 @@
+import json
 import os
 import shutil
 import subprocess
 import sys
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
+import media as tape_media
 import render as label_render
 from render import RenderOpts
 
 ROOT = Path(__file__).resolve().parent
 _lock = threading.Lock()
+_media_cache: dict | None = None
 
 
 def is_printing() -> bool:
     return _lock.locked()
+
+
+def cached_media() -> dict | None:
+    return _media_cache
 
 
 @dataclass
@@ -23,6 +30,21 @@ class StatusResult:
     ok: bool
     info: str
     err: str
+    media: dict | None = None
+
+
+@dataclass
+class MediaResult:
+    ok: bool
+    width_mm: int = 0
+    kind: str = ""
+    height_px: int = 0
+    tape_color: str = ""
+    text_color: str = ""
+    errors: list[str] = field(default_factory=list)
+    ready: bool = False
+    preset: dict | None = None
+    err: str = ""
 
 
 @dataclass
@@ -77,7 +99,6 @@ def _chain_print_binary() -> str | None:
 
 
 def _usb_sysfs_reset() -> bool:
-    # Toggle authorized 0→1 to force re-enumeration of a USB-suspended device.
     sysfs_root = Path("/sys/bus/usb/devices")
     if not sysfs_root.is_dir():
         return False
@@ -98,36 +119,81 @@ def _usb_sysfs_reset() -> bool:
     return False
 
 
-def wake_printer() -> StatusResult:
+def _parse_status_json(raw: str) -> MediaResult:
+    data = json.loads(raw)
+    width = int(data.get("media_width_mm") or 0)
+    preset = tape_media.preset_for_width(width) if width else None
+    return MediaResult(
+        ok=True,
+        width_mm=width,
+        kind=str(data.get("media_kind") or ""),
+        height_px=int(data.get("height_px") or 0),
+        tape_color=str(data.get("tape_color") or ""),
+        text_color=str(data.get("text_color") or ""),
+        errors=list(data.get("errors") or []),
+        ready=bool(data.get("ready")),
+        preset=preset,
+    )
+
+
+def _media_payload(result: MediaResult) -> dict:
+    return {
+        "ok": result.ok,
+        "width_mm": result.width_mm,
+        "kind": result.kind,
+        "height_px": result.height_px,
+        "tape_color": result.tape_color,
+        "text_color": result.text_color,
+        "errors": result.errors,
+        "ready": result.ready,
+        "preset": result.preset,
+        "err": result.err,
+    }
+
+
+def query_media() -> MediaResult:
+    global _media_cache
     binary = _chain_print_binary()
     if not binary:
-        return StatusResult(ok=False, info="", err="chain-print not found")
+        return MediaResult(ok=False, err="chain-print not found")
+    try:
+        with _lock:
+            r = subprocess.run(
+                [binary, "--status-json"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+        if r.returncode != 0:
+            err = r.stderr.strip() or r.stdout.strip() or "status query failed"
+            return MediaResult(ok=False, err=err)
+        line = r.stdout.strip().splitlines()[-1]
+        result = _parse_status_json(line)
+        if result.ok:
+            _media_cache = _media_payload(result)
+        return result
+    except subprocess.TimeoutExpired:
+        return MediaResult(ok=False, err="status query timed out")
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
+        return MediaResult(ok=False, err=str(e))
 
+
+def wake_printer() -> StatusResult:
     if not usb_ready():
         return StatusResult(
             ok=False,
             info="",
             err="printer not found on USB — press the power button",
         )
-
     _usb_sysfs_reset()
     time.sleep(2.0)
-
-    try:
-        with _lock:
-            r = subprocess.run(
-                [binary, "--wake"],
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-        if r.returncode == 0:
-            info = r.stdout.strip() or "ready"
-            return StatusResult(ok=True, info=info, err="")
-        err = r.stderr.strip() or r.stdout.strip() or "wake failed"
-        return StatusResult(ok=False, info="", err=err)
-    except subprocess.TimeoutExpired:
-        return StatusResult(ok=False, info="", err="wake timed out")
+    result = query_media()
+    if not result.ok:
+        return StatusResult(ok=False, info="", err=result.err)
+    info = f"{result.width_mm} mm"
+    if result.tape_color and result.text_color:
+        info += f" · {result.tape_color}/{result.text_color}"
+    return StatusResult(ok=True, info=info, err="", media=_media_payload(result))
 
 
 def _print_pngs(pngs: list[str]) -> PrintResult:
@@ -169,29 +235,11 @@ def _print_pngs(pngs: list[str]) -> PrintResult:
         time.sleep(0.5)
 
 
-class ChainPrintBackend:
-    def status(self) -> StatusResult:
-        ok = usb_ready()
-        return StatusResult(ok=ok, info="", err="")
-
-    def render_png(self, text: str, opts: RenderOpts | None = None) -> str:
-        return label_render.render_png(text, opts)
-
-    def print_labels(self, labels: list[LabelJob]) -> PrintResult:
-        pngs = []
-        try:
-            for lab in labels:
-                pngs.append(label_render.render_png(lab.text, lab.opts))
-            return _print_pngs(pngs)
-        finally:
-            _unlink(pngs)
-
-
-_backend: ChainPrintBackend | None = None
-
-
-def get_backend() -> ChainPrintBackend:
-    global _backend
-    if _backend is None:
-        _backend = ChainPrintBackend()
-    return _backend
+def print_labels(labels: list[LabelJob]) -> PrintResult:
+    pngs = []
+    try:
+        for lab in labels:
+            pngs.append(label_render.render_png(lab.text, lab.opts))
+        return _print_pngs(pngs)
+    finally:
+        _unlink(pngs)
