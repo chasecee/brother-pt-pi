@@ -12,7 +12,7 @@ FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 python3-venv curl \
-    libusb-1.0-0 fonts-dejavu-core usbutils \
+    libusb-1.0-0 fonts-dejavu-core usbutils uhubctl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=chain-builder /src/target/release/chain-print /usr/local/bin/chain-print

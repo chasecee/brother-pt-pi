@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import shutil
 import subprocess
@@ -15,6 +16,7 @@ from render import RenderOpts
 ROOT = Path(__file__).resolve().parent
 _lock = threading.Lock()
 _media_cache: dict | None = None
+log = logging.getLogger("ptlabel.printer")
 
 
 def is_printing() -> bool:
@@ -98,25 +100,82 @@ def _chain_print_binary() -> str | None:
     return shutil.which("chain-print")
 
 
-def _usb_sysfs_reset() -> bool:
-    sysfs_root = Path("/sys/bus/usb/devices")
-    if not sysfs_root.is_dir():
-        return False
-    for dev in sysfs_root.iterdir():
-        vendor_f = dev / "idVendor"
-        product_f = dev / "idProduct"
-        authorized_f = dev / "authorized"
-        if not (vendor_f.exists() and product_f.exists() and authorized_f.exists()):
+PRINTER_VID = "04f9"
+PRINTER_PID = "20af"
+
+
+def _find_printer_sysfs() -> Path | None:
+    root = Path("/sys/bus/usb/devices")
+    if not root.is_dir():
+        return None
+    for dev in root.iterdir():
+        v = dev / "idVendor"
+        p = dev / "idProduct"
+        if not (v.exists() and p.exists()):
             continue
         try:
-            if vendor_f.read_text().strip() == "04f9" and product_f.read_text().strip() == "20af":
-                authorized_f.write_text("0\n")
-                time.sleep(1.0)
-                authorized_f.write_text("1\n")
-                return True
+            if v.read_text().strip() == PRINTER_VID and p.read_text().strip() == PRINTER_PID:
+                return dev
         except OSError:
             continue
-    return False
+    return None
+
+
+def _hub_chain(printer_dev: Path) -> list[str]:
+    chain: list[str] = []
+    cur = printer_dev.resolve().parent
+    while cur.name and cur.name != "devices":
+        class_f = cur / "bDeviceClass"
+        if class_f.exists():
+            try:
+                if class_f.read_text().strip() == "09":
+                    chain.append(cur.name.split("usb")[-1] if cur.name.startswith("usb") else cur.name)
+            except OSError:
+                pass
+        cur = cur.parent
+    return chain
+
+
+def _all_root_hubs() -> list[str]:
+    root = Path("/sys/bus/usb/devices")
+    if not root.is_dir():
+        return []
+    return sorted(
+        d.name[3:] for d in root.iterdir()
+        if d.name.startswith("usb") and d.name[3:].isdigit()
+    )
+
+
+def _vbus_cycle(locations: list[str]) -> tuple[bool, str]:
+    if not shutil.which("uhubctl"):
+        log.error("vbus_cycle: uhubctl not found in PATH")
+        return False, "uhubctl not installed in container"
+    targets = locations or _all_root_hubs()
+    if not targets:
+        log.error("vbus_cycle: no USB root hubs found in sysfs")
+        return False, "no USB root hubs found"
+    log.info("vbus_cycle: targets=%s", targets)
+    err_out = ""
+    for loc in targets:
+        r = subprocess.run(
+            ["uhubctl", "-a", "off", "-l", loc],
+            capture_output=True, text=True, timeout=10,
+        )
+        log.info("vbus_cycle: off -l %s rc=%d stdout=%r stderr=%r",
+                 loc, r.returncode, r.stdout.strip(), r.stderr.strip())
+        if r.returncode != 0:
+            err_out += r.stderr
+    time.sleep(2.0)
+    for loc in targets:
+        r = subprocess.run(
+            ["uhubctl", "-a", "on", "-l", loc],
+            capture_output=True, text=True, timeout=10,
+        )
+        log.info("vbus_cycle: on  -l %s rc=%d stdout=%r stderr=%r",
+                 loc, r.returncode, r.stdout.strip(), r.stderr.strip())
+        if r.returncode != 0:
+            err_out += r.stderr
+    return True, err_out.strip()
 
 
 def _parse_status_json(raw: str) -> MediaResult:
@@ -179,20 +238,38 @@ def query_media() -> MediaResult:
 
 
 def wake_printer() -> StatusResult:
-    if not usb_ready():
+    printer_dev = _find_printer_sysfs()
+    log.info("wake: printer_sysfs=%s usb_ready=%s",
+             printer_dev, usb_ready())
+    locations = _hub_chain(printer_dev) if printer_dev else []
+    ok, err = _vbus_cycle(locations)
+    if not ok:
+        log.error("wake: vbus cycle failed: %s", err)
+        return StatusResult(ok=False, info="", err=err or "vbus cycle failed")
+    deadline = time.monotonic() + 12.0
+    waited = 0.0
+    while time.monotonic() < deadline:
+        if usb_ready():
+            log.info("wake: re-enumerated after %.1fs", waited)
+            break
+        time.sleep(0.5)
+        waited += 0.5
+    else:
+        log.error("wake: printer never re-enumerated within %.1fs", waited)
         return StatusResult(
-            ok=False,
-            info="",
-            err="printer not found on USB — press the power button",
+            ok=False, info="",
+            err="printer did not re-enumerate after VBUS cycle — check Auto Power On is enabled in Brother's settings tool",
         )
-    _usb_sysfs_reset()
-    time.sleep(2.0)
+    time.sleep(1.5)
     result = query_media()
     if not result.ok:
+        log.error("wake: status query failed: %s", result.err)
         return StatusResult(ok=False, info="", err=result.err)
     info = f"{result.width_mm} mm"
     if result.tape_color and result.text_color:
         info += f" · {result.tape_color}/{result.text_color}"
+    log.info("wake: ok width=%dmm tape=%s text=%s",
+             result.width_mm, result.tape_color, result.text_color)
     return StatusResult(ok=True, info=info, err="", media=_media_payload(result))
 
 
@@ -213,22 +290,18 @@ def _print_pngs(pngs: list[str]) -> PrintResult:
     try:
         for attempt in range(retries):
             if attempt:
-                if not usb_ready():
-                    return PrintResult(
-                        ok=False,
-                        out="",
-                        err="printer not found on USB — press the power button",
-                        count=len(pngs),
-                    )
-                if "connect" in last.err.lower() or "usb" in last.err.lower():
+                log.warning("print: retry %d/%d after err=%r", attempt, retries - 1, last.err)
+                if "connect" in last.err.lower() or "usb" in last.err.lower() or "index" in last.err.lower():
                     wake_printer()
                 time.sleep(delay * attempt)
             r = _run(cmd)
             if r.returncode == 0:
+                log.info("print: ok count=%d attempt=%d", len(pngs), attempt + 1)
                 return PrintResult(ok=True, out=r.stdout, err="", count=len(pngs))
             err = r.stderr.strip() or r.stdout.strip() or "print failed"
+            log.error("print: attempt=%d rc=%d err=%r", attempt + 1, r.returncode, err)
             last = PrintResult(ok=False, out=r.stdout, err=err, count=len(pngs))
-            if "connect" not in err.lower() and "usb" not in err.lower():
+            if not any(k in err.lower() for k in ("connect", "usb", "index")):
                 break
         return last
     finally:

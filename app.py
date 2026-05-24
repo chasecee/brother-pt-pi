@@ -1,7 +1,14 @@
 import base64
+import logging
 import os
 
 from flask import Flask, jsonify, render_template, request
+
+logging.basicConfig(
+    level=os.environ.get("PTLABEL_LOG_LEVEL", "INFO"),
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
+log = logging.getLogger("ptlabel.app")
 
 import media as tape_media
 from printer import LabelJob, is_printing, print_labels, query_media, usb_ready, wake_printer
@@ -175,12 +182,16 @@ def preview():
 def do_wake():
     if is_printing():
         return jsonify(ok=False, err="printing"), 409
+    log.info("wake: request from %s", request.remote_addr)
     try:
         r = wake_printer()
         if not r.ok:
+            log.error("wake: failed err=%r", r.err)
             return jsonify(ok=False, err=r.err), 500
+        log.info("wake: success info=%r", r.info)
         return jsonify(ok=True, info=r.info, media=r.media)
     except Exception as e:
+        log.exception("wake: crashed")
         return jsonify(ok=False, err=str(e)), 500
 
 
