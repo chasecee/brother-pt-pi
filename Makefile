@@ -1,13 +1,6 @@
-IMAGE := ptlabel:latest
-TAR := ptlabel-arm64.tar.gz
+IMAGE := ghcr.io/chasecee/brother-pt-pi:latest
 
-.PHONY: build run mac-dev mac-print fonts save load deploy help
-
-build: fonts
-	docker build --platform linux/arm64 -t $(IMAGE) .
-
-run:
-	docker compose up -d
+.PHONY: mac-dev mac-print fonts push help
 
 mac-dev:
 	./scripts/dev-mac.sh
@@ -19,21 +12,11 @@ mac-print:
 fonts:
 	./scripts/sync-fonts.sh
 
-save:
-	docker save $(IMAGE) | gzip > $(TAR)
-
-load:
-	gunzip -c $(TAR) | docker load
-
-deploy:
-	@test -n "$(HOST)" || (echo "usage: make deploy HOST=pi@raspberrypi.local" && exit 1)
-	./scripts/deploy-pi.sh "$(HOST)"
+push: fonts
+	docker buildx build --platform linux/arm64 -t $(IMAGE) --push .
 
 help:
-	@echo "build     - build arm64 Docker image for Pi 4B"
-	@echo "run       - start on Pi (USB passthrough, port 5000)"
 	@echo "mac-dev   - native Mac dev with USB (port 5001)"
 	@echo "mac-print - smoke test chain-print binary"
-	@echo "save      - export image to $(TAR)"
-	@echo "load      - import image from $(TAR)"
-	@echo "deploy    - bootstrap: save, scp tarball, start on Pi (HOST=pi@host)"
+	@echo "fonts     - sync Brother fonts from P-touch Editor"
+	@echo "push      - emergency: build arm64 locally and push to GHCR (CI does this on push to main)"

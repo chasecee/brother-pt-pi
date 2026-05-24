@@ -11,8 +11,9 @@ if ! flock -n 9; then
   exit 0
 fi
 
-echo "rebuilding..."
+echo "pulling latest image..."
 ./scripts/pi-usb-setup.sh
-docker compose build
+docker compose pull
 docker compose up -d
+docker image prune -f >/dev/null
 ./scripts/pi-verify.sh || true

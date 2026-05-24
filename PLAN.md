@@ -40,46 +40,37 @@ Target: **Raspberry Pi 4B**, Raspberry Pi OS **64-bit** (Bookworm), Docker + Com
 Printer on Pi USB (USB-A to micro-USB). Keep the printer on AC power; sleep drops USB.
 Docker runs with USB passthrough (`privileged: true`, `/dev/bus/usb` mount).
 
-### Daily dev (push from Mac, auto-rebuild on Pi)
+### Daily dev (push from Mac, auto-deploy on Pi)
 
-Pi polls GitHub every 60s; no public IP or GitHub Actions required.
+`git push` to `main` triggers `.github/workflows/build.yml`, which builds a `linux/arm64` image and pushes it to `ghcr.io/chasecee/brother-pt-pi:latest`. The Pi polls every 60s and pulls when either git or the image changes — no Rust compile on the Pi.
 
 ```bash
 # Mac
 make mac-dev
-git push                    # Pi picks up within ~60s
+git push                    # CI builds arm64; Pi picks up within ~60s after CI completes
 
 # Pi — one-time bootstrap
-./scripts/pi-bootstrap.sh git@github.com:you/brother-pt-pi.git
+./scripts/pi-bootstrap.sh git@github.com:chasecee/brother-pt-pi.git
 ```
 
-Bootstrap installs a systemd timer (`ptlabel-watch.timer`) that runs `git fetch`, pulls on new commits, and runs `scripts/pi-rebuild.sh`.
+Bootstrap installs a systemd timer (`ptlabel-watch.timer`) that runs `scripts/pi-watch.sh`: fetches git, runs `docker compose pull`, and only restarts when something actually changed.
 
-Manual rebuild on Pi:
+Manual update on Pi:
 
 ```bash
 ~/ptlabel/scripts/pi-rebuild.sh
 ```
 
-Verify after deploy:
+Verify:
 
 ```bash
 ~/ptlabel/scripts/pi-verify.sh
 ```
 
-### Bootstrap fallback (tarball, no git remote yet)
-
-Build arm64 image on Mac, ship to Pi:
+Emergency manual push from Mac (skip CI):
 
 ```bash
-make build
-make deploy HOST=pi@raspberrypi.local
-```
-
-Or on Pi with repo already cloned:
-
-```bash
-make build && make run
+make push
 ```
 
 ### Pi prerequisites
@@ -87,7 +78,8 @@ make build && make run
 - Raspberry Pi OS 64-bit (arm64)
 - Docker Engine + Compose plugin
 - Git read access to repo (deploy key for private repos)
-- One-time on Mac: `make fonts` then commit `fonts/` so Pi rebuilds match Mac rendering
+- Read access to the GHCR image. If the `ghcr.io/chasecee/brother-pt-pi` package is public, no auth needed. Otherwise `docker login ghcr.io` on the Pi with a PAT (`read:packages`).
+- One-time on Mac: `make fonts` then commit `fonts/` so the CI image matches Mac rendering
 
 ## chain-print
 

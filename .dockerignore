@@ -1,6 +1,4 @@
 .git
 .cursor
-*.tar.gz
 PLAN.md
 .venv
-ptlabel-arm64.tar.gz
