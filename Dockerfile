@@ -6,7 +6,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /src
 COPY chain-print/ .
-RUN cargo build --release
+RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,target=/src/target,sharing=locked,id=chainprint-target \
+    cargo build --release && \
+    cp target/release/chain-print /chain-print
 
 FROM debian:bookworm-slim
 
@@ -15,7 +18,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libusb-1.0-0 fonts-dejavu-core usbutils uhubctl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=chain-builder /src/target/release/chain-print /usr/local/bin/chain-print
+COPY --from=chain-builder /chain-print /usr/local/bin/chain-print
 RUN chain-print --help >/dev/null
 
 RUN python3 -m venv /opt/venv
