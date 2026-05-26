@@ -1,8 +1,12 @@
-import os
+from defaults import LABEL_DEFAULTS
 
 BASELINE_MM = 18
 BASELINE_HEIGHT_PX = 112
-BASELINE = {"font_size": 74, "margin_h": 24, "v_align": 5}
+BASELINE = {
+    "font_size": LABEL_DEFAULTS["font_size"],
+    "margin_h": LABEL_DEFAULTS["margin_h"],
+    "v_align": LABEL_DEFAULTS["v_align"],
+}
 
 HEIGHT_PX = {6: 32, 9: 50, 12: 70, 18: 112, 24: 128}
 
@@ -23,7 +27,4 @@ def preset_for_width(mm: int) -> dict:
 
 
 def default_margin_h() -> int:
-    px = os.environ.get("LABEL_PAD_PX", "").strip()
-    if px.isdigit() and int(px) >= 0:
-        return int(px)
-    return BASELINE["margin_h"]
+    return LABEL_DEFAULTS["margin_h"]

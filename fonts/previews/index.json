@@ -1,0 +1,312 @@
+{
+  "AR TianNiuGB BD": {
+    "slug": "ar-tianniugb-bd",
+    "file": "ar-tianniugb-bd.woff2",
+    "variant": "bold"
+  },
+  "AR UDJingXiHeiGB BD": {
+    "slug": "ar-udjingxiheigb-bd",
+    "file": "ar-udjingxiheigb-bd.woff2",
+    "variant": "bold"
+  },
+  "AXIS Basic ProN": {
+    "slug": "axis-basic-pron",
+    "file": "axis-basic-pron.woff2",
+    "variant": "bold"
+  },
+  "AXIS Cond ProN": {
+    "slug": "axis-cond-pron",
+    "file": "axis-cond-pron.woff2",
+    "variant": "regular"
+  },
+  "Atlanta": {
+    "slug": "atlanta",
+    "file": "atlanta.woff2",
+    "variant": "regular"
+  },
+  "BR Face J1": {
+    "slug": "br-face-j1",
+    "file": "br-face-j1.woff2",
+    "variant": "regular"
+  },
+  "BR Face J2": {
+    "slug": "br-face-j2",
+    "file": "br-face-j2.woff2",
+    "variant": "regular"
+  },
+  "BR Face J3": {
+    "slug": "br-face-j3",
+    "file": "br-face-j3.woff2",
+    "variant": "regular"
+  },
+  "BR Face J4": {
+    "slug": "br-face-j4",
+    "file": "br-face-j4.woff2",
+    "variant": "regular"
+  },
+  "BR-OCRB": {
+    "slug": "br-ocrb",
+    "file": "br-ocrb.woff2",
+    "variant": "regular"
+  },
+  "Belgium": {
+    "slug": "belgium",
+    "file": "belgium.woff2",
+    "variant": "regular"
+  },
+  "Berlin": {
+    "slug": "berlin",
+    "file": "berlin.woff2",
+    "variant": "regular"
+  },
+  "Bermuda Script": {
+    "slug": "bermuda-script",
+    "file": "bermuda-script.woff2",
+    "variant": "regular"
+  },
+  "Brougham": {
+    "slug": "brougham",
+    "file": "brougham.woff2",
+    "variant": "regular"
+  },
+  "Brunei": {
+    "slug": "brunei",
+    "file": "brunei.woff2",
+    "variant": "regular"
+  },
+  "Brussels": {
+    "slug": "brussels",
+    "file": "brussels.woff2",
+    "variant": "regular"
+  },
+  "Brussels Condensed": {
+    "slug": "brussels-condensed",
+    "file": "brussels-condensed.woff2",
+    "variant": "regular"
+  },
+  "Calgary": {
+    "slug": "calgary",
+    "file": "calgary.woff2",
+    "variant": "boldItalic"
+  },
+  "Connecticut": {
+    "slug": "connecticut",
+    "file": "connecticut.woff2",
+    "variant": "italic"
+  },
+  "Copenhagen": {
+    "slug": "copenhagen",
+    "file": "copenhagen.woff2",
+    "variant": "regular"
+  },
+  "CopperplateTMed": {
+    "slug": "copperplatetmed",
+    "file": "copperplatetmed.woff2",
+    "variant": "regular"
+  },
+  "Coronet IB": {
+    "slug": "coronet-ib",
+    "file": "coronet-ib.woff2",
+    "variant": "regular"
+  },
+  "DomCasualD": {
+    "slug": "domcasuald",
+    "file": "domcasuald.woff2",
+    "variant": "regular"
+  },
+  "FetteMitD": {
+    "slug": "fettemitd",
+    "file": "fettemitd.woff2",
+    "variant": "regular"
+  },
+  "FuturaT": {
+    "slug": "futurat",
+    "file": "futurat.woff2",
+    "variant": "regular"
+  },
+  "Germany": {
+    "slug": "germany",
+    "file": "germany.woff2",
+    "variant": "regular"
+  },
+  "Guatemala": {
+    "slug": "guatemala",
+    "file": "guatemala.woff2",
+    "variant": "regular"
+  },
+  "Helsinki": {
+    "slug": "helsinki",
+    "file": "helsinki.woff2",
+    "variant": "regular"
+  },
+  "Helsinki Narrow": {
+    "slug": "helsinki-narrow",
+    "file": "helsinki-narrow.woff2",
+    "variant": "regular"
+  },
+  "ImpactURW": {
+    "slug": "impacturw",
+    "file": "impacturw.woff2",
+    "variant": "regular"
+  },
+  "Istanbul": {
+    "slug": "istanbul",
+    "file": "istanbul.woff2",
+    "variant": "regular"
+  },
+  "Koubai Kyokasho": {
+    "slug": "koubai-kyokasho",
+    "file": "koubai-kyokasho.woff2",
+    "variant": "regular"
+  },
+  "Letter Gothic": {
+    "slug": "letter-gothic",
+    "file": "letter-gothic.woff2",
+    "variant": "regular"
+  },
+  "Misugi Gothic-B": {
+    "slug": "misugi-gothic-b",
+    "file": "misugi-gothic-b.woff2",
+    "variant": "regular"
+  },
+  "Misugi Gothic-L": {
+    "slug": "misugi-gothic-l",
+    "file": "misugi-gothic-l.woff2",
+    "variant": "regular"
+  },
+  "Misugi Gothic-M": {
+    "slug": "misugi-gothic-m",
+    "file": "misugi-gothic-m.woff2",
+    "variant": "regular"
+  },
+  "Oklahoma": {
+    "slug": "oklahoma",
+    "file": "oklahoma.woff2",
+    "variant": "regular"
+  },
+  "PT Dingbats 1": {
+    "slug": "pt-dingbats-1",
+    "file": "pt-dingbats-1.woff2",
+    "variant": "regular"
+  },
+  "PT Dingbats 2": {
+    "slug": "pt-dingbats-2",
+    "file": "pt-dingbats-2.woff2",
+    "variant": "regular"
+  },
+  "PT Dingbats 3": {
+    "slug": "pt-dingbats-3",
+    "file": "pt-dingbats-3.woff2",
+    "variant": "regular"
+  },
+  "PT Dingbats 4": {
+    "slug": "pt-dingbats-4",
+    "file": "pt-dingbats-4.woff2",
+    "variant": "regular"
+  },
+  "PT Symbol 1": {
+    "slug": "pt-symbol-1",
+    "file": "pt-symbol-1.woff2",
+    "variant": "regular"
+  },
+  "PT Symbol 2": {
+    "slug": "pt-symbol-2",
+    "file": "pt-symbol-2.woff2",
+    "variant": "regular"
+  },
+  "PT Utah Condensed": {
+    "slug": "pt-utah-condensed",
+    "file": "pt-utah-condensed.woff2",
+    "variant": "regular"
+  },
+  "PT??": {
+    "slug": "pt",
+    "file": "pt.woff2",
+    "variant": "regular"
+  },
+  "PTC Dingbats2": {
+    "slug": "ptc-dingbats2",
+    "file": "ptc-dingbats2.woff2",
+    "variant": "regular"
+  },
+  "PTC Dingbats3": {
+    "slug": "ptc-dingbats3",
+    "file": "ptc-dingbats3.woff2",
+    "variant": "regular"
+  },
+  "PTRoundToday": {
+    "slug": "ptroundtoday",
+    "file": "ptroundtoday.woff2",
+    "variant": "bold"
+  },
+  "Portugal": {
+    "slug": "portugal",
+    "file": "portugal.woff2",
+    "variant": "regular"
+  },
+  "Renka Gyosho": {
+    "slug": "renka-gyosho",
+    "file": "renka-gyosho.woff2",
+    "variant": "regular"
+  },
+  "Ryuga Pensho": {
+    "slug": "ryuga-pensho",
+    "file": "ryuga-pensho.woff2",
+    "variant": "regular"
+  },
+  "San Diego": {
+    "slug": "san-diego",
+    "file": "san-diego.woff2",
+    "variant": "regular"
+  },
+  "TBPGothic": {
+    "slug": "tbpgothic",
+    "file": "tbpgothic.woff2",
+    "variant": "regular"
+  },
+  "TBPGothicPro": {
+    "slug": "tbpgothicpro",
+    "file": "tbpgothicpro.woff2",
+    "variant": "regular"
+  },
+  "TBPRGothicPro": {
+    "slug": "tbprgothicpro",
+    "file": "tbprgothicpro.woff2",
+    "variant": "regular"
+  },
+  "TBPYokobutoMincho": {
+    "slug": "tbpyokobutomincho",
+    "file": "tbpyokobutomincho.woff2",
+    "variant": "bold"
+  },
+  "TBShinKai": {
+    "slug": "tbshinkai",
+    "file": "tbshinkai.woff2",
+    "variant": "bold"
+  },
+  "Touka Maru Gothic-L": {
+    "slug": "touka-maru-gothic-l",
+    "file": "touka-maru-gothic-l.woff2",
+    "variant": "regular"
+  },
+  "US": {
+    "slug": "us",
+    "file": "us.woff2",
+    "variant": "regular"
+  },
+  "Utah": {
+    "slug": "utah",
+    "file": "utah.woff2",
+    "variant": "regular"
+  },
+  "Wazakura Mincho-B": {
+    "slug": "wazakura-mincho-b",
+    "file": "wazakura-mincho-b.woff2",
+    "variant": "regular"
+  },
+  "Wazakura Mincho-M": {
+    "slug": "wazakura-mincho-m",
+    "file": "wazakura-mincho-m.woff2",
+    "variant": "regular"
+  }
+}

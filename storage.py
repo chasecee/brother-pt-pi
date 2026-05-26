@@ -4,18 +4,12 @@ import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
+from defaults import LABEL_DEFAULTS, LIMITS, prefs_defaults
+
 QUEUE_MAX = 50
 RECENT_MAX = 30
 
-DEFAULT_PREFS = {
-    "fontFamily": "Helsinki",
-    "bold": True,
-    "italic": False,
-    "fontSize": 74,
-    "vAlign": 5,
-    "letterSpacing": -1,
-    "marginH": 24,
-}
+DEFAULT_PREFS = prefs_defaults()
 
 _lock = threading.Lock()
 
@@ -57,13 +51,16 @@ def _normalize_prefs(raw) -> dict:
         prefs["fontFamily"] = family.strip()
     prefs["bold"] = bool(raw.get("bold", prefs["bold"]))
     prefs["italic"] = bool(raw.get("italic", prefs["italic"]))
-    prefs["fontSize"] = _clamp_int(raw.get("fontSize"), prefs["fontSize"], lo=10, hi=128)
-    prefs["vAlign"] = _clamp_int(raw.get("vAlign"), prefs["vAlign"], lo=-32, hi=32)
+    fs_lo, fs_hi = LIMITS["font_size"]
+    va_lo, va_hi = LIMITS["v_align"]
+    mh_lo, mh_hi = LIMITS["margin_h"]
+    prefs["fontSize"] = _clamp_int(raw.get("fontSize"), prefs["fontSize"], lo=fs_lo, hi=fs_hi)
+    prefs["vAlign"] = _clamp_int(raw.get("vAlign"), prefs["vAlign"], lo=va_lo, hi=va_hi)
     try:
         prefs["letterSpacing"] = float(raw.get("letterSpacing", prefs["letterSpacing"]))
     except (TypeError, ValueError):
         pass
-    prefs["marginH"] = _clamp_int(raw.get("marginH"), prefs["marginH"], lo=0, hi=128)
+    prefs["marginH"] = _clamp_int(raw.get("marginH"), prefs["marginH"], lo=mh_lo, hi=mh_hi)
     return prefs
 
 
@@ -73,21 +70,25 @@ def _normalize_label(raw) -> dict | None:
     text = (raw.get("text") or "").strip()
     if not text:
         return None
-    family = (raw.get("font_family") or "Helsinki").strip() or "Helsinki"
+    family = (raw.get("font_family") or LABEL_DEFAULTS["font_family"]).strip() or LABEL_DEFAULTS["font_family"]
     try:
-        letter_spacing = float(raw.get("letter_spacing", -1))
+        letter_spacing = float(raw.get("letter_spacing", LABEL_DEFAULTS["letter_spacing"]))
     except (TypeError, ValueError):
-        letter_spacing = -1.0
+        letter_spacing = float(LABEL_DEFAULTS["letter_spacing"])
+    fs_lo, fs_hi = LIMITS["font_size"]
+    va_lo, va_hi = LIMITS["v_align"]
+    mh_lo, mh_hi = LIMITS["margin_h"]
+    q_lo, q_hi = LIMITS["qty"]
     return {
         "text": text,
-        "qty": _clamp_int(raw.get("qty"), 1, lo=1, hi=99),
-        "font_size": _clamp_int(raw.get("font_size"), 74, lo=10, hi=128),
+        "qty": _clamp_int(raw.get("qty"), 1, lo=q_lo, hi=q_hi),
+        "font_size": _clamp_int(raw.get("font_size"), LABEL_DEFAULTS["font_size"], lo=fs_lo, hi=fs_hi),
         "font_family": family,
-        "bold": bool(raw.get("bold", True)),
-        "italic": bool(raw.get("italic", False)),
-        "v_align": _clamp_int(raw.get("v_align"), 5, lo=-32, hi=32),
+        "bold": bool(raw.get("bold", LABEL_DEFAULTS["bold"])),
+        "italic": bool(raw.get("italic", LABEL_DEFAULTS["italic"])),
+        "v_align": _clamp_int(raw.get("v_align"), LABEL_DEFAULTS["v_align"], lo=va_lo, hi=va_hi),
         "letter_spacing": letter_spacing,
-        "margin_h": _clamp_int(raw.get("margin_h"), DEFAULT_PREFS["marginH"], lo=0, hi=128),
+        "margin_h": _clamp_int(raw.get("margin_h"), LABEL_DEFAULTS["margin_h"], lo=mh_lo, hi=mh_hi),
     }
 
 

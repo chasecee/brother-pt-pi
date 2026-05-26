@@ -7,24 +7,27 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 import media as tape_media
+from defaults import LABEL_DEFAULTS
 
 ROOT = Path(__file__).resolve().parent
 FONTS_DIR = ROOT / "fonts"
 CATALOG_PATH = FONTS_DIR / "catalog.json"
+PREVIEWS_INDEX = FONTS_DIR / "previews" / "index.json"
 FALLBACK_FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 
 _catalog: dict | None = None
+_preview_index: dict | None = None
 
 
 @dataclass
 class RenderOpts:
-    font_size: int = 74
-    font_family: str = "Helsinki"
-    bold: bool = True
-    italic: bool = False
-    v_align: int = 5
-    letter_spacing: float = -1.0
-    margin_h: int = 24
+    font_size: int = LABEL_DEFAULTS["font_size"]
+    font_family: str = LABEL_DEFAULTS["font_family"]
+    bold: bool = LABEL_DEFAULTS["bold"]
+    italic: bool = LABEL_DEFAULTS["italic"]
+    v_align: int = LABEL_DEFAULTS["v_align"]
+    letter_spacing: float = LABEL_DEFAULTS["letter_spacing"]
+    margin_h: int = LABEL_DEFAULTS["margin_h"]
 
 
 def _margin_h(opts: RenderOpts) -> int:
@@ -44,6 +47,17 @@ def load_catalog() -> dict:
 
 def list_fonts() -> dict:
     return load_catalog()
+
+
+def load_preview_index() -> dict:
+    global _preview_index
+    if _preview_index is not None:
+        return _preview_index
+    if PREVIEWS_INDEX.is_file():
+        _preview_index = json.loads(PREVIEWS_INDEX.read_text())
+    else:
+        _preview_index = {}
+    return _preview_index
 
 
 def resolve_font_file(family: str, bold: bool, italic: bool) -> Path:
@@ -70,7 +84,7 @@ def resolve_font_file(family: str, bold: bool, italic: bool) -> Path:
         if path.is_file():
             return path
 
-    for path in sorted(FONTS_DIR.glob("*")):
+    for path in sorted(FONTS_DIR.rglob("*")):
         if path.suffix.lower() in {".ttf", ".otf"}:
             return path
     if os.path.isfile(FALLBACK_FONT):
@@ -143,28 +157,6 @@ def _draw_line(
         cx += font.getlength(ch) + spacing
 
 
-def _ink_center_offset(
-    lines: list[str],
-    font: ImageFont.FreeTypeFont,
-    tape_h: int,
-    margin_start: int,
-    line_h: int,
-    line_gap: int,
-    block_top: int,
-    spacing: float,
-) -> int:
-    tmp = Image.new("L", (4096, tape_h), 0)
-    draw = ImageDraw.Draw(tmp)
-    ascent, _ = font.getmetrics()
-    for i, line in enumerate(lines):
-        baseline = block_top + ascent + i * (line_h + line_gap)
-        _draw_line(draw, margin_start, baseline, line, font, spacing, 255)
-    ink = tmp.getbbox()
-    if not ink:
-        return 0
-    return (tape_h - (ink[3] - ink[1])) // 2 - ink[1]
-
-
 def render_png(text: str, opts: RenderOpts | None = None, tape_h: int | None = None) -> str:
     opts = opts or RenderOpts()
     path = resolve_font_file(opts.font_family, opts.bold, opts.italic)
@@ -182,9 +174,8 @@ def render_png(text: str, opts: RenderOpts | None = None, tape_h: int | None = N
     img_w = content_w + margin_start + margin_end
     img_h = tape_h
 
-    block_top = _ink_center_offset(
-        lines, font, img_h, margin_start, line_h, line_gap, 0, spacing
-    ) + int(opts.v_align or 0)
+    block_h = len(lines) * line_h + max(0, len(lines) - 1) * line_gap
+    block_top = (img_h - block_h) // 2 + int(opts.v_align or 0)
     im = Image.new("1", (img_w, img_h), 1)
     draw = ImageDraw.Draw(im)
     ascent, _ = font.getmetrics()

@@ -13,19 +13,33 @@
   <textarea id="text" placeholder="One label per line"></textarea>
 
   <div class="settings">
+    <details class="font-accordion" id="fontAccordion">
+      <summary class="font-accordion-summary">
+        <span>Font</span>
+        <span id="fontAccordionHint" class="font-accordion-hint"></span>
+      </summary>
+      <div class="font-accordion-body">
+        <div class="row font-picker-row">
+          <div class="font-picker">
+            <button type="button" id="fontCurrent" class="font-current" aria-expanded="false" aria-controls="fontPanel"></button>
+            <div id="fontPanel" class="font-panel" hidden>
+              <input type="search" id="fontSearch" placeholder="Search fonts" autocomplete="off">
+              <div id="fontList" class="font-list"></div>
+            </div>
+          </div>
+          <label><input type="checkbox" id="bold" checked> Bold</label>
+          <label><input type="checkbox" id="italic"> Italic</label>
+        </div>
+        <div class="row">
+          <label>Size <input type="number" id="fontSize" value="{{ prefs.fontSize }}" min="{{ limits.font_size[0] }}" max="{{ limits.font_size[1] }}"></label>
+          <label>V align <input type="number" id="vAlign" value="{{ prefs.vAlign }}" min="{{ limits.v_align[0] }}" max="{{ limits.v_align[1] }}"></label>
+          <label>Spacing <input type="number" id="letterSpacing" value="{{ prefs.letterSpacing }}" min="-5" max="20" step="0.5"></label>
+        </div>
+      </div>
+    </details>
     <div class="row">
-      <label>Font <select id="fontFamily"></select></label>
-      <label><input type="checkbox" id="bold" checked> Bold</label>
-      <label><input type="checkbox" id="italic"> Italic</label>
-    </div>
-    <div class="row">
-      <label>Size <input type="number" id="fontSize" value="74" min="10" max="128"></label>
-      <label>V align <input type="number" id="vAlign" value="5" min="-32" max="32"></label>
-      <label>Spacing <input type="number" id="letterSpacing" value="-1" min="-5" max="20" step="0.5"></label>
-      <label>Margin <input type="number" id="marginH" value="24" min="0" max="128"></label>
-    </div>
-    <div class="row">
-      <label>Qty <input type="number" id="qty" class="narrow" value="1" min="1" max="99"></label>
+      <label>Margin <input type="number" id="marginH" value="{{ prefs.marginH }}" min="{{ limits.margin_h[0] }}" max="{{ limits.margin_h[1] }}"></label>
+      <label>Qty <input type="number" id="qty" class="narrow" value="1" min="{{ limits.qty[0] }}" max="{{ limits.qty[1] }}"></label>
     </div>
   </div>
 
@@ -59,15 +73,8 @@
     const recent = [];
     const $ = (id) => document.getElementById(id);
     const QUEUE_MAX = 50;
-    const DEFAULT_PREFS = {
-      fontFamily: "Helsinki",
-      bold: true,
-      italic: false,
-      fontSize: 74,
-      vAlign: 5,
-      letterSpacing: -1,
-      marginH: 24
-    };
+    const DEFAULT_PREFS = {{ prefs | tojson }};
+    const LIMITS = {{ limits | tojson }};
     let tapeMm = {{ tape_height_mm }};
     let fontCatalog = {};
     let syncTimer = null;
@@ -79,6 +86,12 @@
     let usbOk = false;
     let detectedMedia = null;
     let lastAppliedWidth = null;
+    let fontObserver = null;
+
+    function selectedFontFamily() {
+      const el = document.querySelector('input[name="fontFamily"]:checked');
+      return el ? el.value : DEFAULT_PREFS.fontFamily;
+    }
 
     function updateTapeScale() {
       const scale = window.devicePixelRatio > 1 ? 72 / 96 : 1;
@@ -91,13 +104,13 @@
 
     function currentPrefs() {
       return {
-        fontFamily: $("fontFamily").value,
+        fontFamily: selectedFontFamily(),
         bold: $("bold").checked,
         italic: $("italic").checked,
-        fontSize: parseInt($("fontSize").value, 10) || 74,
+        fontSize: parseInt($("fontSize").value, 10) || DEFAULT_PREFS.fontSize,
         vAlign: parseInt($("vAlign").value, 10) || 0,
         letterSpacing: parseFloat($("letterSpacing").value) || 0,
-        marginH: parseInt($("marginH").value, 10) || 24
+        marginH: parseInt($("marginH").value, 10) || DEFAULT_PREFS.marginH
       };
     }
 
@@ -191,14 +204,19 @@
       $("vAlign").value = prefs.vAlign;
       $("letterSpacing").value = prefs.letterSpacing;
       $("marginH").value = prefs.marginH;
-      if (fontCatalog[prefs.fontFamily]) {
-        $("fontFamily").value = prefs.fontFamily;
+      const radio = $("fontList").querySelector(
+        `input[name="fontFamily"][value="${CSS.escape(prefs.fontFamily)}"]`
+      );
+      if (radio) {
+        radio.checked = true;
+        radio.closest(".font-row")?.scrollIntoView({ block: "nearest" });
       }
+      updateFontCurrent();
       updateStyleToggles();
     }
 
     function updateStyleToggles() {
-      const variants = fontCatalog[$("fontFamily").value] || {};
+      const variants = fontCatalog[selectedFontFamily()] || {};
       $("bold").disabled = !variants.bold && !variants.boldItalic;
       $("italic").disabled = !variants.italic && !variants.boldItalic;
       if ($("bold").disabled) $("bold").checked = false;
@@ -207,18 +225,18 @@
 
     function renderOpts() {
       return {
-        font_size: parseInt($("fontSize").value, 10) || 74,
-        font_family: $("fontFamily").value,
+        font_size: parseInt($("fontSize").value, 10) || DEFAULT_PREFS.fontSize,
+        font_family: selectedFontFamily(),
         bold: $("bold").checked,
         italic: $("italic").checked,
         v_align: parseInt($("vAlign").value, 10) || 0,
         letter_spacing: parseFloat($("letterSpacing").value) || 0,
-        margin_h: parseInt($("marginH").value, 10) || 24
+        margin_h: parseInt($("marginH").value, 10) || DEFAULT_PREFS.marginH
       };
     }
 
     function defaultQty() {
-      return Math.max(1, Math.min(99, parseInt($("qty").value, 10) || 1));
+      return Math.max(LIMITS.qty[0], Math.min(LIMITS.qty[1], parseInt($("qty").value, 10) || 1));
     }
 
     function itemPayload(item) {
@@ -305,18 +323,112 @@
       renderTable();
     }
 
+    function buildFontFaces(families) {
+      const lines = [];
+      for (const fam of families) {
+        if (!fam.slug) continue;
+        const css = `ptp-${fam.slug}`;
+        lines.push(
+          `@font-face{font-family:"${css}";src:url("/font-previews/${fam.slug}.woff2") format("woff2");font-display:block}`
+        );
+        lines.push(
+          `.font-row[data-slug="${fam.slug}"].preview-loaded,.font-current[data-slug="${fam.slug}"].preview-loaded{font-family:"${css}",system-ui,sans-serif}`
+        );
+      }
+      let el = document.getElementById("fontFaces");
+      if (!el) {
+        el = document.createElement("style");
+        el.id = "fontFaces";
+        document.head.append(el);
+      }
+      el.textContent = lines.join("\n");
+    }
+
+    function setupFontObserver(list) {
+      if (fontObserver) fontObserver.disconnect();
+      fontObserver = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          const row = entry.target;
+          if (row.dataset.slug) row.classList.add("preview-loaded");
+          fontObserver.unobserve(row);
+        }
+      }, { root: list, rootMargin: "40px" });
+      for (const row of list.querySelectorAll(".font-row[data-slug]")) {
+        fontObserver.observe(row);
+      }
+    }
+
+    function setFontPanelOpen(open) {
+      const panel = $("fontPanel");
+      const btn = $("fontCurrent");
+      panel.hidden = !open;
+      btn.setAttribute("aria-expanded", String(open));
+      btn.classList.toggle("open", open);
+      if (open) {
+        setupFontObserver($("fontList"));
+        $("fontSearch").focus();
+      }
+    }
+
+    function updateFontCurrent() {
+      const btn = $("fontCurrent");
+      const family = selectedFontFamily();
+      const row = $("fontList").querySelector(
+        `input[name="fontFamily"][value="${CSS.escape(family)}"]`
+      )?.closest(".font-row");
+      btn.textContent = family;
+      $("fontAccordionHint").textContent = family;
+      if (row?.dataset.slug) {
+        btn.dataset.slug = row.dataset.slug;
+        btn.classList.add("preview-loaded");
+        row.classList.add("preview-loaded");
+      } else {
+        btn.removeAttribute("data-slug");
+        btn.classList.remove("preview-loaded");
+      }
+    }
+
+    function filterFonts() {
+      const q = $("fontSearch").value.trim().toLowerCase();
+      for (const row of $("fontList").querySelectorAll(".font-row")) {
+        const name = (row.dataset.family || "").toLowerCase();
+        row.hidden = !!(q && !name.includes(q));
+      }
+    }
+
     async function loadFonts() {
       const r = await (await fetch("/api/fonts")).json();
-      const sel = $("fontFamily");
-      sel.innerHTML = "";
+      const list = $("fontList");
+      list.innerHTML = "";
       fontCatalog = {};
-      for (const fam of r.families) {
+      const families = r.families || [];
+      for (const fam of families) {
         fontCatalog[fam.name] = Object.fromEntries(fam.variants.map((v) => [v, true]));
-        const opt = document.createElement("option");
-        opt.value = fam.name;
-        opt.textContent = fam.name;
-        sel.append(opt);
+        const label = document.createElement("label");
+        label.className = "font-row";
+        label.dataset.family = fam.name;
+        if (fam.slug) label.dataset.slug = fam.slug;
+        const radio = document.createElement("input");
+        radio.type = "radio";
+        radio.name = "fontFamily";
+        radio.value = fam.name;
+        label.append(radio, document.createTextNode(fam.name));
+        list.append(label);
       }
+      buildFontFaces(families);
+      setupFontObserver(list);
+      list.addEventListener("change", (e) => {
+        if (e.target.name !== "fontFamily") return;
+        updateFontCurrent();
+        setFontPanelOpen(false);
+        onControlChange();
+      });
+      $("fontSearch").addEventListener("input", filterFonts);
+      $("fontCurrent").addEventListener("click", () => setFontPanelOpen($("fontPanel").hidden));
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && !$("fontPanel").hidden) setFontPanelOpen(false);
+      });
       applyPrefs({ ...DEFAULT_PREFS });
     }
 
@@ -538,11 +650,11 @@
         const qty = document.createElement("input");
         qty.type = "number";
         qty.className = "narrow";
-        qty.min = "1";
-        qty.max = "99";
+        qty.min = String(LIMITS.qty[0]);
+        qty.max = String(LIMITS.qty[1]);
         qty.value = item.qty || 1;
         qty.onchange = () => {
-          item.qty = Math.max(1, Math.min(99, parseInt(qty.value, 10) || 1));
+          item.qty = Math.max(LIMITS.qty[0], Math.min(LIMITS.qty[1], parseInt(qty.value, 10) || 1));
           qty.value = item.qty;
           saveState();
           renderTable();
@@ -603,7 +715,7 @@
       refreshAllPreviews();
     }
 
-    for (const id of ["fontSize", "fontFamily", "bold", "italic", "vAlign", "letterSpacing", "marginH"]) {
+    for (const id of ["fontSize", "bold", "italic", "vAlign", "letterSpacing", "marginH"]) {
       $(id).addEventListener("input", onControlChange);
       $(id).addEventListener("change", onControlChange);
     }

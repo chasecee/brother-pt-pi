@@ -2,7 +2,7 @@ import base64
 import logging
 import os
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, send_from_directory
 
 logging.basicConfig(
     level=os.environ.get("PTLABEL_LOG_LEVEL", "INFO"),
@@ -11,8 +11,17 @@ logging.basicConfig(
 log = logging.getLogger("ptlabel.app")
 
 import media as tape_media
+from defaults import LABEL_DEFAULTS, LIMITS, prefs_defaults
 from printer import LabelJob, is_printing, print_labels, query_media, usb_ready, wake_printer
-from render import RenderOpts, effective_tape_height, list_fonts, render_png, tape_height_mm
+from render import (
+    FONTS_DIR,
+    RenderOpts,
+    effective_tape_height,
+    list_fonts,
+    load_preview_index,
+    render_png,
+    tape_height_mm,
+)
 from storage import get_state, record_print, update_state
 
 app = Flask(__name__)
@@ -26,43 +35,26 @@ def _clamp_int(val, default: int, lo: int = 0, hi: int = 128) -> int:
     return max(lo, min(hi, n))
 
 
+def _coerce_float(val, default: float) -> float:
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return default
+
+
 def parse_opts(data: dict) -> RenderOpts:
-    bold = bool(data.get("bold", True))
-    italic = bool(data.get("italic", False))
-
-    font_size = data.get("font_size")
-    if font_size is not None:
-        try:
-            font_size = int(font_size)
-        except (TypeError, ValueError):
-            font_size = 74
-    else:
-        font_size = 74
-
-    font_family = (data.get("font_family") or "Helsinki").strip() or "Helsinki"
-
-    v_align = data.get("v_align", 5)
-    try:
-        v_align = int(v_align)
-    except (TypeError, ValueError):
-        v_align = 5
-
-    letter_spacing = data.get("letter_spacing", -1)
-    try:
-        letter_spacing = float(letter_spacing)
-    except (TypeError, ValueError):
-        letter_spacing = -1.0
-
-    margin_h = _clamp_int(data.get("margin_h"), tape_media.default_margin_h())
-
+    fs_lo, fs_hi = LIMITS["font_size"]
+    va_lo, va_hi = LIMITS["v_align"]
+    mh_lo, mh_hi = LIMITS["margin_h"]
+    family = (data.get("font_family") or LABEL_DEFAULTS["font_family"]).strip() or LABEL_DEFAULTS["font_family"]
     return RenderOpts(
-        font_size=font_size,
-        font_family=font_family,
-        bold=bold,
-        italic=italic,
-        v_align=v_align,
-        letter_spacing=letter_spacing,
-        margin_h=margin_h,
+        font_size=_clamp_int(data.get("font_size"), LABEL_DEFAULTS["font_size"], lo=fs_lo, hi=fs_hi),
+        font_family=family,
+        bold=bool(data.get("bold", LABEL_DEFAULTS["bold"])),
+        italic=bool(data.get("italic", LABEL_DEFAULTS["italic"])),
+        v_align=_clamp_int(data.get("v_align"), LABEL_DEFAULTS["v_align"], lo=va_lo, hi=va_hi),
+        letter_spacing=_coerce_float(data.get("letter_spacing"), LABEL_DEFAULTS["letter_spacing"]),
+        margin_h=_clamp_int(data.get("margin_h"), LABEL_DEFAULTS["margin_h"], lo=mh_lo, hi=mh_hi),
     )
 
 
@@ -81,7 +73,8 @@ def expand_labels(items) -> list[LabelJob]:
         job = parse_label(item)
         if not job:
             continue
-        qty = _clamp_int(item.get("qty"), 1, lo=1, hi=99)
+        q_lo, q_hi = LIMITS["qty"]
+        qty = _clamp_int(item.get("qty"), 1, lo=q_lo, hi=q_hi)
         jobs.extend([job] * qty)
     return jobs
 
@@ -103,18 +96,31 @@ def _media_response(result):
 
 @app.route("/")
 def index():
-    return render_template("index.html", tape_height_mm=tape_height_mm())
+    return render_template(
+        "index.html",
+        tape_height_mm=tape_height_mm(),
+        prefs=prefs_defaults(),
+        limits=LIMITS,
+    )
+
+
+@app.route("/font-previews/<path:filename>")
+def font_previews(filename):
+    return send_from_directory(FONTS_DIR / "previews", filename, max_age=31536000)
 
 
 @app.route("/api/fonts")
 def fonts():
     catalog = list_fonts()
+    previews = load_preview_index()
     families = []
     for name in sorted(catalog):
         variants = catalog[name]
+        meta = previews.get(name) or {}
         families.append({
             "name": name,
             "variants": sorted(variants.keys()),
+            "slug": meta.get("slug"),
         })
     return jsonify(families=families)
 

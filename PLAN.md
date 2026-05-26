@@ -98,7 +98,7 @@ Mac uses `no_reset: true` in connect options to avoid USB re-enumeration issues.
 |----------|---------|---------|
 | `CHAIN_PRINT` | auto-detect | Path to chain-print binary |
 | `CHAIN_PRINT_PAD` | `0` | Padding pixels between labels |
-| `LABEL_FONT_SIZE` | `74` | Default font size (18 mm baseline; overridden by detected media) |
+| `LABEL_FONT_SIZE` | `76` | Default font size (18 mm baseline; overridden by detected media) |
 | `TAPE_HEIGHT_PX` | `112` | Tape height in pixels (18 mm baseline; overridden by detected media) |
 | `TAPE_HEIGHT_MM` | `18` | Tape height for UI scale (18 mm baseline; overridden by detected media) |
 | `PTLABEL_DATA_DIR` | `./data` | Directory for `state.json` (prefs, draft, queue, recent) |
@@ -131,7 +131,7 @@ The PT-P710BT reports loaded tape over USB via `ESC i S` (32-byte status). The v
 
 ## Width presets
 
-Current defaults are tuned for **18 mm** tape (112 px print height, 74 pt font, 24 px margin, v_align 5). These match `ptouch` print areas for TZe18mm: `(8, 112, 8)`.
+Current defaults are tuned for **18 mm** tape (112 px print height, 76 pt font, 24 px margin, v_align 4). These match `ptouch` print areas for TZe18mm: `(8, 112, 8)`.
 
 When media is detected, apply a preset for that width. Scale linearly from the 18 mm baseline:
 
@@ -144,7 +144,7 @@ preset_value = round(baseline_18mm * height_px / 112)
 | 6 mm  | 32        | 21        | 7        | 1       |
 | 9 mm  | 50        | 33        | 11       | 2       |
 | 12 mm | 70        | 46        | 15       | 3       |
-| 18 mm | 112       | 74        | 24       | 5       |
+| 18 mm | 112       | 76        | 24       | 4       |
 | 24 mm | 128       | 85        | 27       | 6       |
 
 `height_px` values come from `ptouch::device::Media::area()` center column. Heat-shrink widths use their own areas if we ever support them.

@@ -4,11 +4,17 @@ import re
 import sys
 from pathlib import Path
 
+from fontTools.subset import Options, Subsetter, save_font
+from fontTools.ttLib import TTFont
 from PIL import ImageFont
 
 ROOT = Path(__file__).resolve().parent.parent
 FONTS_DIR = ROOT / "fonts"
 CATALOG_PATH = FONTS_DIR / "catalog.json"
+PREVIEWS_DIR = FONTS_DIR / "previews"
+PREVIEWS_INDEX = PREVIEWS_DIR / "index.json"
+
+VARIANT_ORDER = ("regular", "bold", "italic", "boldItalic")
 
 BOLD_STYLES = re.compile(
     r"bold|demi|heavy|black|medium|^\s*b\s*$|^\s*m\s*$|^\s*h\s*$",
@@ -43,23 +49,101 @@ def variant_from_name(filename: str, style: str) -> str | None:
     return "regular"
 
 
+def family_slug(name: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+    return slug or "font"
+
+
+def unique_slug(name: str, used: set[str]) -> str:
+    base = family_slug(name)
+    slug = base
+    n = 2
+    while slug in used:
+        slug = f"{base}-{n}"
+        n += 1
+    used.add(slug)
+    return slug
+
+
+def pick_variant(variants: dict[str, str]) -> str | None:
+    for key in VARIANT_ORDER:
+        if key in variants:
+            return key
+    return next(iter(variants), None)
+
+
+def subset_text(family: str) -> str:
+    return "".join(dict.fromkeys(family))
+
+
+def write_subset(src: Path, text: str, dest: Path) -> None:
+    options = Options()
+    options.flavor = "woff2"
+    options.desubroutinize = True
+    options.no_hinting = True
+    options.layout_features = []
+    options.layout_scripts = []
+    options.drop_tables += ["GSUB", "GPOS", "GDEF", "BASE", "JSTF"]
+    font = TTFont(str(src))
+    subsetter = Subsetter(options=options)
+    subsetter.populate(text=text)
+    subsetter.subset(font)
+    save_font(font, str(dest), options)
+
+
 def build_catalog() -> dict:
     catalog: dict[str, dict[str, str]] = {}
-    for path in sorted(FONTS_DIR.iterdir()):
-        if path.suffix.lower() not in {".ttf", ".otf"}:
+    paths = sorted(p for p in FONTS_DIR.rglob("*") if p.suffix.lower() in {".ttf", ".otf"})
+    for path in paths:
+        if path.is_relative_to(PREVIEWS_DIR):
             continue
         try:
             font = ImageFont.truetype(str(path), 24)
             family, style = font.getname()
         except OSError as e:
-            print(f"skip {path.name}: {e}", file=sys.stderr)
+            print(f"skip {path.relative_to(FONTS_DIR)}: {e}", file=sys.stderr)
             continue
         family = family.strip() or path.stem
         variant = variant_from_name(path.name, style)
         entry = catalog.setdefault(family, {})
         if variant not in entry:
-            entry[variant] = path.name
+            entry[variant] = path.relative_to(FONTS_DIR).as_posix()
     return dict(sorted(catalog.items()))
+
+
+def build_previews(catalog: dict) -> dict:
+    PREVIEWS_DIR.mkdir(parents=True, exist_ok=True)
+    index: dict[str, dict] = {}
+    used_slugs: set[str] = set()
+    expected_files: set[str] = set()
+
+    for family, variants in catalog.items():
+        variant = pick_variant(variants)
+        if not variant:
+            continue
+        rel = variants[variant]
+        src = FONTS_DIR / rel
+        if not src.is_file():
+            print(f"skip preview {family}: missing {rel}", file=sys.stderr)
+            continue
+        slug = unique_slug(family, used_slugs)
+        filename = f"{slug}.woff2"
+        dest = PREVIEWS_DIR / filename
+        try:
+            write_subset(src, subset_text(family), dest)
+        except Exception as e:
+            print(f"skip preview {family}: {e}", file=sys.stderr)
+            continue
+        expected_files.add(filename)
+        index[family] = {"slug": slug, "file": filename, "variant": variant}
+        print(f"preview {family} -> {filename}")
+
+    for path in PREVIEWS_DIR.glob("*.woff2"):
+        if path.name not in expected_files:
+            path.unlink()
+
+    PREVIEWS_INDEX.write_text(json.dumps(index, indent=2) + "\n")
+    return index
 
 
 def main() -> None:
@@ -69,6 +153,8 @@ def main() -> None:
     catalog = build_catalog()
     CATALOG_PATH.write_text(json.dumps(catalog, indent=2) + "\n")
     print(f"wrote {CATALOG_PATH} ({len(catalog)} families)")
+    previews = build_previews(catalog)
+    print(f"wrote {PREVIEWS_INDEX} ({len(previews)} previews)")
 
 
 if __name__ == "__main__":
