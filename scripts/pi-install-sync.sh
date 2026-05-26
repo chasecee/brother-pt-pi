@@ -3,26 +3,39 @@ set -euo pipefail
 
 ROOT="${PTLABEL_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 BRANCH="${PTLABEL_BRANCH:-main}"
-UNIT_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+RUN_USER="${PTLABEL_USER:-$USER}"
 
-mkdir -p "$UNIT_DIR"
+if [[ $EUID -ne 0 ]] && ! command -v sudo >/dev/null; then
+  echo "install sudo or run as root" >&2
+  exit 1
+fi
+
+as_root() {
+  if [[ $EUID -eq 0 ]]; then "$@"; else sudo "$@"; fi
+}
 
 render_unit() {
   sed \
     -e "s|__PTLABEL_ROOT__|$ROOT|g" \
     -e "s|__PTLABEL_BRANCH__|$BRANCH|g" \
+    -e "s|__PTLABEL_USER__|$RUN_USER|g" \
     "$1"
 }
 
-render_unit "$ROOT/deploy/ptlabel-sync.service" >"$UNIT_DIR/ptlabel-sync.service"
-render_unit "$ROOT/deploy/ptlabel-sync.timer" >"$UNIT_DIR/ptlabel-sync.timer"
+systemctl --user disable --now ptlabel-sync.timer 2>/dev/null || true
 
-systemctl --user daemon-reload
-systemctl --user enable --now ptlabel-sync.timer
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+render_unit "$ROOT/deploy/ptlabel-sync.service" >"$tmp/ptlabel-sync.service"
+render_unit "$ROOT/deploy/ptlabel-sync.timer" >"$tmp/ptlabel-sync.timer"
 
-if command -v loginctl >/dev/null; then
-  loginctl enable-linger "$USER" >/dev/null 2>&1 || true
-fi
+as_root cp "$tmp/ptlabel-sync.service" /etc/systemd/system/
+as_root cp "$tmp/ptlabel-sync.timer" /etc/systemd/system/
+
+as_root systemctl daemon-reload
+as_root systemctl enable --now ptlabel-sync.timer
+as_root systemctl start ptlabel-sync.service
 
 echo "sync timer enabled: ptlabel-sync.timer (every 60s)"
-echo "logs: journalctl --user -u ptlabel-sync.service -f"
+echo "logs: journalctl -u ptlabel-sync.service -f"
+echo "status: systemctl status ptlabel-sync.timer ptlabel-sync.service"
