@@ -46,6 +46,16 @@ def normalize_blocks(raw) -> list[dict]:
                 height = 1.0
             if height != 1.0:
                 entry["height"] = max(0.25, min(2.0, height))
+            if icon_id.strip().startswith("custom:"):
+                fit = block.get("fit")
+                if fit in ("fit", "cover", "crop"):
+                    entry["fit"] = fit
+                try:
+                    rotate = int(block.get("rotate", 0))
+                except (TypeError, ValueError):
+                    rotate = 0
+                if rotate in (90, 180, 270):
+                    entry["rotate"] = rotate
             out.append(entry)
     return out
 

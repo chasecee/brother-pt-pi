@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ptlabel</title>
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <style>:root { --tape-display-mm: {{ tape_height_mm }}; }</style>
 </head>
@@ -39,9 +40,8 @@
       </div>
     </details>
     <details class="font-accordion icon-accordion" id="iconAccordion">
-      <summary class="font-accordion-summary">
-        <span>Icons</span>
-        <span id="iconAccordionHint" class="font-accordion-hint">none</span>
+      <summary class="font-accordion-summary icon-accordion-summary">
+        <span id="iconQuickPicks" class="icon-quick-picks"></span>
       </summary>
       <div class="font-accordion-body">
         <div id="iconCategoryStrip" class="icon-category-strip"></div>
@@ -117,6 +117,11 @@
     let currentIconList = [];
     let iconSearchTimer = null;
     const DEFAULT_ICON_CATEGORY = "dp-emoji";
+    const ICON_QUICK_PICKS = [
+      { id: "dp-emoji:57345", title: "Smiley" },
+      { id: "dp-emoji:57346", title: "Frowny" },
+      { id: "dp-emoji:57344", title: "Party" },
+    ];
 
     function selectedFontFamily() {
       const el = document.querySelector('input[name="fontFamily"]:checked');
@@ -147,11 +152,16 @@
       if (!strip) return blocks;
       for (const el of strip.children) {
         if (el.classList.contains("block-add-wrap")) continue;
-        if (el.classList.contains("block-text")) {
-          blocks.push({ type: "text", value: el.value });
+        if (el.classList.contains("block-text-wrap")) {
+          const input = el.querySelector(".block-text");
+          blocks.push({ type: "text", value: input?.value ?? "" });
         } else if (el.classList.contains("icon-chip")) {
           const block = { type: "icon", id: el.dataset.id };
           if (el.dataset.height) block.height = parseFloat(el.dataset.height);
+          if (el.classList.contains("icon-chip-image")) {
+            if (el.dataset.fit) block.fit = el.dataset.fit;
+            if (el.dataset.rotate) block.rotate = parseInt(el.dataset.rotate, 10);
+          }
           blocks.push(block);
         }
       }
@@ -405,6 +415,18 @@
       renderTable();
     }
 
+    const TRASH_SVG =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>';
+
+    function createRemoveBtn(title, extraClass = "") {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = `block-remove ${extraClass}`.trim();
+      btn.title = title;
+      btn.innerHTML = TRASH_SVG;
+      return btn;
+    }
+
     function iconThumbUrl(iconId) {
       if (iconId.startsWith("custom:")) return `/icons/custom/${iconId.slice(7)}`;
       const parts = iconId.split(":");
@@ -412,24 +434,113 @@
       return "";
     }
 
-    function createIconChip(iconId, thumbUrl, height) {
+    function isCustomIcon(iconId) {
+      return iconId.startsWith("custom:");
+    }
+
+    function applyIconChipStyle(chip) {
+      const frame = chip.querySelector(".icon-chip-frame");
+      const img = chip.querySelector(".icon-chip-frame img");
+      if (!frame || !img) return;
+      if (!isCustomIcon(chip.dataset.id)) {
+        delete frame.dataset.fit;
+        delete frame.dataset.rotated;
+        img.style.transform = "";
+        return;
+      }
+      const fit = chip.dataset.fit || "crop";
+      const rot = parseInt(chip.dataset.rotate || "0", 10) || 0;
+      frame.dataset.fit = fit;
+      if (rot % 180 !== 0) {
+        frame.dataset.rotated = "1";
+      } else {
+        delete frame.dataset.rotated;
+      }
+      img.style.transform = rot ? `rotate(${rot}deg)` : "";
+      chip.querySelectorAll(".icon-chip-toolbar button[data-mode]").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.mode === fit);
+      });
+    }
+
+    function setIconChipFit(chip, fit) {
+      chip.dataset.fit = fit;
+      applyIconChipStyle(chip);
+      scheduleSync();
+    }
+
+    function rotateIconChip(chip) {
+      const cur = parseInt(chip.dataset.rotate || "0", 10) || 0;
+      chip.dataset.rotate = String((cur + 90) % 360);
+      applyIconChipStyle(chip);
+      scheduleSync();
+    }
+
+    function createIconChip(iconId, thumbUrl, opts = {}) {
+      const custom = isCustomIcon(iconId);
       const chip = document.createElement("button");
       chip.type = "button";
-      chip.className = "icon-chip";
+      chip.className = custom ? "icon-chip icon-chip-image" : "icon-chip";
       chip.dataset.id = iconId;
-      if (height != null && height !== 1) chip.dataset.height = String(height);
+      if (opts.height != null && opts.height !== 1) chip.dataset.height = String(opts.height);
+      if (custom) {
+        chip.dataset.fit = opts.fit || "crop";
+        if (opts.rotate) chip.dataset.rotate = String(opts.rotate);
+      }
+
+      let toolbar = null;
+      if (custom) {
+        toolbar = document.createElement("div");
+        toolbar.className = "icon-chip-toolbar";
+        for (const mode of ["fit", "cover", "crop"]) {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.dataset.mode = mode;
+          btn.textContent = mode.charAt(0).toUpperCase() + mode.slice(1);
+          btn.title = mode.charAt(0).toUpperCase() + mode.slice(1);
+          btn.addEventListener("mousedown", (e) => e.preventDefault());
+          btn.onclick = (e) => {
+            e.stopPropagation();
+            setIconChipFit(chip, mode);
+          };
+          toolbar.append(btn);
+        }
+        const rotateBtn = document.createElement("button");
+        rotateBtn.type = "button";
+        rotateBtn.className = "icon-chip-rotate";
+        rotateBtn.textContent = "Rotate";
+        rotateBtn.title = "Rotate 90°";
+        rotateBtn.addEventListener("mousedown", (e) => e.preventDefault());
+        rotateBtn.onclick = (e) => {
+          e.stopPropagation();
+          rotateIconChip(chip);
+        };
+        toolbar.append(rotateBtn);
+      }
+
+      const frame = document.createElement("span");
+      frame.className = "icon-chip-frame";
       const img = document.createElement("img");
       img.src = thumbUrl;
       img.alt = "";
-      const confirm = document.createElement("span");
-      confirm.className = "icon-chip-confirm";
-      confirm.textContent = "Remove";
-      chip.append(img, confirm);
+      frame.append(img);
+      const remove = createRemoveBtn("Remove icon");
+      remove.addEventListener("mousedown", (e) => e.preventDefault());
+      remove.onclick = (e) => {
+        e.stopPropagation();
+        chip.remove();
+        scheduleSync();
+      };
+      if (toolbar) {
+        chip.append(toolbar, frame, remove);
+      } else {
+        chip.append(frame, remove);
+      }
+      applyIconChipStyle(chip);
       chip.onclick = (e) => {
         e.stopPropagation();
+        if (e.target.closest(".block-remove") || e.target.closest(".icon-chip-toolbar")) return;
         if (chip.classList.contains("confirming")) {
-          chip.remove();
-          scheduleSync();
+          chip.classList.remove("confirming");
           return;
         }
         closeAllChipConfirms();
@@ -442,7 +553,28 @@
       document.querySelectorAll(".icon-chip.confirming").forEach((c) => c.classList.remove("confirming"));
     }
 
+    function removeTextWrap(wrap, row) {
+      const strip = row.querySelector(".block-strip");
+      const segments = [...strip.querySelectorAll(".block-text-wrap, .icon-chip")];
+      if (segments.length > 1 || strip.querySelector(".icon-chip")) {
+        wrap.remove();
+        scheduleSync();
+        return;
+      }
+      const rows = document.querySelectorAll("#draftEditor .label-row");
+      if (rows.length > 1) {
+        row.remove();
+        scheduleSync();
+        return;
+      }
+      wrap.querySelector(".block-text").value = "";
+      scheduleSync();
+    }
+
     function createTextSegment(value) {
+      const wrap = document.createElement("div");
+      wrap.className = "block-text-wrap";
+
       const input = document.createElement("input");
       input.type = "text";
       input.className = "block-text";
@@ -455,7 +587,26 @@
           addDraftLine();
         }
       });
-      return input;
+      input.addEventListener("focus", () => {
+        closeAllChipConfirms();
+        document.querySelectorAll(".block-text-wrap.focused").forEach((w) => {
+          if (w !== wrap) w.classList.remove("focused");
+        });
+        wrap.classList.add("focused");
+      });
+      input.addEventListener("blur", () => {
+        setTimeout(() => wrap.classList.remove("focused"), 0);
+      });
+
+      const remove = createRemoveBtn("Remove text");
+      remove.addEventListener("mousedown", (e) => e.preventDefault());
+      remove.onclick = (e) => {
+        e.stopPropagation();
+        removeTextWrap(wrap, wrap.closest(".label-row"));
+      };
+
+      wrap.append(input, remove);
+      return wrap;
     }
 
     function closeAllAddMenus() {
@@ -553,7 +704,7 @@
           insertBlockInStrip(strip, createIconChip(
             block.id,
             block.thumb_url || iconThumbUrl(block.id),
-            block.height
+            { height: block.height, fit: block.fit, rotate: block.rotate }
           ));
         }
       }
@@ -562,11 +713,12 @@
         if (e.key !== "Backspace") return;
         const active = document.activeElement;
         if (!active?.classList?.contains("block-text") || active.value) return;
-        const segments = [...strip.querySelectorAll(".block-text, .icon-chip")];
+        const wrap = active.closest(".block-text-wrap");
+        if (!wrap) return;
+        const segments = [...strip.querySelectorAll(".block-text-wrap, .icon-chip")];
         if (segments.length > 1 || strip.querySelector(".icon-chip")) {
           e.preventDefault();
-          active.remove();
-          scheduleSync();
+          removeTextWrap(wrap, row);
           return;
         }
         const rows = document.querySelectorAll("#draftEditor .label-row");
@@ -577,14 +729,11 @@
         }
       });
 
-      const remove = document.createElement("button");
-      remove.type = "button";
-      remove.className = "btn btn-sm btn-danger row-remove";
-      remove.textContent = "Remove";
+      const remove = createRemoveBtn("Remove line", "row-remove");
       remove.onclick = () => {
         const rows = document.querySelectorAll("#draftEditor .label-row");
         if (rows.length <= 1) {
-          strip.querySelectorAll(".block-text, .icon-chip").forEach((el) => el.remove());
+          strip.querySelectorAll(".block-text-wrap, .icon-chip").forEach((el) => el.remove());
           insertBlockInStrip(strip, createTextSegment(""));
           scheduleSync();
           return;
@@ -607,7 +756,6 @@
       focusedRowIndex = Math.min(focusedRowIndex, rows.length - 1);
       const focusRow = editor.querySelectorAll(".label-row")[focusedRowIndex];
       focusRow?.querySelector(".block-text")?.focus();
-      updateIconAccordionHint();
     }
 
     function addDraftLine() {
@@ -629,17 +777,28 @@
       pendingIconRow = null;
       if (!row) return;
       insertBlockInRow(row, createIconChip(iconId, thumbUrl));
-      updateIconAccordionHint();
       scheduleSync();
     }
 
-    function updateIconAccordionHint() {
-      const lines = getDraftLines();
-      let iconCount = 0;
-      for (const line of lines) {
-        iconCount += line.filter((b) => b.type === "icon").length;
+    function renderIconQuickPicks() {
+      const wrap = $("iconQuickPicks");
+      wrap.innerHTML = "";
+      for (const pick of ICON_QUICK_PICKS) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "icon-quick-pick";
+        btn.title = pick.title;
+        const img = document.createElement("img");
+        img.alt = pick.title;
+        img.src = iconThumbUrl(pick.id);
+        btn.append(img);
+        btn.onclick = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          insertIconIntoRow(pick.id, iconThumbUrl(pick.id));
+        };
+        wrap.append(btn);
       }
-      $("iconAccordionHint").textContent = iconCount ? `${iconCount} icon${iconCount === 1 ? "" : "s"}` : "none";
     }
 
     function buildFontFaces(families) {
@@ -901,7 +1060,6 @@
 
       labels.length = 0;
       labels.push(...next.slice(-QUEUE_MAX));
-      updateIconAccordionHint();
 
       const seq = ++previewSeq;
       await Promise.all(labels.filter((item) => !item.png).map(fetchPreview));
@@ -1218,6 +1376,7 @@
     });
 
     loadFonts().then(async () => {
+      renderIconQuickPicks();
       await loadIconCategories();
       await loadServerState();
       renderRecent();

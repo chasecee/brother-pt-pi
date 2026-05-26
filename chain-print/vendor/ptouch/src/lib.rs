@@ -8,7 +8,7 @@ use std::time::Duration;
 use commands::Commands;
 use device::Status;
 use image::ImageError;
-use log::{trace, debug, error};
+use log::{trace, debug, info};
 
 #[cfg(feature = "clap")]
 use clap::Parser;
@@ -417,9 +417,9 @@ impl PTouch {
     fn print_raw_p710(&mut self, data: Vec<[u8; 16]>, info: &PrintInfo) -> Result<(), Error> {
         self.set_compression_mode(CompressionMode::Tiff)?;
         self.select_graphics_raster()?;
-        self.set_status_notify(true)?;
         self.set_various_mode(VariousMode::AUTO_CUT)?;
 
+        let lines = data.len();
         for line in data {
             self.raster_transfer_packbits(&line)?;
         }
@@ -430,46 +430,41 @@ impl PTouch {
             self.print_and_feed()?;
         }
 
-        self.wait_print_complete()
+        self.wait_p710(lines, info.chain)
+    }
+
+    fn wait_p710(&mut self, lines: usize, chain: bool) -> Result<(), Error> {
+        // P710 graphics raster mode does not report print completion on the status EP.
+        let ms = (lines as u64).saturating_mul(12) + if chain { 400 } else { 2800 };
+        let wait = Duration::from_millis(ms.clamp(600, 15000));
+        info!("p710 wait {:?} lines={} chain={}", wait, lines, chain);
+        std::thread::sleep(wait);
+        let s = self.status()?;
+        if !s.error1.is_empty() || !s.error2.is_empty() {
+            return Err(Error::PTouch(s.error1, s.error2));
+        }
+        Ok(())
     }
 
     fn wait_print_complete(&mut self) -> Result<(), Error> {
-        // The PT-P710BT does not reliably emit Completed after print_and_feed.
-        // Success: explicit Completed, or Printing then back to Editing.
-        let mut saw_printing = false;
-        for _ in 0..120 {
+        for i in 0..15 {
             if let Ok(s) = self.read_status(self.timeout) {
                 if !s.error1.is_empty() || !s.error2.is_empty() {
                     debug!("Print error: {:?} {:?}", s.error1, s.error2);
                     return Err(Error::PTouch(s.error1, s.error2));
                 }
-                if s.phase == Phase::Printing {
-                    if !saw_printing {
-                        debug!("Started printing");
-                    }
-                    saw_printing = true;
-                }
                 if s.status_type == DeviceStatus::Completed {
                     debug!("Print completed");
                     return Ok(());
                 }
-                if matches!(
-                    s.status_type,
-                    DeviceStatus::PhaseChange | DeviceStatus::Notification
-                ) && s.phase == Phase::Printing
-                {
-                    saw_printing = true;
-                }
-                if saw_printing && s.phase == Phase::Editing {
-                    debug!("Print completed (phase returned to editing)");
-                    return Ok(());
-                }
             }
-            std::thread::sleep(Duration::from_millis(100));
+            if i >= 10 {
+                debug!("Print timeout");
+                return Err(Error::Timeout);
+            }
+            std::thread::sleep(Duration::from_secs(1));
         }
-
-        debug!("Print timeout (saw_printing={})", saw_printing);
-        Err(Error::Timeout)
+        Ok(())
     }
 
     pub fn cut(&mut self, info: &PrintInfo) -> Result<(), Error> {

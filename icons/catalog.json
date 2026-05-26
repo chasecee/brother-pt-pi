@@ -1,20 +1,20 @@
 {
   "categories": [
     {
-      "id": "np-arrows",
-      "title": "Arrows",
-      "order": 1,
-      "count": 33,
-      "preview_id": "np-arrows:57344",
-      "preview_thumb": "np-arrows/57344.png"
-    },
-    {
       "id": "dp-emoji",
       "title": "DP_Emoji",
       "order": 1,
       "count": 98,
       "preview_id": "dp-emoji:57344",
       "preview_thumb": "dp-emoji/57344.png"
+    },
+    {
+      "id": "np-arrows",
+      "title": "Arrows",
+      "order": 1,
+      "count": 33,
+      "preview_id": "np-arrows:57344",
+      "preview_thumb": "np-arrows/57344.png"
     },
     {
       "id": "dp-music",

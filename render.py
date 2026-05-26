@@ -219,20 +219,74 @@ def _rasterize_brother_glyph(family: str, codepoint: int, target_h: int) -> Imag
     return _scale_to_height(im.crop(bbox), target_h)
 
 
-def _load_custom_icon(icon_id: str, target_h: int) -> Image.Image:
-    path = custom_icon_path(icon_id)
-    if not path:
-        raise RuntimeError(f"custom icon not found: {icon_id}")
-    src = _load_image_l(path)
-    bbox = _content_bbox(src)
-    if bbox:
-        src = src.crop(bbox)
+def _apply_rotate(im: Image.Image, degrees: int) -> Image.Image:
+    if degrees % 360 == 0:
+        return im
+    return im.rotate(
+        -degrees,
+        expand=True,
+        resample=Image.Resampling.BICUBIC,
+        fillcolor=255,
+    )
+
+
+def _fit_box(src: Image.Image, box: int, mode: str) -> Image.Image:
+    w, h = src.size
+    if w < 1 or h < 1:
+        return Image.new("L", (box, box), 255)
+    if mode == "cover":
+        scale = max(box / w, box / h)
+        nw = max(1, int(round(w * scale)))
+        nh = max(1, int(round(h * scale)))
+        resized = src.resize((nw, nh), Image.Resampling.LANCZOS)
+        left = (nw - box) // 2
+        top = (nh - box) // 2
+        return resized.crop((left, top, left + box, top + box))
+    scale = min(box / w, box / h)
+    nw = max(1, int(round(w * scale)))
+    nh = max(1, int(round(h * scale)))
+    out = Image.new("L", (box, box), 255)
+    resized = src.resize((nw, nh), Image.Resampling.LANCZOS)
+    out.paste(resized, ((box - nw) // 2, (box - nh) // 2))
+    return out
+
+
+def _parse_icon_fit(block: dict) -> str:
+    fit = block.get("fit", "crop")
+    return fit if fit in ("fit", "cover", "crop") else "crop"
+
+
+def _parse_icon_rotate(block: dict) -> int:
+    try:
+        rotate = int(block.get("rotate", 0))
+    except (TypeError, ValueError):
+        return 0
+    return rotate if rotate in (0, 90, 180, 270) else 0
+
+
+def _process_icon(src: Image.Image, target_h: int, fit: str, rotate: int) -> Image.Image:
+    if fit == "crop":
+        bbox = _content_bbox(src)
+        if bbox:
+            src = src.crop(bbox)
+    src = _apply_rotate(src, rotate)
+    if fit in ("fit", "cover"):
+        return _fit_box(src, target_h, fit)
     return _scale_to_height(src, target_h)
 
 
-def _icon_image(icon_id: str, target_h: int) -> Image.Image:
+def _load_custom_icon(icon_id: str, target_h: int, fit: str, rotate: int) -> Image.Image:
+    path = custom_icon_path(icon_id)
+    if not path:
+        raise RuntimeError(f"custom icon not found: {icon_id}")
+    return _process_icon(_load_image_l(path), target_h, fit, rotate)
+
+
+def _icon_image(icon_id: str, target_h: int, block: dict) -> Image.Image:
     if icon_id.startswith("custom:"):
-        return _load_custom_icon(icon_id, target_h)
+        fit = _parse_icon_fit(block)
+        rotate = _parse_icon_rotate(block)
+        return _load_custom_icon(icon_id, target_h, fit, rotate)
     meta = get_icon(icon_id)
     if not meta:
         raise RuntimeError(f"unknown icon: {icon_id}")
@@ -267,7 +321,7 @@ def render_blocks(
         elif block["type"] == "icon":
             scale = _icon_scale(block, opts)
             ih = max(8, min(icon_cap, int(round(line_h * scale))))
-            segments.append(("icon", _icon_image(block["id"], ih)))
+            segments.append(("icon", _icon_image(block["id"], ih, block)))
 
     seg_gaps = sum(
         _gap_before(segments[i - 1][0], segments[i][0], icon_gap)

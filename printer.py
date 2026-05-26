@@ -64,8 +64,14 @@ class LabelJob:
 
 
 def _run(cmd: list[str], timeout: int = 120) -> subprocess.CompletedProcess[str]:
+    env = os.environ.copy()
+    env.setdefault("RUST_LOG", "ptouch=info")
     with _lock:
-        return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, env=env)
+    if r.stderr.strip():
+        for line in r.stderr.strip().splitlines():
+            log.info("chain-print: %s", line)
+    return r
 
 
 def usb_ready() -> bool:
