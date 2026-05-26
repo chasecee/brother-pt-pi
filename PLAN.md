@@ -53,12 +53,12 @@ git push                    # CI builds arm64; Pi picks up within ~60s after CI 
 ./scripts/pi-bootstrap.sh git@github.com:chasecee/brother-pt-pi.git
 ```
 
-Bootstrap installs a systemd timer (`ptlabel-watch.timer`) that runs `scripts/pi-watch.sh`: fetches git, runs `docker compose pull`, and only restarts when something actually changed.
+Image updates are auto-applied by the `watchtower` service in `docker-compose.yml` (polls GHCR every 5 min). Changes to `docker-compose.yml` itself still require a manual `git pull && docker compose up -d` on the Pi.
 
 Manual update on Pi:
 
 ```bash
-~/ptlabel/scripts/pi-rebuild.sh
+cd ~/ptlabel && git pull && docker compose pull && docker compose up -d
 ```
 
 Verify:
