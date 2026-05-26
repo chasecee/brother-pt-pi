@@ -92,6 +92,7 @@ impl Commands for PTouch {
     }
 
     fn read_status(&mut self, timeout: Duration) -> Result<Status, Error> {
+        self.status_req()?;
         let status_raw = self.read(timeout)?;
 
         let status = Status::from(status_raw);

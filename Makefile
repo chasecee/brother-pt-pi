@@ -1,6 +1,6 @@
 IMAGE := ghcr.io/chasecee/brother-pt-pi:latest
 
-.PHONY: mac-dev mac-print fonts push help
+.PHONY: mac-dev mac-print fonts icons push help
 
 mac-dev:
 	./scripts/dev-mac.sh
@@ -12,7 +12,10 @@ mac-print:
 fonts:
 	./scripts/sync-fonts.sh
 
-push: fonts
+icons:
+	./scripts/sync-icons.sh
+
+push: fonts icons
 	docker buildx build --platform linux/arm64 -t $(IMAGE) --push .
 
 help:

@@ -4,6 +4,7 @@ import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
+from blocks import blocks_have_content, migrate_draft, migrate_label_dict, normalize_blocks
 from defaults import LABEL_DEFAULTS, LIMITS, prefs_defaults
 
 QUEUE_MAX = 50
@@ -28,7 +29,7 @@ def _state_path() -> Path:
 def _default_state() -> dict:
     return {
         "prefs": dict(DEFAULT_PREFS),
-        "draft": "",
+        "draft": {"lines": []},
         "queue": [],
         "recent": [],
     }
@@ -54,6 +55,8 @@ def _normalize_prefs(raw) -> dict:
     fs_lo, fs_hi = LIMITS["font_size"]
     va_lo, va_hi = LIMITS["v_align"]
     mh_lo, mh_hi = LIMITS["margin_h"]
+    ig_lo, ig_hi = LIMITS["icon_gap"]
+    is_lo, is_hi = LIMITS["icon_size"]
     prefs["fontSize"] = _clamp_int(raw.get("fontSize"), prefs["fontSize"], lo=fs_lo, hi=fs_hi)
     prefs["vAlign"] = _clamp_int(raw.get("vAlign"), prefs["vAlign"], lo=va_lo, hi=va_hi)
     try:
@@ -61,14 +64,20 @@ def _normalize_prefs(raw) -> dict:
     except (TypeError, ValueError):
         pass
     prefs["marginH"] = _clamp_int(raw.get("marginH"), prefs["marginH"], lo=mh_lo, hi=mh_hi)
+    prefs["iconGap"] = _clamp_int(raw.get("iconGap"), prefs["iconGap"], lo=ig_lo, hi=ig_hi)
+    try:
+        icon_size = float(raw.get("iconSize", prefs["iconSize"]))
+    except (TypeError, ValueError):
+        icon_size = prefs["iconSize"]
+    prefs["iconSize"] = max(is_lo, min(is_hi, icon_size))
     return prefs
 
 
 def _normalize_label(raw) -> dict | None:
     if not isinstance(raw, dict):
         return None
-    text = (raw.get("text") or "").strip()
-    if not text:
+    blocks = migrate_label_dict(raw)
+    if not blocks:
         return None
     family = (raw.get("font_family") or LABEL_DEFAULTS["font_family"]).strip() or LABEL_DEFAULTS["font_family"]
     try:
@@ -78,9 +87,15 @@ def _normalize_label(raw) -> dict | None:
     fs_lo, fs_hi = LIMITS["font_size"]
     va_lo, va_hi = LIMITS["v_align"]
     mh_lo, mh_hi = LIMITS["margin_h"]
+    ig_lo, ig_hi = LIMITS["icon_gap"]
+    is_lo, is_hi = LIMITS["icon_size"]
     q_lo, q_hi = LIMITS["qty"]
+    try:
+        icon_size = float(raw.get("icon_size", LABEL_DEFAULTS["icon_size"]))
+    except (TypeError, ValueError):
+        icon_size = float(LABEL_DEFAULTS["icon_size"])
     return {
-        "text": text,
+        "blocks": blocks,
         "qty": _clamp_int(raw.get("qty"), 1, lo=q_lo, hi=q_hi),
         "font_size": _clamp_int(raw.get("font_size"), LABEL_DEFAULTS["font_size"], lo=fs_lo, hi=fs_hi),
         "font_family": family,
@@ -89,6 +104,8 @@ def _normalize_label(raw) -> dict | None:
         "v_align": _clamp_int(raw.get("v_align"), LABEL_DEFAULTS["v_align"], lo=va_lo, hi=va_hi),
         "letter_spacing": letter_spacing,
         "margin_h": _clamp_int(raw.get("margin_h"), LABEL_DEFAULTS["margin_h"], lo=mh_lo, hi=mh_hi),
+        "icon_gap": _clamp_int(raw.get("icon_gap"), LABEL_DEFAULTS["icon_gap"], lo=ig_lo, hi=ig_hi),
+        "icon_size": max(is_lo, min(is_hi, icon_size)),
     }
 
 
@@ -125,8 +142,7 @@ def _normalize_state(raw) -> dict:
     if not isinstance(raw, dict):
         return state
     state["prefs"] = _normalize_prefs(raw.get("prefs"))
-    draft = raw.get("draft")
-    state["draft"] = draft if isinstance(draft, str) else ""
+    state["draft"] = migrate_draft(raw.get("draft"))
     state["queue"] = _normalize_queue(raw.get("queue"))
     state["recent"] = _normalize_recent(raw.get("recent"))
     return state
@@ -134,7 +150,7 @@ def _normalize_state(raw) -> dict:
 
 def _item_key(item: dict) -> str:
     payload = {
-        "text": item["text"],
+        "blocks": item.get("blocks"),
         "qty": item.get("qty", 1),
         "font_size": item.get("font_size"),
         "font_family": item.get("font_family"),
@@ -143,6 +159,8 @@ def _item_key(item: dict) -> str:
         "v_align": item.get("v_align"),
         "letter_spacing": item.get("letter_spacing"),
         "margin_h": item.get("margin_h"),
+        "icon_gap": item.get("icon_gap"),
+        "icon_size": item.get("icon_size"),
     }
     return json.dumps(payload, sort_keys=True, separators=(",", ":"))
 
@@ -178,7 +196,7 @@ def update_state(*, prefs=None, draft=None, queue=None) -> dict:
         if prefs is not None:
             state["prefs"] = _normalize_prefs(prefs)
         if draft is not None:
-            state["draft"] = draft if isinstance(draft, str) else ""
+            state["draft"] = migrate_draft(draft)
         if queue is not None:
             state["queue"] = _normalize_queue(queue)
         save_state(state)

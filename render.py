@@ -7,7 +7,9 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 import media as tape_media
+from blocks import blocks_have_content, normalize_blocks
 from defaults import LABEL_DEFAULTS
+from icons_catalog import custom_icon_path, get_icon
 
 ROOT = Path(__file__).resolve().parent
 FONTS_DIR = ROOT / "fonts"
@@ -28,6 +30,8 @@ class RenderOpts:
     v_align: int = LABEL_DEFAULTS["v_align"]
     letter_spacing: float = LABEL_DEFAULTS["letter_spacing"]
     margin_h: int = LABEL_DEFAULTS["margin_h"]
+    icon_gap: int = LABEL_DEFAULTS["icon_gap"]
+    icon_size: float = LABEL_DEFAULTS["icon_size"]
 
 
 def _margin_h(opts: RenderOpts) -> int:
@@ -155,6 +159,177 @@ def _draw_line(
     for ch in line:
         draw.text((cx, y), ch, font=font, fill=fill, anchor="ls")
         cx += font.getlength(ch) + spacing
+
+
+def _icon_scale(block: dict, opts: RenderOpts) -> float:
+    raw = block.get("height")
+    if raw is not None:
+        try:
+            h = float(raw)
+            if h != 1.0:
+                return max(0.25, min(2.0, h))
+        except (TypeError, ValueError):
+            pass
+    return max(0.25, min(2.0, float(opts.icon_size or 1.0)))
+
+
+def _gap_before(prev_kind: str | None, kind: str, gap: int) -> int:
+    if prev_kind == "icon" and kind == "icon":
+        return max(0, gap)
+    return 0
+
+
+def _content_bbox(im: Image.Image) -> tuple | None:
+    return Image.eval(im, lambda p: 255 - p).getbbox()
+
+
+def _scale_to_height(src: Image.Image, target_h: int) -> Image.Image:
+    w, h = src.size
+    if h == 0:
+        return Image.new("L", (1, target_h), 255)
+    scale = target_h / h
+    nw = max(1, int(round(w * scale)))
+    nh = max(1, int(round(h * scale)))
+    return src.resize((nw, nh), Image.Resampling.LANCZOS)
+
+
+def _flatten_to_l(im: Image.Image) -> Image.Image:
+    if im.mode in ("RGBA", "LA") or (im.mode == "P" and "transparency" in im.info):
+        im = im.convert("RGBA")
+        bg = Image.new("RGBA", im.size, (255, 255, 255, 255))
+        im = Image.alpha_composite(bg, im)
+    return im.convert("L")
+
+
+def _load_image_l(path: Path) -> Image.Image:
+    return _flatten_to_l(Image.open(path))
+
+
+def _rasterize_brother_glyph(family: str, codepoint: int, target_h: int) -> Image.Image:
+    path = resolve_font_file(family, False, False)
+    font = ImageFont.truetype(str(path), target_h)
+    ch = chr(codepoint)
+    pad = target_h
+    im = Image.new("L", (pad * 2, pad * 2), 255)
+    draw = ImageDraw.Draw(im)
+    draw.text((pad, pad), ch, font=font, fill=0, anchor="mm")
+    bbox = _content_bbox(im)
+    if not bbox:
+        return Image.new("L", (1, target_h), 255)
+    return _scale_to_height(im.crop(bbox), target_h)
+
+
+def _load_custom_icon(icon_id: str, target_h: int) -> Image.Image:
+    path = custom_icon_path(icon_id)
+    if not path:
+        raise RuntimeError(f"custom icon not found: {icon_id}")
+    src = _load_image_l(path)
+    bbox = _content_bbox(src)
+    if bbox:
+        src = src.crop(bbox)
+    return _scale_to_height(src, target_h)
+
+
+def _icon_image(icon_id: str, target_h: int) -> Image.Image:
+    if icon_id.startswith("custom:"):
+        return _load_custom_icon(icon_id, target_h)
+    meta = get_icon(icon_id)
+    if not meta:
+        raise RuntimeError(f"unknown icon: {icon_id}")
+    return _rasterize_brother_glyph(meta["family"], int(meta["codepoint"]), target_h)
+
+
+def render_blocks(
+    blocks: list[dict],
+    opts: RenderOpts | None = None,
+    tape_h: int | None = None,
+    for_preview: bool = False,
+) -> str:
+    opts = opts or RenderOpts()
+    blocks = normalize_blocks(blocks)
+    if not blocks_have_content(blocks):
+        raise ValueError("empty blocks")
+
+    tape_h = tape_h if tape_h is not None else effective_tape_height()
+    margin_start, margin_end = _margin_h(opts), _margin_h(opts)
+    spacing = float(opts.letter_spacing or 0)
+    path = resolve_font_file(opts.font_family, opts.bold, opts.italic)
+    font = ImageFont.truetype(str(path), opts.font_size)
+    ascent, descent = font.getmetrics()
+    line_h = _line_height(font)
+    icon_cap = max(8, tape_h - 4)
+    icon_gap = max(0, int(opts.icon_gap or 0))
+
+    segments: list[tuple[str, object]] = []
+    for block in blocks:
+        if block["type"] == "text":
+            segments.append(("text", str(block.get("value", ""))))
+        elif block["type"] == "icon":
+            scale = _icon_scale(block, opts)
+            ih = max(8, min(icon_cap, int(round(line_h * scale))))
+            segments.append(("icon", _icon_image(block["id"], ih)))
+
+    seg_gaps = sum(
+        _gap_before(segments[i - 1][0], segments[i][0], icon_gap)
+        for i in range(1, len(segments))
+    )
+
+    content_w = 0
+    seg_widths: list[int] = []
+    for kind, payload in segments:
+        if kind == "text":
+            w = int(round(_line_width(payload, font, spacing)))
+        else:
+            w = payload.size[0]
+        seg_widths.append(w)
+        content_w += w
+    content_w += seg_gaps
+
+    img_w = content_w + margin_start + margin_end
+    img_h = tape_h
+    block_top = (img_h - line_h) // 2 + int(opts.v_align or 0)
+    baseline = block_top + ascent
+
+    im = Image.new("L", (img_w, img_h), 255)
+    draw = ImageDraw.Draw(im)
+    x = margin_start + (content_w - sum(seg_widths) - seg_gaps) // 2
+
+    for i, (kind, payload) in enumerate(segments):
+        if i > 0:
+            x += _gap_before(segments[i - 1][0], kind, icon_gap)
+        if kind == "text":
+            _draw_line(draw, x, baseline, payload, font, spacing, 0)
+            x += seg_widths[i]
+        else:
+            icon: Image.Image = payload
+            iy = baseline - ascent + (line_h - icon.size[1]) // 2
+            im.paste(icon, (x, max(0, iy)))
+            x += seg_widths[i]
+
+    if not for_preview:
+        im = im.convert("1", dither=Image.Dither.NONE)
+
+    fd, out = tempfile.mkstemp(suffix=".png")
+    os.close(fd)
+    im.save(out)
+    return out
+
+
+def render_label(
+    *,
+    blocks: list[dict] | None = None,
+    text: str | None = None,
+    opts: RenderOpts | None = None,
+    tape_h: int | None = None,
+    for_preview: bool = False,
+) -> str:
+    if blocks is not None:
+        normalized = normalize_blocks(blocks)
+        if blocks_have_content(normalized):
+            return render_blocks(normalized, opts, tape_h, for_preview=for_preview)
+    if text and str(text).strip():
+        return render_png(str(text), opts, tape_h)
+    raise ValueError("empty label")
 
 
 def render_png(text: str, opts: RenderOpts | None = None, tape_h: int | None = None) -> str:

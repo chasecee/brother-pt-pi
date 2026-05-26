@@ -59,7 +59,7 @@ class PrintResult:
 
 @dataclass
 class LabelJob:
-    text: str
+    blocks: list[dict]
     opts: RenderOpts
 
 
@@ -312,7 +312,7 @@ def print_labels(labels: list[LabelJob]) -> PrintResult:
     pngs = []
     try:
         for lab in labels:
-            pngs.append(label_render.render_png(lab.text, lab.opts))
+            pngs.append(label_render.render_label(blocks=lab.blocks, opts=lab.opts))
         return _print_pngs(pngs)
     finally:
         _unlink(pngs)

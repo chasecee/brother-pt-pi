@@ -35,12 +35,16 @@ LABEL_DEFAULTS: dict = {
     "v_align": _env_int("LABEL_V_ALIGN", 0),
     "letter_spacing": _env_float("LABEL_LETTER_SPACING", -0.5),
     "margin_h": _env_int("LABEL_PAD_PX", 24),
+    "icon_gap": _env_int("LABEL_ICON_GAP", 4),
+    "icon_size": _env_float("LABEL_ICON_SIZE", 1.0),
 }
 
 LIMITS: dict = {
     "font_size": (10, 128),
     "v_align": (-32, 32),
     "margin_h": (0, 128),
+    "icon_gap": (0, 64),
+    "icon_size": (0.25, 2.0),
     "qty": (1, 99),
 }
 
@@ -50,6 +54,8 @@ _SNAKE_TO_CAMEL = {
     "v_align": "vAlign",
     "letter_spacing": "letterSpacing",
     "margin_h": "marginH",
+    "icon_gap": "iconGap",
+    "icon_size": "iconSize",
     "bold": "bold",
     "italic": "italic",
 }

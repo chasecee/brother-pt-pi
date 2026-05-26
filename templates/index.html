@@ -10,7 +10,8 @@
 <body>
   <h1>Label printer <span id="status" class="bad">checking...</span> <button id="wakeBtn" type="button" class="btn btn-sm" hidden>Wake</button></h1>
 
-  <textarea id="text" placeholder="One label per line"></textarea>
+  <div id="draftEditor" class="draft-editor"></div>
+  <button type="button" id="addLineBtn" class="btn btn-sm">Add line</button>
 
   <div class="settings">
     <details class="font-accordion" id="fontAccordion">
@@ -37,6 +38,25 @@
         </div>
       </div>
     </details>
+    <details class="font-accordion icon-accordion" id="iconAccordion">
+      <summary class="font-accordion-summary">
+        <span>Icons</span>
+        <span id="iconAccordionHint" class="font-accordion-hint">none</span>
+      </summary>
+      <div class="font-accordion-body">
+        <div id="iconCategoryStrip" class="icon-category-strip"></div>
+        <input type="search" id="iconSearch" placeholder="Search icons" autocomplete="off">
+        <div id="iconGrid" class="icon-grid"></div>
+        <label class="icon-upload">
+          Upload PNG
+          <input type="file" id="iconUpload" accept="image/png" hidden>
+        </label>
+        <div class="row">
+          <label>Gap <input type="number" id="iconGap" value="{{ prefs.iconGap }}" min="{{ limits.icon_gap[0] }}" max="{{ limits.icon_gap[1] }}"></label>
+          <label>Size <input type="number" id="iconSize" value="{{ prefs.iconSize }}" min="{{ limits.icon_size[0] }}" max="{{ limits.icon_size[1] }}" step="0.05"></label>
+        </div>
+      </div>
+    </details>
     <div class="row">
       <label>Margin <input type="number" id="marginH" value="{{ prefs.marginH }}" min="{{ limits.margin_h[0] }}" max="{{ limits.margin_h[1] }}"></label>
       <label>Qty <input type="number" id="qty" class="narrow" value="1" min="{{ limits.qty[0] }}" max="{{ limits.qty[1] }}"></label>
@@ -56,17 +76,20 @@
     <div id="queue"></div>
   </div>
 
-  <div id="recentSection" class="recent-section" hidden>
-    <div class="queue-header">
-      <h2>Recently printed</h2>
+  <details id="recentSection" class="recent-section font-accordion" hidden>
+    <summary class="font-accordion-summary">
+      <span>Recently printed</span>
+      <span id="recentHint" class="font-accordion-hint"></span>
+    </summary>
+    <div class="font-accordion-body">
+      <div class="queue-table recent-table">
+        <div class="head">Label preview</div>
+        <div class="head">Quantity</div>
+        <div class="head"></div>
+        <div id="recent"></div>
+      </div>
     </div>
-    <div class="queue-table recent-table">
-      <div class="head">Label preview</div>
-      <div class="head">Quantity</div>
-      <div class="head"></div>
-      <div id="recent"></div>
-    </div>
-  </div>
+  </details>
 
   <script>
     const labels = [];
@@ -87,6 +110,13 @@
     let detectedMedia = null;
     let lastAppliedWidth = null;
     let fontObserver = null;
+    let iconObserver = null;
+    let focusedRowIndex = 0;
+    let iconCategories = [];
+    let currentIconCategory = "";
+    let currentIconList = [];
+    let iconSearchTimer = null;
+    const DEFAULT_ICON_CATEGORY = "dp-emoji";
 
     function selectedFontFamily() {
       const el = document.querySelector('input[name="fontFamily"]:checked');
@@ -98,8 +128,40 @@
       document.documentElement.style.setProperty("--tape-display-mm", String(tapeMm * scale));
     }
 
-    function labelLines(text) {
-      return text.split("\n").map((s) => s.trim()).filter(Boolean);
+    function blocksHaveContent(blocks) {
+      if (!Array.isArray(blocks)) return false;
+      for (const b of blocks) {
+        if (b.type === "text" && String(b.value || "").trim()) return true;
+        if (b.type === "icon" && b.id) return true;
+      }
+      return false;
+    }
+
+    function blocksEqual(a, b) {
+      return JSON.stringify(a) === JSON.stringify(b);
+    }
+
+    function rowBlocks(row) {
+      const blocks = [];
+      const strip = row.querySelector(".block-strip");
+      if (!strip) return blocks;
+      for (const el of strip.children) {
+        if (el.classList.contains("block-add-wrap")) continue;
+        if (el.classList.contains("block-text")) {
+          blocks.push({ type: "text", value: el.value });
+        } else if (el.classList.contains("icon-chip")) {
+          const block = { type: "icon", id: el.dataset.id };
+          if (el.dataset.height) block.height = parseFloat(el.dataset.height);
+          blocks.push(block);
+        }
+      }
+      return blocks;
+    }
+
+    function getDraftLines() {
+      return [...document.querySelectorAll("#draftEditor .label-row")]
+        .map((row) => rowBlocks(row))
+        .filter(blocksHaveContent);
     }
 
     function currentPrefs() {
@@ -110,8 +172,21 @@
         fontSize: parseInt($("fontSize").value, 10) || DEFAULT_PREFS.fontSize,
         vAlign: parseInt($("vAlign").value, 10) || 0,
         letterSpacing: parseFloat($("letterSpacing").value) || 0,
-        marginH: parseInt($("marginH").value, 10) || DEFAULT_PREFS.marginH
+        marginH: parseInt($("marginH").value, 10) || DEFAULT_PREFS.marginH,
+        iconGap: parseInt($("iconGap").value, 10) || DEFAULT_PREFS.iconGap,
+        iconSize: parseFloat($("iconSize").value) || DEFAULT_PREFS.iconSize
       };
+    }
+
+    function updateIconLayoutStyles() {
+      const gap = parseInt($("iconGap").value, 10);
+      const size = parseFloat($("iconSize").value);
+      document.documentElement.style.setProperty(
+        "--icon-gap",
+        `${Number.isFinite(gap) ? gap : DEFAULT_PREFS.iconGap}px`
+      );
+      const scale = Number.isFinite(size) ? size : DEFAULT_PREFS.iconSize;
+      document.documentElement.style.setProperty("--icon-chip-size", `${Math.round(34 * scale)}px`);
     }
 
     async function pushServerState(partial) {
@@ -137,7 +212,7 @@
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          draft: $("text").value,
+          draft: { lines: getDraftLines() },
           queue: labels.map(itemPayload),
           prefs: currentPrefs()
         }),
@@ -149,7 +224,7 @@
       clearTimeout(stateSaveTimer);
       stateSaveTimer = setTimeout(() => {
         pushServerState({
-          draft: $("text").value,
+          draft: { lines: getDraftLines() },
           queue: labels.map(itemPayload),
           prefs: currentPrefs()
         });
@@ -167,7 +242,15 @@
     async function loadServerState() {
       const r = await (await fetch("/api/state")).json();
       applyPrefs({ ...DEFAULT_PREFS, ...(r.prefs || {}) });
-      $("text").value = r.draft || "";
+      const draft = r.draft;
+      const lines = (draft && draft.lines) ? draft.lines : [];
+      if (!lines.length && typeof draft === "string" && draft.trim()) {
+        for (const line of draft.split("\n")) {
+          const t = line.trim();
+          if (t) lines.push([{ type: "text", value: t }]);
+        }
+      }
+      renderDraftEditor(lines.length ? lines : [[{ type: "text", value: "" }]]);
       labels.length = 0;
       for (const item of r.queue || []) {
         labels.push({ ...item, png: null });
@@ -204,6 +287,8 @@
       $("vAlign").value = prefs.vAlign;
       $("letterSpacing").value = prefs.letterSpacing;
       $("marginH").value = prefs.marginH;
+      $("iconGap").value = prefs.iconGap;
+      $("iconSize").value = prefs.iconSize;
       const radio = $("fontList").querySelector(
         `input[name="fontFamily"][value="${CSS.escape(prefs.fontFamily)}"]`
       );
@@ -213,6 +298,7 @@
       }
       updateFontCurrent();
       updateStyleToggles();
+      updateIconLayoutStyles();
     }
 
     function updateStyleToggles() {
@@ -231,7 +317,9 @@
         italic: $("italic").checked,
         v_align: parseInt($("vAlign").value, 10) || 0,
         letter_spacing: parseFloat($("letterSpacing").value) || 0,
-        margin_h: parseInt($("marginH").value, 10) || DEFAULT_PREFS.marginH
+        margin_h: parseInt($("marginH").value, 10) || DEFAULT_PREFS.marginH,
+        icon_gap: parseInt($("iconGap").value, 10) || DEFAULT_PREFS.iconGap,
+        icon_size: parseFloat($("iconSize").value) || DEFAULT_PREFS.iconSize
       };
     }
 
@@ -241,7 +329,7 @@
 
     function itemPayload(item) {
       return {
-        text: item.text,
+        blocks: item.blocks,
         qty: item.qty || 1,
         font_size: item.font_size,
         font_family: item.font_family,
@@ -249,7 +337,9 @@
         italic: item.italic,
         v_align: item.v_align,
         letter_spacing: item.letter_spacing,
-        margin_h: item.margin_h
+        margin_h: item.margin_h,
+        icon_gap: item.icon_gap,
+        icon_size: item.icon_size
       };
     }
 
@@ -261,7 +351,9 @@
         italic: item.italic,
         v_align: item.v_align,
         letter_spacing: item.letter_spacing,
-        margin_h: item.margin_h
+        margin_h: item.margin_h,
+        icon_gap: item.icon_gap,
+        icon_size: item.icon_size
       };
     }
 
@@ -272,7 +364,9 @@
         && a.italic === b.italic
         && a.v_align === b.v_align
         && a.letter_spacing === b.letter_spacing
-        && a.margin_h === b.margin_h;
+        && a.margin_h === b.margin_h
+        && a.icon_gap === b.icon_gap
+        && a.icon_size === b.icon_size;
     }
 
     function labelsTotal() {
@@ -290,37 +384,262 @@
     }
 
     function requeueItem(item) {
-      const line = item.text;
-      const draft = $("text").value.trim();
-      $("text").value = draft ? draft + "\n" + line : line;
+      const lines = getDraftLines();
+      lines.push(item.blocks || []);
+      renderDraftEditor(lines);
       scheduleSync();
     }
 
     function flushSync() {
       clearTimeout(syncTimer);
       syncTimer = null;
-      const lines = labelLines($("text").value);
-      const opts = renderOpts();
-      const qtyDefault = defaultQty();
-      const next = lines.map((text, i) => {
-        const prev = labels[i];
-        if (prev && prev.text === text && optsMatch(prev, opts)) return prev;
-        return { text, qty: prev?.qty ?? qtyDefault, png: null, ...opts };
-      });
-      labels.length = 0;
-      labels.push(...next.slice(-QUEUE_MAX));
+      syncFromEditor();
       flushStateSave();
-    }
-
-    function setTextareaFromLabels() {
-      $("text").value = labels.map((item) => item.text).join("\n");
     }
 
     function removeLabel(index) {
       labels.splice(index, 1);
-      setTextareaFromLabels();
+      const lines = labels.map((item) => item.blocks || []);
+      renderDraftEditor(lines.length ? lines : [[{ type: "text", value: "" }]]);
       saveState();
       renderTable();
+    }
+
+    function iconThumbUrl(iconId) {
+      if (iconId.startsWith("custom:")) return `/icons/custom/${iconId.slice(7)}`;
+      const parts = iconId.split(":");
+      if (parts.length === 2) return `/icons/thumbs/${parts[0]}/${parts[1]}.png`;
+      return "";
+    }
+
+    function createIconChip(iconId, thumbUrl, height) {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "icon-chip";
+      chip.dataset.id = iconId;
+      if (height != null && height !== 1) chip.dataset.height = String(height);
+      const img = document.createElement("img");
+      img.src = thumbUrl;
+      img.alt = "";
+      const confirm = document.createElement("span");
+      confirm.className = "icon-chip-confirm";
+      confirm.textContent = "Remove";
+      chip.append(img, confirm);
+      chip.onclick = (e) => {
+        e.stopPropagation();
+        if (chip.classList.contains("confirming")) {
+          chip.remove();
+          scheduleSync();
+          return;
+        }
+        closeAllChipConfirms();
+        chip.classList.add("confirming");
+      };
+      return chip;
+    }
+
+    function closeAllChipConfirms() {
+      document.querySelectorAll(".icon-chip.confirming").forEach((c) => c.classList.remove("confirming"));
+    }
+
+    function createTextSegment(value) {
+      const input = document.createElement("input");
+      input.type = "text";
+      input.className = "block-text";
+      input.placeholder = "Text";
+      input.value = value || "";
+      input.addEventListener("input", scheduleSync);
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          addDraftLine();
+        }
+      });
+      return input;
+    }
+
+    function closeAllAddMenus() {
+      document.querySelectorAll(".block-add-menu").forEach((m) => {
+        m.hidden = true;
+      });
+    }
+
+    function createBlockAddMenu(row) {
+      const wrap = document.createElement("div");
+      wrap.className = "block-add-wrap";
+
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "block-add";
+      btn.textContent = "+";
+      btn.title = "Add text, icon, or image";
+
+      const menu = document.createElement("div");
+      menu.className = "block-add-menu";
+      menu.hidden = true;
+
+      const addText = document.createElement("button");
+      addText.type = "button";
+      addText.textContent = "Text";
+      addText.title = "Add a text segment";
+      addText.onclick = () => {
+        closeAllAddMenus();
+        const seg = createTextSegment("");
+        insertBlockInRow(row, seg);
+        seg.focus();
+        scheduleSync();
+      };
+
+      const addIcon = document.createElement("button");
+      addIcon.type = "button";
+      addIcon.textContent = "Icon";
+      addIcon.title = "Pick an icon from the library below";
+      addIcon.onclick = () => {
+        closeAllAddMenus();
+        const acc = $("iconAccordion");
+        acc.open = true;
+        acc.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      };
+
+      const addCustom = document.createElement("button");
+      addCustom.type = "button";
+      addCustom.textContent = "Image";
+      addCustom.title = "Upload a custom PNG";
+      addCustom.onclick = () => {
+        closeAllAddMenus();
+        pendingIconRow = row;
+        $("iconUpload").click();
+      };
+
+      menu.append(addText, addIcon, addCustom);
+      menu.onclick = (e) => e.stopPropagation();
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        const willOpen = menu.hidden;
+        closeAllAddMenus();
+        menu.hidden = !willOpen;
+      };
+
+      wrap.append(btn, menu);
+      return wrap;
+    }
+
+    let pendingIconRow = null;
+
+    function insertBlockInStrip(strip, node) {
+      const addWrap = strip.querySelector(".block-add-wrap");
+      strip.insertBefore(node, addWrap);
+    }
+
+    function insertBlockInRow(row, node) {
+      const strip = row.querySelector(".block-strip");
+      if (strip) insertBlockInStrip(strip, node);
+    }
+
+    function createLabelRow(blocks, index) {
+      const row = document.createElement("div");
+      row.className = "label-row";
+      row.dataset.index = String(index);
+
+      const strip = document.createElement("div");
+      strip.className = "block-strip";
+      strip.append(createBlockAddMenu(row));
+
+      const ordered = blocks?.length ? blocks : [{ type: "text", value: "" }];
+      for (const block of ordered) {
+        if (block.type === "text") {
+          insertBlockInStrip(strip, createTextSegment(block.value));
+        } else if (block.type === "icon") {
+          insertBlockInStrip(strip, createIconChip(
+            block.id,
+            block.thumb_url || iconThumbUrl(block.id),
+            block.height
+          ));
+        }
+      }
+
+      strip.addEventListener("keydown", (e) => {
+        if (e.key !== "Backspace") return;
+        const active = document.activeElement;
+        if (!active?.classList?.contains("block-text") || active.value) return;
+        const segments = [...strip.querySelectorAll(".block-text, .icon-chip")];
+        if (segments.length > 1 || strip.querySelector(".icon-chip")) {
+          e.preventDefault();
+          active.remove();
+          scheduleSync();
+          return;
+        }
+        const rows = document.querySelectorAll("#draftEditor .label-row");
+        if (rows.length > 1) {
+          e.preventDefault();
+          row.remove();
+          scheduleSync();
+        }
+      });
+
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "btn btn-sm btn-danger row-remove";
+      remove.textContent = "Remove";
+      remove.onclick = () => {
+        const rows = document.querySelectorAll("#draftEditor .label-row");
+        if (rows.length <= 1) {
+          strip.querySelectorAll(".block-text, .icon-chip").forEach((el) => el.remove());
+          insertBlockInStrip(strip, createTextSegment(""));
+          scheduleSync();
+          return;
+        }
+        row.remove();
+        scheduleSync();
+      };
+
+      row.append(strip, remove);
+      return row;
+    }
+
+    function renderDraftEditor(lines) {
+      const editor = $("draftEditor");
+      editor.innerHTML = "";
+      const rows = lines.length ? lines : [[{ type: "text", value: "" }]];
+      rows.forEach((blocks, i) => {
+        editor.append(createLabelRow(blocks, i));
+      });
+      focusedRowIndex = Math.min(focusedRowIndex, rows.length - 1);
+      const focusRow = editor.querySelectorAll(".label-row")[focusedRowIndex];
+      focusRow?.querySelector(".block-text")?.focus();
+      updateIconAccordionHint();
+    }
+
+    function addDraftLine() {
+      const lines = getDraftLines();
+      lines.push([{ type: "text", value: "" }]);
+      focusedRowIndex = lines.length;
+      renderDraftEditor(lines);
+      const rows = document.querySelectorAll("#draftEditor .label-row");
+      rows[rows.length - 1]?.querySelector(".block-text")?.focus();
+    }
+
+    function focusedLabelRow() {
+      const rows = document.querySelectorAll("#draftEditor .label-row");
+      return rows[focusedRowIndex] || rows[rows.length - 1] || null;
+    }
+
+    function insertIconIntoRow(iconId, thumbUrl) {
+      const row = pendingIconRow || focusedLabelRow();
+      pendingIconRow = null;
+      if (!row) return;
+      insertBlockInRow(row, createIconChip(iconId, thumbUrl));
+      updateIconAccordionHint();
+      scheduleSync();
+    }
+
+    function updateIconAccordionHint() {
+      const lines = getDraftLines();
+      let iconCount = 0;
+      for (const line of lines) {
+        iconCount += line.filter((b) => b.type === "icon").length;
+      }
+      $("iconAccordionHint").textContent = iconCount ? `${iconCount} icon${iconCount === 1 ? "" : "s"}` : "none";
     }
 
     function buildFontFaces(families) {
@@ -542,38 +861,38 @@
       startStatusPolling();
     }
 
-    async function previewText(text, opts) {
+    async function previewBlocks(blocks, opts) {
       const r = await (await fetch("/api/preview", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, ...opts })
+        body: JSON.stringify({ blocks, ...opts })
       })).json();
       if (!r.ok) return null;
       return r.png;
     }
 
     async function fetchPreview(item) {
-      item.png = await previewText(item.text, itemOpts(item));
+      item.png = await previewBlocks(item.blocks, itemOpts(item));
       return item.png;
     }
 
     function scheduleSync() {
       saveState();
       clearTimeout(syncTimer);
-      syncTimer = setTimeout(syncFromTextarea, 500);
+      syncTimer = setTimeout(syncFromEditor, 500);
     }
 
-    async function syncFromTextarea() {
-      const lines = labelLines($("text").value);
+    async function syncFromEditor() {
+      const lines = getDraftLines();
       const opts = renderOpts();
       const qtyDefault = defaultQty();
-      const next = lines.map((text, i) => {
+      const next = lines.map((blocks, i) => {
         const prev = labels[i];
-        if (prev && prev.text === text && optsMatch(prev, opts)) {
+        if (prev && blocksEqual(prev.blocks, blocks) && optsMatch(prev, opts)) {
           return prev;
         }
         return {
-          text,
+          blocks,
           qty: prev?.qty ?? qtyDefault,
           png: null,
           ...opts
@@ -582,6 +901,7 @@
 
       labels.length = 0;
       labels.push(...next.slice(-QUEUE_MAX));
+      updateIconAccordionHint();
 
       const seq = ++previewSeq;
       await Promise.all(labels.filter((item) => !item.png).map(fetchPreview));
@@ -622,8 +942,8 @@
         await applyRecentFromServer(r.recent);
         if (clearOnSuccess) {
           labels.length = 0;
-          $("text").value = "";
-          await pushServerState({ draft: "", queue: [] });
+          renderDraftEditor([[{ type: "text", value: "" }]]);
+          await pushServerState({ draft: { lines: [] }, queue: [] });
           renderTable();
         }
         return true;
@@ -688,6 +1008,9 @@
       const container = $("recent");
       container.innerHTML = "";
       section.hidden = recent.length === 0;
+      $("recentHint").textContent = recent.length
+        ? `${recent.length} label${recent.length === 1 ? "" : "s"}`
+        : "";
       recent.forEach((item) => {
         const row = document.createElement("div");
         row.className = "recent-row";
@@ -715,11 +1038,28 @@
       refreshAllPreviews();
     }
 
+    function onIconLayoutChange() {
+      updateIconLayoutStyles();
+      onControlChange();
+    }
+
     for (const id of ["fontSize", "bold", "italic", "vAlign", "letterSpacing", "marginH"]) {
       $(id).addEventListener("input", onControlChange);
       $(id).addEventListener("change", onControlChange);
     }
-    $("text").addEventListener("input", scheduleSync);
+    for (const id of ["iconGap", "iconSize"]) {
+      $(id).addEventListener("input", onIconLayoutChange);
+      $(id).addEventListener("change", onIconLayoutChange);
+    }
+    $("draftEditor").addEventListener("focusin", (e) => {
+      const row = e.target.closest(".label-row");
+      if (!row) return;
+      const rows = [...document.querySelectorAll("#draftEditor .label-row")];
+      focusedRowIndex = rows.indexOf(row);
+      rows.forEach((r) => r.classList.toggle("focused", r === row));
+    });
+
+    $("addLineBtn").onclick = addDraftLine;
 
     $("printBtn").onclick = async () => {
       if (labels.length === 0) return;
@@ -736,17 +1076,153 @@
     startMediaPolling();
     $("wakeBtn").onclick = wakePrinter;
     updateTapeScale();
+    updateIconLayoutStyles();
     window.addEventListener("resize", updateTapeScale);
     window.addEventListener("beforeunload", () => {
       flushSync();
     });
 
+    function setupIconObserver(grid) {
+      if (iconObserver) iconObserver.disconnect();
+      iconObserver = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          const btn = entry.target;
+          const img = btn.querySelector("img");
+          if (img && img.dataset.src) {
+            img.src = img.dataset.src;
+            delete img.dataset.src;
+          }
+          iconObserver.unobserve(btn);
+        }
+      }, { root: grid, rootMargin: "60px" });
+      for (const btn of grid.querySelectorAll(".icon-pick")) {
+        iconObserver.observe(btn);
+      }
+    }
+
+    function renderIconGrid(icons, { searching = false } = {}) {
+      const grid = $("iconGrid");
+      grid.innerHTML = "";
+      for (const icon of icons) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "icon-pick";
+        btn.title = searching && icon.category_title
+          ? `${icon.category_title} · ${icon.id}`
+          : icon.id;
+        const img = document.createElement("img");
+        img.alt = "";
+        img.dataset.src = icon.thumb_url;
+        btn.append(img);
+        btn.onclick = () => insertIconIntoRow(icon.id, icon.thumb_url);
+        grid.append(btn);
+      }
+      setupIconObserver(grid);
+    }
+
+    function selectIconCategory(categoryId) {
+      currentIconCategory = categoryId;
+      $("iconSearch").value = "";
+      document.querySelectorAll(".icon-category-item").forEach((el) => {
+        el.classList.toggle("selected", el.dataset.category === categoryId);
+      });
+      loadCategoryIcons(categoryId);
+    }
+
+    function renderCategoryStrip() {
+      const strip = $("iconCategoryStrip");
+      strip.innerHTML = "";
+      for (const cat of iconCategories) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "icon-category-item";
+        btn.dataset.category = cat.id;
+        if (cat.id === currentIconCategory) btn.classList.add("selected");
+        btn.title = `${cat.title} (${cat.count})`;
+
+        const img = document.createElement("img");
+        img.alt = "";
+        if (cat.preview_thumb_url) img.src = cat.preview_thumb_url;
+
+        const label = document.createElement("span");
+        label.className = "icon-category-title";
+        label.textContent = cat.title;
+
+        btn.append(img, label);
+        btn.onclick = () => selectIconCategory(cat.id);
+        strip.append(btn);
+      }
+    }
+
+    async function loadCategoryIcons(categoryId) {
+      if (!categoryId) return;
+      const r = await (await fetch(`/api/icons?category=${encodeURIComponent(categoryId)}`)).json();
+      currentIconList = r.icons || [];
+      if (!$("iconSearch").value.trim()) {
+        renderIconGrid(currentIconList);
+      }
+    }
+
+    async function runIconSearch() {
+      const q = $("iconSearch").value.trim();
+      if (!q) {
+        renderIconGrid(currentIconList);
+        return;
+      }
+      const r = await (await fetch(`/api/icons/search?q=${encodeURIComponent(q)}`)).json();
+      renderIconGrid(r.icons || [], { searching: true });
+    }
+
+    async function loadIconCategories() {
+      const r = await (await fetch("/api/icons/categories")).json();
+      iconCategories = r.categories || [];
+      renderCategoryStrip();
+      if (iconCategories.length) {
+        const preferred = iconCategories.find((c) => c.id === DEFAULT_ICON_CATEGORY);
+        selectIconCategory(preferred ? preferred.id : iconCategories[0].id);
+      }
+    }
+    $("iconSearch").addEventListener("input", () => {
+      clearTimeout(iconSearchTimer);
+      iconSearchTimer = setTimeout(runIconSearch, 200);
+    });
+
+    document.querySelector(".icon-upload").addEventListener("click", () => {
+      pendingIconRow = focusedLabelRow();
+      $("iconUpload").click();
+    });
+    $("iconUpload").addEventListener("change", async () => {
+      const file = $("iconUpload").files?.[0];
+      if (!file) return;
+      const fd = new FormData();
+      fd.append("file", file);
+      try {
+        const r = await (await fetch("/api/icons/custom", { method: "POST", body: fd })).json();
+        if (!r.ok) {
+          alert("Upload failed: " + (r.err || "unknown"));
+          return;
+        }
+        insertIconIntoRow(r.id, r.thumb_url);
+      } catch {
+        alert("Upload failed");
+      } finally {
+        $("iconUpload").value = "";
+        pendingIconRow = null;
+      }
+    });
+
+    document.addEventListener("click", () => {
+      closeAllAddMenus();
+      closeAllChipConfirms();
+    });
+
     loadFonts().then(async () => {
+      await loadIconCategories();
       await loadServerState();
       renderRecent();
-      const draft = $("text").value;
-      if (draft && labelLines(draft).length !== labels.length) {
-        await syncFromTextarea();
+      if (getDraftLines().length !== labels.length) {
+        await syncFromEditor();
       } else {
         renderTable();
         await Promise.all(labels.map(fetchPreview));

@@ -1,8 +1,11 @@
 import base64
+import io
 import logging
 import os
+import uuid
 
 from flask import Flask, jsonify, render_template, request, send_from_directory
+from PIL import Image
 
 logging.basicConfig(
     level=os.environ.get("PTLABEL_LOG_LEVEL", "INFO"),
@@ -11,20 +14,35 @@ logging.basicConfig(
 log = logging.getLogger("ptlabel.app")
 
 import media as tape_media
+from blocks import migrate_label_dict
 from defaults import LABEL_DEFAULTS, LIMITS, prefs_defaults
+from icons_catalog import (
+    DEFAULT_ICON_CATEGORY,
+    THUMBS_DIR,
+    custom_icon_path,
+    custom_icons_dir,
+    icons_in_category,
+    list_categories,
+    search_icons,
+)
 from printer import LabelJob, is_printing, print_labels, query_media, usb_ready, wake_printer
 from render import (
     FONTS_DIR,
     RenderOpts,
+    _content_bbox,
+    _flatten_to_l,
     effective_tape_height,
     list_fonts,
     load_preview_index,
-    render_png,
+    render_label,
     tape_height_mm,
 )
 from storage import get_state, record_print, update_state
 
 app = Flask(__name__)
+
+CUSTOM_ICON_MAX_BYTES = 512 * 1024
+CUSTOM_ICON_MAX_DIM = 512
 
 
 def _clamp_int(val, default: int, lo: int = 0, hi: int = 128) -> int:
@@ -46,6 +64,8 @@ def parse_opts(data: dict) -> RenderOpts:
     fs_lo, fs_hi = LIMITS["font_size"]
     va_lo, va_hi = LIMITS["v_align"]
     mh_lo, mh_hi = LIMITS["margin_h"]
+    ig_lo, ig_hi = LIMITS["icon_gap"]
+    is_lo, is_hi = LIMITS["icon_size"]
     family = (data.get("font_family") or LABEL_DEFAULTS["font_family"]).strip() or LABEL_DEFAULTS["font_family"]
     return RenderOpts(
         font_size=_clamp_int(data.get("font_size"), LABEL_DEFAULTS["font_size"], lo=fs_lo, hi=fs_hi),
@@ -55,14 +75,16 @@ def parse_opts(data: dict) -> RenderOpts:
         v_align=_clamp_int(data.get("v_align"), LABEL_DEFAULTS["v_align"], lo=va_lo, hi=va_hi),
         letter_spacing=_coerce_float(data.get("letter_spacing"), LABEL_DEFAULTS["letter_spacing"]),
         margin_h=_clamp_int(data.get("margin_h"), LABEL_DEFAULTS["margin_h"], lo=mh_lo, hi=mh_hi),
+        icon_gap=_clamp_int(data.get("icon_gap"), LABEL_DEFAULTS["icon_gap"], lo=ig_lo, hi=ig_hi),
+        icon_size=max(is_lo, min(is_hi, _coerce_float(data.get("icon_size"), LABEL_DEFAULTS["icon_size"]))),
     )
 
 
 def parse_label(data: dict) -> LabelJob | None:
-    text = (data.get("text") or "").strip()
-    if not text:
+    blocks = migrate_label_dict(data)
+    if not blocks:
         return None
-    return LabelJob(text=text, opts=parse_opts(data))
+    return LabelJob(blocks=blocks, opts=parse_opts(data))
 
 
 def expand_labels(items) -> list[LabelJob]:
@@ -109,6 +131,19 @@ def font_previews(filename):
     return send_from_directory(FONTS_DIR / "previews", filename, max_age=31536000)
 
 
+@app.route("/icons/thumbs/<path:filename>")
+def icon_thumbs(filename):
+    return send_from_directory(THUMBS_DIR, filename, max_age=31536000)
+
+
+@app.route("/icons/custom/<icon_uuid>")
+def icon_custom(icon_uuid):
+    path = custom_icon_path(f"custom:{icon_uuid}")
+    if not path:
+        return jsonify(ok=False, err="not found"), 404
+    return send_from_directory(path.parent, path.name, max_age=3600)
+
+
 @app.route("/api/fonts")
 def fonts():
     catalog = list_fonts()
@@ -123,6 +158,72 @@ def fonts():
             "slug": meta.get("slug"),
         })
     return jsonify(families=families)
+
+
+@app.route("/api/icons/categories")
+def icon_categories():
+    cats = []
+    for cat in list_categories():
+        entry = dict(cat)
+        thumb = entry.get("preview_thumb")
+        if thumb:
+            entry["preview_thumb_url"] = f"/icons/thumbs/{thumb}"
+        cats.append(entry)
+    return jsonify(categories=cats)
+
+
+@app.route("/api/icons")
+def icon_list():
+    category = (request.args.get("category") or "").strip()
+    if not category:
+        return jsonify(ok=False, err="category required"), 400
+    icons = icons_in_category(category)
+    for item in icons:
+        thumb = item.get("thumb", "")
+        if thumb:
+            item["thumb_url"] = f"/icons/thumbs/{thumb}"
+    return jsonify(icons=icons)
+
+
+@app.route("/api/icons/search")
+def icon_search():
+    q = (request.args.get("q") or "").strip()
+    if not q:
+        return jsonify(icons=[])
+    icons = search_icons(q)
+    for item in icons:
+        thumb = item.get("thumb", "")
+        if thumb:
+            item["thumb_url"] = f"/icons/thumbs/{thumb}"
+    return jsonify(icons=icons)
+
+
+@app.route("/api/icons/custom", methods=["POST"])
+def icon_custom_upload():
+    file = request.files.get("file")
+    if not file or not file.filename:
+        return jsonify(ok=False, err="no file"), 400
+    if not file.filename.lower().endswith(".png"):
+        return jsonify(ok=False, err="png only"), 400
+    data = file.read()
+    if len(data) > CUSTOM_ICON_MAX_BYTES:
+        return jsonify(ok=False, err="file too large"), 400
+    try:
+        im = _flatten_to_l(Image.open(io.BytesIO(data)))
+    except Exception:
+        return jsonify(ok=False, err="invalid png"), 400
+    bbox = _content_bbox(im)
+    if bbox:
+        im = im.crop(bbox)
+    if max(im.size) > CUSTOM_ICON_MAX_DIM:
+        im.thumbnail((CUSTOM_ICON_MAX_DIM, CUSTOM_ICON_MAX_DIM), Image.Resampling.LANCZOS)
+    icon_uuid = uuid.uuid4().hex
+    dest_dir = custom_icons_dir()
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    out = dest_dir / f"{icon_uuid}.png"
+    im.save(out)
+    icon_id = f"custom:{icon_uuid}"
+    return jsonify(ok=True, id=icon_id, thumb_url=f"/icons/custom/{icon_uuid}")
 
 
 @app.route("/api/state")
@@ -168,12 +269,19 @@ def media():
 @app.route("/api/preview", methods=["POST"])
 def preview():
     data = request.json or {}
+    blocks = migrate_label_dict(data)
     text = (data.get("text") or "").strip()
-    if not text:
+    if not blocks and not text:
         return jsonify(ok=False, err="empty"), 400
     opts = parse_opts(data)
     try:
-        path = render_png(text, opts, tape_h=effective_tape_height())
+        path = render_label(
+            blocks=blocks,
+            text=text or None,
+            opts=opts,
+            tape_h=effective_tape_height(),
+            for_preview=True,
+        )
     except Exception as e:
         return jsonify(ok=False, err=str(e)), 500
     try:
