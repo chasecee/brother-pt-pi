@@ -48,8 +48,8 @@
         <input type="search" id="iconSearch" placeholder="Search icons" autocomplete="off">
         <div id="iconGrid" class="icon-grid"></div>
         <label class="icon-upload">
-          Upload PNG
-          <input type="file" id="iconUpload" accept="image/png" hidden>
+          Upload image
+          <input type="file" id="iconUpload" accept="image/png,image/jpeg" hidden>
         </label>
         <div class="row">
           <label>Gap <input type="number" id="iconGap" value="{{ prefs.iconGap }}" min="{{ limits.icon_gap[0] }}" max="{{ limits.icon_gap[1] }}"></label>
@@ -655,7 +655,7 @@
       const addCustom = document.createElement("button");
       addCustom.type = "button";
       addCustom.textContent = "Image";
-      addCustom.title = "Upload a custom PNG";
+      addCustom.title = "Upload an image (PNG or JPEG)";
       addCustom.onclick = () => {
         closeAllAddMenus();
         pendingIconRow = row;
@@ -1350,9 +1350,51 @@
       pendingIconRow = focusedLabelRow();
       $("iconUpload").click();
     });
+    async function pngUploadFile(file) {
+      const type = (file.type || "").toLowerCase();
+      const name = file.name.toLowerCase();
+      if (type === "image/png" || name.endsWith(".png")) return file;
+      if (type !== "image/jpeg" && !/\.jpe?g$/.test(name)) return null;
+      const url = URL.createObjectURL(file);
+      try {
+        const img = await new Promise((resolve, reject) => {
+          const el = new Image();
+          el.onload = () => resolve(el);
+          el.onerror = () => reject(new Error("invalid image"));
+          el.src = url;
+        });
+        const canvas = document.createElement("canvas");
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        canvas.getContext("2d").drawImage(img, 0, 0);
+        const blob = await new Promise((resolve, reject) => {
+          canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("conversion failed"))), "image/png");
+        });
+        const base = file.name.replace(/\.[^.]+$/, "") || "upload";
+        return new File([blob], `${base}.png`, { type: "image/png" });
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+    }
+
     $("iconUpload").addEventListener("change", async () => {
-      const file = $("iconUpload").files?.[0];
-      if (!file) return;
+      const raw = $("iconUpload").files?.[0];
+      if (!raw) return;
+      let file;
+      try {
+        file = await pngUploadFile(raw);
+      } catch {
+        alert("Could not read image");
+        $("iconUpload").value = "";
+        pendingIconRow = null;
+        return;
+      }
+      if (!file) {
+        alert("PNG or JPEG only");
+        $("iconUpload").value = "";
+        pendingIconRow = null;
+        return;
+      }
       const fd = new FormData();
       fd.append("file", file);
       try {
