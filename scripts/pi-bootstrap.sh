@@ -21,13 +21,15 @@ fi
 
 cd "$ROOT"
 git config pull.ff only
-chmod +x scripts/pi-verify.sh scripts/pi-usb-setup.sh
+chmod +x scripts/pi-verify.sh scripts/pi-usb-setup.sh scripts/pi-sync.sh scripts/pi-install-sync.sh
 
 ./scripts/pi-usb-setup.sh
 
-docker compose pull
-docker compose up -d
+export PTLABEL_ROOT="$ROOT"
+export PTLABEL_BRANCH="$BRANCH"
+./scripts/pi-sync.sh
+./scripts/pi-install-sync.sh
 ./scripts/pi-verify.sh || true
 
 echo "bootstrap done: $ROOT"
-echo "image updates: handled by watchtower (see docker-compose.yml)"
+echo "updates: ptlabel-sync.timer runs git pull + docker compose pull every 60s"

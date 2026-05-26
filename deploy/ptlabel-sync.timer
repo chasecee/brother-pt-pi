@@ -1,0 +1,10 @@
+[Unit]
+Description=Poll ptlabel repo and image updates
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=60
+AccuracySec=15
+
+[Install]
+WantedBy=timers.target

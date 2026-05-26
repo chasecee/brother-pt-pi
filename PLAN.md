@@ -42,7 +42,7 @@ Docker runs with USB passthrough (`privileged: true`, `/dev/bus/usb` mount).
 
 ### Daily dev (push from Mac, auto-deploy on Pi)
 
-`git push` to `main` triggers `.github/workflows/build.yml`, which builds a `linux/arm64` image and pushes it to `ghcr.io/chasecee/brother-pt-pi:latest`. The Pi polls every 60s and pulls when either git or the image changes — no Rust compile on the Pi.
+`git push` to `main` triggers `.github/workflows/build.yml`, which builds a `linux/arm64` image and pushes it to `ghcr.io/chasecee/brother-pt-pi:latest`. A systemd user timer on the Pi runs `git pull` + `docker compose pull` + `docker compose up -d` every 60s — no Rust compile on the Pi.
 
 ```bash
 # Mac
@@ -53,12 +53,18 @@ git push                    # CI builds arm64; Pi picks up within ~60s after CI 
 ./scripts/pi-bootstrap.sh git@github.com:chasecee/brother-pt-pi.git
 ```
 
-Image updates are auto-applied by the `watchtower` service in `docker-compose.yml` (polls GHCR every 5 min). Changes to `docker-compose.yml` itself still require a manual `git pull && docker compose up -d` on the Pi.
+Repo and image updates are auto-applied by `ptlabel-sync.timer` (installed by `pi-bootstrap.sh`, polls every 60s).
 
 Manual update on Pi:
 
 ```bash
-cd ~/ptlabel && git pull && docker compose pull && docker compose up -d
+cd ~/ptlabel && ./scripts/pi-sync.sh
+```
+
+Existing Pi (already bootstrapped): pull this change, then install the timer and drop watchtower:
+
+```bash
+cd ~/ptlabel && git pull && chmod +x scripts/pi-sync.sh scripts/pi-install-sync.sh && ./scripts/pi-install-sync.sh
 ```
 
 Verify:

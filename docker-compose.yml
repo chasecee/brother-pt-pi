@@ -14,11 +14,3 @@ services:
     environment:
       CHAIN_PRINT: /usr/local/bin/chain-print
       PTLABEL_DATA_DIR: /app/data
-
-  watchtower:
-    image: containrrr/watchtower
-    container_name: watchtower
-    restart: unless-stopped
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    command: --cleanup --interval 300 ptlabel

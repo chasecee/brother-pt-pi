@@ -1,0 +1,11 @@
+[Unit]
+Description=Sync ptlabel git repo and containers
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=__PTLABEL_ROOT__
+Environment=PTLABEL_ROOT=__PTLABEL_ROOT__
+Environment=PTLABEL_BRANCH=__PTLABEL_BRANCH__
+ExecStart=__PTLABEL_ROOT__/scripts/pi-sync.sh
