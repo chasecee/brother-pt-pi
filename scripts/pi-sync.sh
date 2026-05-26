@@ -9,5 +9,5 @@ echo "ptlabel-sync: $(date -Is) branch=$BRANCH"
 git fetch origin "$BRANCH"
 git pull --ff-only origin "$BRANCH"
 docker compose pull
-docker compose up -d
+docker compose up -d --remove-orphans
 echo "ptlabel-sync: done"
