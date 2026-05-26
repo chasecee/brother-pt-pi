@@ -1350,11 +1350,15 @@
       pendingIconRow = focusedLabelRow();
       $("iconUpload").click();
     });
-    async function pngUploadFile(file) {
+    const ICON_UPLOAD_MAX_DIM = 512;
+
+    async function prepareUploadFile(file) {
       const type = (file.type || "").toLowerCase();
       const name = file.name.toLowerCase();
-      if (type === "image/png" || name.endsWith(".png")) return file;
-      if (type !== "image/jpeg" && !/\.jpe?g$/.test(name)) return null;
+      const isPng = type === "image/png" || name.endsWith(".png");
+      const isJpeg = type === "image/jpeg" || /\.jpe?g$/.test(name);
+      if (!isPng && !isJpeg) return null;
+
       const url = URL.createObjectURL(file);
       try {
         const img = await new Promise((resolve, reject) => {
@@ -1363,10 +1367,22 @@
           el.onerror = () => reject(new Error("invalid image"));
           el.src = url;
         });
+        let w = img.naturalWidth;
+        let h = img.naturalHeight;
+        if (isPng && Math.max(w, h) <= ICON_UPLOAD_MAX_DIM) return file;
+        if (Math.max(w, h) > ICON_UPLOAD_MAX_DIM) {
+          if (w >= h) {
+            h = Math.round(h * ICON_UPLOAD_MAX_DIM / w);
+            w = ICON_UPLOAD_MAX_DIM;
+          } else {
+            w = Math.round(w * ICON_UPLOAD_MAX_DIM / h);
+            h = ICON_UPLOAD_MAX_DIM;
+          }
+        }
         const canvas = document.createElement("canvas");
-        canvas.width = img.naturalWidth;
-        canvas.height = img.naturalHeight;
-        canvas.getContext("2d").drawImage(img, 0, 0);
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
         const blob = await new Promise((resolve, reject) => {
           canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("conversion failed"))), "image/png");
         });
@@ -1382,7 +1398,7 @@
       if (!raw) return;
       let file;
       try {
-        file = await pngUploadFile(raw);
+        file = await prepareUploadFile(raw);
       } catch {
         alert("Could not read image");
         $("iconUpload").value = "";

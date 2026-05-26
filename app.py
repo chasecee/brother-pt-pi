@@ -41,7 +41,7 @@ from storage import get_state, record_print, update_state
 
 app = Flask(__name__)
 
-CUSTOM_ICON_MAX_BYTES = 512 * 1024
+CUSTOM_ICON_MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 CUSTOM_ICON_MAX_DIM = 512
 
 
@@ -206,12 +206,12 @@ def icon_custom_upload():
     if not file.filename.lower().endswith(".png"):
         return jsonify(ok=False, err="png only"), 400
     data = file.read()
-    if len(data) > CUSTOM_ICON_MAX_BYTES:
+    if len(data) > CUSTOM_ICON_MAX_UPLOAD_BYTES:
         return jsonify(ok=False, err="file too large"), 400
     try:
         im = _flatten_to_l(Image.open(io.BytesIO(data)))
     except Exception:
-        return jsonify(ok=False, err="invalid png"), 400
+        return jsonify(ok=False, err="invalid image"), 400
     bbox = _content_bbox(im)
     if bbox:
         im = im.crop(bbox)
