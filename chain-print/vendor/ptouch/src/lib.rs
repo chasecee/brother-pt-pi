@@ -433,34 +433,37 @@ impl PTouch {
     }
 
     fn wait_print_complete(&mut self) -> Result<(), Error> {
-        let mut i = 0;
-        loop {
+        // The PT-P710BT does not reliably emit a Completed status frame after
+        // print_and_feed. Treat the Printing -> Editing phase transition (or an
+        // explicit Completed) as success. Never seeing Printing at all is a
+        // real failure.
+        let mut saw_printing = false;
+        for _ in 0..30 {
             if let Ok(s) = self.read_status(self.timeout) {
                 if !s.error1.is_empty() || !s.error2.is_empty() {
                     debug!("Print error: {:?} {:?}", s.error1, s.error2);
                     return Err(Error::PTouch(s.error1, s.error2));
                 }
-
-                if s.status_type == DeviceStatus::PhaseChange {
-                    debug!("Started printing");
+                if s.phase == Phase::Printing {
+                    if !saw_printing {
+                        debug!("Started printing");
+                    }
+                    saw_printing = true;
                 }
-
                 if s.status_type == DeviceStatus::Completed {
                     debug!("Print completed");
-                    break;
+                    return Ok(());
+                }
+                if saw_printing && s.phase == Phase::Editing {
+                    debug!("Print completed (phase returned to editing)");
+                    return Ok(());
                 }
             }
-
-            if i > 10 {
-                debug!("Print timeout");
-                return Err(Error::Timeout);
-            }
-
-            i += 1;
-            std::thread::sleep(Duration::from_secs(1));
+            std::thread::sleep(Duration::from_millis(500));
         }
 
-        Ok(())
+        debug!("Print timeout (saw_printing={})", saw_printing);
+        Err(Error::Timeout)
     }
 
     pub fn cut(&mut self, info: &PrintInfo) -> Result<(), Error> {
