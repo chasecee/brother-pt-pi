@@ -29,6 +29,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY app.py printer.py render.py media.py storage.py .
 COPY templates ./templates
+COPY static ./static
 COPY fonts/ ./fonts/
 
 EXPOSE 5000

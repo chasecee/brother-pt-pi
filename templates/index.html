@@ -4,47 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ptlabel</title>
-  <style>
-    :root { color-scheme: light dark; }
-    body { font: 16px/1.4 system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; }
-    h1 { font-size: 1.2rem; }
-    #status { font-size: .85rem; padding: .3rem .6rem; border-radius: 6px; display: inline-block; }
-    .ok { background: #1c7c3c; color: #fff; }
-    .bad { background: #b03030; color: #fff; }
-    .printing { background: #9a6700; color: #fff; }
-    textarea { width: 100%; min-height: 2.5rem; font: inherit; padding: .5rem; box-sizing: border-box; }
-    button { font: inherit; padding: .45rem .9rem; cursor: pointer; }
-    button:disabled { opacity: .5; cursor: not-allowed; }
-    .row { display: flex; gap: .5rem; margin: .5rem 0; align-items: center; flex-wrap: wrap; }
-    .settings { display: flex; flex-direction: column; gap: .35rem; margin: .5rem 0; }
-    .settings .row { margin: 0; gap: .65rem; }
-    .settings label { font-size: .9rem; white-space: nowrap; }
-    .settings input[type=number] { width: 3.25rem; }
-    .settings select { min-width: 9rem; max-width: 14rem; }
-    label { display: flex; align-items: center; gap: .35rem; }
-    input[type=number] { width: 4rem; font: inherit; padding: .25rem .4rem; }
-    input[type=number]:disabled { opacity: .5; }
-    select { font: inherit; padding: .25rem .4rem; max-width: 12rem; }
-    input[type=number].narrow { width: 2.5rem; }
-    .primary { background: #2a6cf0; color: #fff; border: 0; border-radius: 6px; }
-    .queue-header { display: flex; justify-content: space-between; align-items: center; margin: 1rem 0 .35rem; }
-    .queue-header h2 { font-size: 1rem; margin: 0; }
-    .queue-table { display: grid; grid-template-columns: 1fr auto auto auto; gap: .35rem .5rem; align-items: center; }
-    .queue-table .head { font-size: .75rem; text-transform: uppercase; letter-spacing: .03em; opacity: .65; padding-bottom: .15rem; border-bottom: 1px solid #8884; }
-    #queue { display: contents; }
-    .queue-row { display: contents; }
-    .queue-row img { height: calc(var(--tape-display-mm, {{ tape_height_mm }}) * 1mm); width: auto; background: #fff; border-radius: 3px; }
-    .queue-row .remove { padding: .2rem .45rem; font-size: .85rem; }
-    .recent-section { margin-top: 1.5rem; }
-    .recent-table { grid-template-columns: 1fr auto auto; }
-    #recent { display: contents; }
-    .recent-row { display: contents; }
-    .recent-row img { height: calc(var(--tape-display-mm, {{ tape_height_mm }}) * 1mm); width: auto; background: #fff; border-radius: 3px; opacity: .85; }
-    .recent-qty { font-size: .9rem; opacity: .75; min-width: 2.5rem; text-align: center; }
-  </style>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>:root { --tape-display-mm: {{ tape_height_mm }}; }</style>
 </head>
 <body>
-  <h1>Label printer <span id="status" class="bad">checking...</span> <button id="wakeBtn" type="button" hidden>Wake</button></h1>
+  <h1>Label printer <span id="status" class="bad">checking...</span> <button id="wakeBtn" type="button" class="btn btn-sm" hidden>Wake</button></h1>
 
   <textarea id="text" placeholder="One label per line"></textarea>
 
@@ -67,7 +31,7 @@
 
   <div class="queue-header">
     <h2>Queue (<span id="count">0</span>)</h2>
-    <button id="printBtn" class="primary">Print all</button>
+    <button id="printBtn" class="btn btn-primary">Print all</button>
   </div>
 
   <div class="queue-table">
@@ -585,6 +549,7 @@
         };
 
         const printOne = document.createElement("button");
+        printOne.className = "btn btn-sm";
         printOne.textContent = "Print";
         printOne.onclick = async () => {
           printOne.disabled = true;
@@ -596,7 +561,7 @@
         };
 
         const remove = document.createElement("button");
-        remove.className = "remove";
+        remove.className = "btn btn-sm btn-danger";
         remove.textContent = "Remove";
         remove.onclick = () => removeLabel(i);
 
@@ -624,6 +589,7 @@
         qty.textContent = item.qty || 1;
 
         const requeue = document.createElement("button");
+        requeue.className = "btn btn-sm";
         requeue.textContent = "Add";
         requeue.onclick = () => requeueItem(item);
 
