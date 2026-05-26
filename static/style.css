@@ -34,12 +34,41 @@ h1 { font-size: 1.2rem; }
 #status.bad { background: var(--danger); }
 #status.printing { background: var(--warn); }
 
+input[type=text],
+input[type=number],
+select,
+textarea {
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .35rem .5rem;
+  box-sizing: border-box;
+  transition: border-color .12s, box-shadow .12s;
+}
+input[type=text]:focus,
+input[type=number]:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+input:disabled,
+select:disabled,
+textarea:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+input[type=checkbox] { accent-color: var(--accent); cursor: pointer; }
+input[type=checkbox]:disabled { cursor: not-allowed; }
+
 textarea {
   width: 100%;
   min-height: 2.5rem;
-  font: inherit;
   padding: .5rem;
-  box-sizing: border-box;
 }
 
 .btn {
@@ -100,11 +129,9 @@ textarea {
 
 label { display: flex; align-items: center; gap: .35rem; }
 
-input[type=number] { width: 4rem; font: inherit; padding: .25rem .4rem; }
-input[type=number]:disabled { opacity: .5; }
+input[type=number] { width: 4rem; }
 input[type=number].narrow { width: 2.5rem; }
-
-select { font: inherit; padding: .25rem .4rem; max-width: 12rem; }
+select { max-width: 12rem; }
 
 .queue-header {
   display: flex;
