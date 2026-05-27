@@ -9,6 +9,7 @@ BASELINE = {
 }
 
 HEIGHT_PX = {6: 32, 9: 50, 12: 70, 18: 112, 24: 128}
+FONT_SIZE = {12: 52}
 
 
 def preset_for_width(mm: int) -> dict:
@@ -20,7 +21,7 @@ def preset_for_width(mm: int) -> dict:
     return {
         "width_mm": mm,
         "height_px": h,
-        "font_size": round(BASELINE["font_size"] * s),
+        "font_size": FONT_SIZE.get(mm, round(BASELINE["font_size"] * s)),
         "margin_h": round(BASELINE["margin_h"] * s),
         "v_align": round(BASELINE["v_align"] * s),
     }
