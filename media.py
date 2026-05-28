@@ -9,7 +9,9 @@ BASELINE = {
 }
 
 HEIGHT_PX = {6: 32, 9: 50, 12: 70, 18: 112, 24: 128}
-FONT_SIZE = {12: 52}
+WIDTH_PRESETS = {
+    12: {"font_size": 58, "v_align": -2, "letter_spacing": -1},
+}
 
 
 def preset_for_width(mm: int) -> dict:
@@ -18,12 +20,14 @@ def preset_for_width(mm: int) -> dict:
         h = BASELINE_HEIGHT_PX
         mm = BASELINE_MM
     s = h / BASELINE_HEIGHT_PX
+    p = WIDTH_PRESETS.get(mm, {})
     return {
         "width_mm": mm,
         "height_px": h,
-        "font_size": FONT_SIZE.get(mm, round(BASELINE["font_size"] * s)),
+        "font_size": p.get("font_size", round(BASELINE["font_size"] * s)),
         "margin_h": round(BASELINE["margin_h"] * s),
-        "v_align": round(BASELINE["v_align"] * s),
+        "v_align": p.get("v_align", round(BASELINE["v_align"] * s)),
+        "letter_spacing": p.get("letter_spacing", LABEL_DEFAULTS["letter_spacing"]),
     }
 
 
