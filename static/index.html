@@ -4,9 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ptlabel</title>
-  <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-  <style>:root { --tape-display-mm: {{ tape_height_mm }}; }</style>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/js/opentype.min.js"></script>
+  <script src="/static/js/render.js"></script>
 </head>
 <body>
   <h1>Label printer <span id="status" class="bad">checking...</span> <button id="wakeBtn" type="button" class="btn btn-sm" hidden>Wake</button></h1>
@@ -33,9 +34,9 @@
           <label><input type="checkbox" id="italic"> Italic</label>
         </div>
         <div class="row">
-          <label>Size <input type="number" id="fontSize" value="{{ prefs.fontSize }}" min="{{ limits.font_size[0] }}" max="{{ limits.font_size[1] }}"></label>
-          <label>V align <input type="number" id="vAlign" value="{{ prefs.vAlign }}" min="{{ limits.v_align[0] }}" max="{{ limits.v_align[1] }}"></label>
-          <label>Spacing <input type="number" id="letterSpacing" value="{{ prefs.letterSpacing }}" min="-5" max="20" step="0.5"></label>
+          <label>Size <input type="number" id="fontSize" min="10" max="128"></label>
+          <label>V align <input type="number" id="vAlign" min="-32" max="32"></label>
+          <label>Spacing <input type="number" id="letterSpacing" min="-5" max="20" step="0.5"></label>
         </div>
       </div>
     </details>
@@ -52,14 +53,14 @@
           <input type="file" id="iconUpload" accept="image/png,image/jpeg" hidden>
         </label>
         <div class="row">
-          <label>Gap <input type="number" id="iconGap" value="{{ prefs.iconGap }}" min="{{ limits.icon_gap[0] }}" max="{{ limits.icon_gap[1] }}"></label>
-          <label>Size <input type="number" id="iconSize" value="{{ prefs.iconSize }}" min="{{ limits.icon_size[0] }}" max="{{ limits.icon_size[1] }}" step="0.05"></label>
+          <label>Gap <input type="number" id="iconGap" min="0" max="64"></label>
+          <label>Size <input type="number" id="iconSize" min="0.25" max="2" step="0.05"></label>
         </div>
       </div>
     </details>
     <div class="row">
-      <label>Margin <input type="number" id="marginH" value="{{ prefs.marginH }}" min="{{ limits.margin_h[0] }}" max="{{ limits.margin_h[1] }}"></label>
-      <label>Qty <input type="number" id="qty" class="narrow" value="1" min="{{ limits.qty[0] }}" max="{{ limits.qty[1] }}"></label>
+      <label>Margin <input type="number" id="marginH" min="0" max="128"></label>
+      <label>Qty <input type="number" id="qty" class="narrow" value="1" min="1" max="99"></label>
     </div>
   </div>
 
@@ -96,9 +97,10 @@
     const recent = [];
     const $ = (id) => document.getElementById(id);
     const QUEUE_MAX = 50;
-    const DEFAULT_PREFS = {{ prefs | tojson }};
-    const LIMITS = {{ limits | tojson }};
-    let tapeMm = {{ tape_height_mm }};
+    let DEFAULT_PREFS = {};
+    let LIMITS = {};
+    let tapeMm = 18;
+    let baselineTapeHeightPx = 112;
     let fontCatalog = {};
     let syncTimer = null;
     let stateSaveTimer = null;
@@ -126,6 +128,37 @@
     function selectedFontFamily() {
       const el = document.querySelector('input[name="fontFamily"]:checked');
       return el ? el.value : DEFAULT_PREFS.fontFamily;
+    }
+
+    function effectiveTapeHeightPx() {
+      if (detectedMedia && detectedMedia.height_px) return detectedMedia.height_px;
+      return baselineTapeHeightPx;
+    }
+
+    function applyConfigLimits() {
+      if (!LIMITS.font_size) return;
+      $("fontSize").min = LIMITS.font_size[0];
+      $("fontSize").max = LIMITS.font_size[1];
+      $("vAlign").min = LIMITS.v_align[0];
+      $("vAlign").max = LIMITS.v_align[1];
+      $("marginH").min = LIMITS.margin_h[0];
+      $("marginH").max = LIMITS.margin_h[1];
+      $("iconGap").min = LIMITS.icon_gap[0];
+      $("iconGap").max = LIMITS.icon_gap[1];
+      $("iconSize").min = LIMITS.icon_size[0];
+      $("iconSize").max = LIMITS.icon_size[1];
+      $("qty").min = LIMITS.qty[0];
+      $("qty").max = LIMITS.qty[1];
+    }
+
+    async function loadConfig() {
+      const cfg = await (await fetch("/api/config")).json();
+      DEFAULT_PREFS = cfg.prefs || {};
+      LIMITS = cfg.limits || {};
+      tapeMm = cfg.tapeHeightMm || 18;
+      baselineTapeHeightPx = 112;
+      applyConfigLimits();
+      updateTapeScale();
     }
 
     function updateTapeScale() {
@@ -882,8 +915,9 @@
       list.innerHTML = "";
       fontCatalog = {};
       const families = r.families || [];
+      PtRender.setFontFamilies(families);
       for (const fam of families) {
-        fontCatalog[fam.name] = Object.fromEntries(fam.variants.map((v) => [v, true]));
+        fontCatalog[fam.name] = fam.variants || {};
         const label = document.createElement("label");
         label.className = "font-row";
         label.dataset.family = fam.name;
@@ -1021,14 +1055,12 @@
       startStatusPolling();
     }
 
-    async function previewBlocks(blocks, opts) {
-      const r = await (await fetch("/api/preview", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ blocks, ...opts })
-      })).json();
-      if (!r.ok) return null;
-      return r.png;
+    async function previewBlocks(blocks, opts, forPrint = false) {
+      try {
+        return await PtRender.renderLabel(blocks, opts, effectiveTapeHeightPx(), { forPrint });
+      } catch {
+        return null;
+      }
     }
 
     async function fetchPreview(item) {
@@ -1083,16 +1115,30 @@
       renderTable();
     }
 
+    async function printPayload(item) {
+      const opts = itemOpts(item);
+      const png = await previewBlocks(item.blocks, opts, true);
+      if (!png) throw new Error("render failed");
+      return { png, qty: item.qty || 1, meta: itemPayload(item) };
+    }
+
     async function printItems(items, { clearOnSuccess = false } = {}) {
       if (items.length === 0) return false;
       printInFlight++;
       updateStatusDisplay();
       resetStatusPolling();
       try {
+        let labelsPayload;
+        try {
+          labelsPayload = await Promise.all(items.map(printPayload));
+        } catch (e) {
+          alert("Print failed: " + e.message);
+          return false;
+        }
         const r = await (await fetch("/api/print", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ labels: items.map(itemPayload) })
+          body: JSON.stringify({ labels: labelsPayload })
         })).json();
         if (!r.ok) {
           alert("Print failed: " + r.err);
@@ -1434,7 +1480,8 @@
       closeAllChipConfirms();
     });
 
-    loadFonts().then(async () => {
+    loadConfig().then(() => loadFonts()).then(async () => {
+      await PtRender.loadIconCatalog();
       renderIconQuickPicks();
       await loadIconCategories();
       await loadServerState();

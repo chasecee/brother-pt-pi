@@ -1,5 +1,10 @@
 .venv
-chain-print/target
+chain-print/target/
+/target/
+/node_modules/
+/.venv-golden/
+/tests/golden/python/
+/tests/golden/js/
 .rebuild.lock
 __pycache__/
 *.pyc

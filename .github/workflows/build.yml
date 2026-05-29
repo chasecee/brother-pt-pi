@@ -6,40 +6,55 @@ on:
   workflow_dispatch:
 
 env:
-  IMAGE: ghcr.io/${{ github.repository }}
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  BINARY_NAME: ptlabel-server
 
 jobs:
-  build:
+  build-server:
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
-      packages: write
     steps:
       - uses: actions/checkout@v4
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: dtolnay/rust-toolchain@stable
 
-      - uses: docker/login-action@v3
+      - uses: Swatinem/rust-cache@v2
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          workspaces: .
 
-      - uses: docker/metadata-action@v5
-        id: meta
-        with:
-          images: ${{ env.IMAGE }}
-          tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=sha,format=long
+      - name: Build arm64 binary
+        run: cargo build --release -p ptlabel-server
 
-      - uses: docker/build-push-action@v6
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
         with:
-          context: .
-          platforms: linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          name: ptlabel-server-linux-arm64
+          path: target/release/ptlabel-server
+          if-no-files-found: error
+
+  golden-render:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Python golden renders
+        run: |
+          python3 -m venv .venv-golden
+          .venv-golden/bin/pip install -r tests/requirements-golden.txt
+          .venv-golden/bin/python scripts/render-golden.py
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: JS golden renders
+        run: |
+          npm install
+          node scripts/render-golden.mjs
+
+      - name: Compare golden PNGs
+        run: python3 scripts/compare-golden.py

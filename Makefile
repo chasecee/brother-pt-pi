@@ -1,13 +1,14 @@
-IMAGE := ghcr.io/chasecee/brother-pt-pi:latest
-
-.PHONY: mac-dev mac-print fonts icons push help
+.PHONY: mac-dev mac-print fonts icons build push help
 
 mac-dev:
 	./scripts/dev-mac.sh
 
 mac-print:
-	PATH="$(HOME)/.cargo/bin:$$PATH" cargo build --release --manifest-path chain-print/Cargo.toml
-	chain-print/target/release/chain-print --help >/dev/null
+	cargo build --release -p chain-print
+	target/release/chain-print --help >/dev/null
+
+build:
+	cargo build --release -p ptlabel-server
 
 fonts:
 	./scripts/sync-fonts.sh
@@ -15,11 +16,14 @@ fonts:
 icons:
 	./scripts/sync-icons.sh
 
-push: fonts icons
-	docker buildx build --platform linux/arm64 -t $(IMAGE) --push .
+golden:
+	chmod +x scripts/render-golden.sh
+	./scripts/render-golden.sh
 
 help:
-	@echo "mac-dev   - native Mac dev with USB (port 5001)"
+	@echo "mac-dev   - native Mac dev (port 5001)"
 	@echo "mac-print - smoke test chain-print binary"
+	@echo "build     - release ptlabel-server"
 	@echo "fonts     - sync Brother fonts from P-touch Editor"
-	@echo "push      - emergency: build arm64 locally and push to GHCR (CI does this on push to main)"
+	@echo "icons     - sync icon catalog"
+	@echo "golden    - render parity tests (python vs js)"

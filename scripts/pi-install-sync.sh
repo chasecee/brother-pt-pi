@@ -26,9 +26,11 @@ systemctl --user disable --now ptlabel-sync.timer 2>/dev/null || true
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
+render_unit "$ROOT/deploy/ptlabel.service" >"$tmp/ptlabel.service"
 render_unit "$ROOT/deploy/ptlabel-sync.service" >"$tmp/ptlabel-sync.service"
 render_unit "$ROOT/deploy/ptlabel-sync.timer" >"$tmp/ptlabel-sync.timer"
 
+as_root cp "$tmp/ptlabel.service" /etc/systemd/system/
 as_root cp "$tmp/ptlabel-sync.service" /etc/systemd/system/
 as_root cp "$tmp/ptlabel-sync.timer" /etc/systemd/system/
 

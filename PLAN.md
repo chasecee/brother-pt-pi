@@ -2,24 +2,23 @@
 
 Local web UI for Brother PT-P710BT label printing.
 
-Browser on the LAN -> type labels, queue them, preview, print.
-Flask app + PIL rendering + chain-print binary for USB chain printing.
+Browser on the LAN -> type labels, queue them, preview (client-side), print.
+Rust `ptlabel-server` + browser Canvas/opentype.js rendering + chain-print over USB.
 
 ## Stack
 
-- **Render:** Python/Pillow (`render.py`) with Brother fonts synced from P-touch Editor on Mac
-- **Print:** Rust `chain-print` binary (vendored `ptouch` crate) over USB with chain cuts
-- **UI:** Flask + single-page template; shared state on Pi (`data/state.json`)
+- **Render:** browser Canvas + opentype.js (`static/js/render.js`); Brother fonts from `/fonts/`
+- **Server:** Rust `ptlabel-server` (axum) — state, static assets, USB print/wake/media
+- **Print:** `chain-print` library (vendored `ptouch` crate) over USB with chain cuts
+- **UI:** static `index.html`; shared state on Pi (`data/state.json`)
 
 ```
-Browser -> app.py -> storage.py (data/state.json)
-                 -> render.py (PIL PNG)
-                 -> printer.py -> chain-print (USB) -> PT-P710BT
+Browser -> render.js (preview + print PNG)
+        -> ptlabel-server -> state.json
+                         -> chain-print (USB) -> PT-P710BT
 ```
 
 ## Mac development
-
-Native dev with USB micro cable to the printer:
 
 ```bash
 make mac-dev
@@ -27,44 +26,36 @@ make mac-dev
 ```
 
 Requires:
-- Rust toolchain (`cargo build --release` in `chain-print/`)
-- Python venv (created automatically)
+- Rust toolchain (`cargo build --release -p ptlabel-server`)
 - Brother fonts synced once: `make fonts`
 
 Quit Brother P-touch apps before printing; they hold the USB device.
 
-## Pi 4B deployment
+## Pi deployment (Pi 4B / Pi Zero 2 W)
 
-Target: **Raspberry Pi 4B**, Raspberry Pi OS **64-bit** (Bookworm), Docker + Compose.
+Target: Raspberry Pi OS **64-bit Lite** (Bookworm), native binary + systemd.
 
-Printer on Pi USB (USB-A to micro-USB). Keep the printer on AC power; sleep drops USB.
-Docker runs with USB passthrough (`privileged: true`, `/dev/bus/usb` mount).
+Printer on Pi USB. Keep the printer on AC power; sleep drops USB.
+`uhubctl` on the host for wake (installed via apt on Pi).
 
 ### Daily dev (push from Mac, auto-deploy on Pi)
 
-`git push` to `main` triggers `.github/workflows/build.yml`, which builds a `linux/arm64` image and pushes it to `ghcr.io/chasecee/brother-pt-pi:latest`. A systemd user timer on the Pi runs `git pull` + `docker compose pull` + `docker compose up -d` every 60s — no Rust compile on the Pi.
+`git push` to `main` triggers CI to build `ptlabel-server` for `linux/arm64`. Copy the artifact to `~/ptlabel/bin/ptlabel-server` on the Pi (or use release download). `ptlabel-sync.timer` runs `git pull` + `systemctl restart ptlabel` every 60s.
 
 ```bash
 # Mac
 make mac-dev
-git push                    # CI builds arm64; Pi picks up within ~60s after CI completes
+git push
 
 # Pi — one-time bootstrap
 ./scripts/pi-bootstrap.sh git@github.com:chasecee/brother-pt-pi.git
+# then install CI binary to ~/ptlabel/bin/ptlabel-server
 ```
-
-Repo and image updates are auto-applied by `ptlabel-sync.timer` (installed by `pi-bootstrap.sh`, polls every 60s).
 
 Manual update on Pi:
 
 ```bash
 cd ~/ptlabel && ./scripts/pi-sync.sh
-```
-
-Existing Pi (already bootstrapped): pull this change, then install the timer and drop watchtower:
-
-```bash
-cd ~/ptlabel && git pull && chmod +x scripts/pi-sync.sh scripts/pi-install-sync.sh && ./scripts/pi-install-sync.sh
 ```
 
 Verify:
@@ -73,19 +64,19 @@ Verify:
 ~/ptlabel/scripts/pi-verify.sh
 ```
 
-Emergency manual push from Mac (skip CI):
+Local release build:
 
 ```bash
-make push
+make build
+# target/release/ptlabel-server
 ```
 
 ### Pi prerequisites
 
-- Raspberry Pi OS 64-bit (arm64)
-- Docker Engine + Compose plugin
+- Raspberry Pi OS 64-bit Lite (arm64); 512 MB OK on Zero 2 W with swap
 - Git read access to repo (deploy key for private repos)
-- Read access to the GHCR image. If the `ghcr.io/chasecee/brother-pt-pi` package is public, no auth needed. Otherwise `docker login ghcr.io` on the Pi with a PAT (`read:packages`).
-- One-time on Mac: `make fonts` then commit `fonts/` so the CI image matches Mac rendering
+- `uhubctl`, `usbutils` (`lsusb`)
+- One-time on Mac: `make fonts` then commit `fonts/`
 
 ## chain-print
 
@@ -170,14 +161,14 @@ Shared state lives in `{PTLABEL_DATA_DIR}/state.json` (Docker volume `./data:/ap
 ## API
 
 - `GET /` — UI
+- `GET /api/config` — UI defaults, limits, baseline tape height
 - `GET /api/state` — prefs, draft, queue, recent
 - `PUT /api/state` — update prefs, draft, and/or queue
 - `GET /api/status` — printer USB presence + printing flag (passive, safe during print)
 - `GET /api/media` — query loaded tape via USB (width, kind, colors, errors); skip if printing
-- `GET /api/fonts` — font catalog
-- `POST /api/preview` — render label to PNG (base64)
-- `POST /api/print` — print labels (supports `qty` per label); records recent on success
-- `POST /api/wake` — connect + status query (returns media info)
+- `GET /api/fonts` — font catalog with `/fonts/` URLs per variant
+- `POST /api/print` — print pre-rendered PNGs (`{ png, qty, meta }` per label); records recent on success
+- `POST /api/wake` — VBUS cycle + status query (returns media info)
 
 ## UI behavior
 

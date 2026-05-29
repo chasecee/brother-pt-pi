@@ -1,0 +1,3 @@
+[workspace]
+members = ["chain-print", "server"]
+resolver = "2"
