@@ -28,6 +28,12 @@ trap 'rm -rf "$tmp"' EXIT
 render_unit "$ROOT/deploy/ptlabel.service" >"$tmp/ptlabel.service"
 as_root cp "$tmp/ptlabel.service" /etc/systemd/system/
 
+cat >"$tmp/ptlabel-sudoers" <<EOF
+$RUN_USER ALL=(root) NOPASSWD: /bin/systemctl restart ptlabel.service, /bin/systemctl stop ptlabel.service, /bin/systemctl start ptlabel.service
+EOF
+as_root install -m 0440 "$tmp/ptlabel-sudoers" /etc/sudoers.d/ptlabel
+as_root visudo -cf /etc/sudoers.d/ptlabel >/dev/null
+
 as_root systemctl daemon-reload
 as_root systemctl enable ptlabel.service
 

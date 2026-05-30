@@ -15,16 +15,13 @@ rsync -a \
   --exclude .venv-golden \
   "$SRC/" "$ROOT/"
 
-if command -v systemctl >/dev/null; then
-  sudo systemctl stop ptlabel.service 2>/dev/null || true
-fi
+# Atomic replace: install to sibling temp then rename. rename(2) succeeds
+# even when the destination is currently executing, so the live server
+# keeps running on its old inode until we restart it below.
+install -m 0755 "$BIN_SRC" "$ROOT/bin/.ptlabel-server.new"
+mv -f "$ROOT/bin/.ptlabel-server.new" "$ROOT/bin/ptlabel-server"
+chmod +x "$ROOT/scripts/"*.sh
 
-cp "$BIN_SRC" "$ROOT/bin/ptlabel-server"
-chmod +x "$ROOT/bin/ptlabel-server"
-chmod +x "$ROOT/scripts/"*.sh 2>/dev/null || true
-
-if command -v systemctl >/dev/null; then
-  sudo systemctl start ptlabel.service 2>/dev/null || true
-fi
+sudo systemctl restart ptlabel.service
 
 echo "pi-deploy: $ROOT ($(git -C "$SRC" rev-parse --short HEAD 2>/dev/null || echo unknown))"
