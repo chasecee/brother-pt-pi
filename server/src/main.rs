@@ -4,6 +4,7 @@ mod fonts;
 mod icons;
 mod printer;
 mod state;
+mod sysinfo;
 
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
@@ -219,12 +220,16 @@ async fn api_state_put(
 }
 
 async fn api_status(State(state): State<AppState>) -> Json<Value> {
-    Json(json!({
+    let mut body = json!({
         "ok": state.printer.usb_ready(),
         "printing": state.printer.is_printing(),
         "info": "",
         "err": "",
-    }))
+    });
+    if let Some(mem) = sysinfo::linux_mem_mb() {
+        body["mem"] = mem;
+    }
+    Json(body)
 }
 
 async fn api_media(State(state): State<AppState>) -> Result<Json<Value>, (StatusCode, Json<Value>)> {

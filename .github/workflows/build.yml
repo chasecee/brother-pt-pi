@@ -2,17 +2,15 @@ name: build
 
 on:
   push:
-    branches: [main]
+    branches: [main, rust]
   workflow_dispatch:
 
 env:
-  RELEASE_ASSET: ptlabel-server-linux-arm64
+  BINARY_ARTIFACT: ptlabel-server-linux-arm64
 
 jobs:
   build-server:
     runs-on: ubuntu-24.04-arm
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -25,16 +23,14 @@ jobs:
       - name: Build arm64 binary
         run: |
           cargo build --release -p ptlabel-server
-          cp target/release/ptlabel-server "target/release/${{ env.RELEASE_ASSET }}"
+          cp target/release/ptlabel-server "target/release/${{ env.BINARY_ARTIFACT }}"
 
-      - name: Publish Pi release
-        uses: softprops/action-gh-release@v2
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: pi-${{ github.run_number }}
-          name: Pi build ${{ github.run_number }}
-          body: ${{ github.sha }}
-          files: target/release/${{ env.RELEASE_ASSET }}
-          make_latest: true
+          name: ${{ env.BINARY_ARTIFACT }}
+          path: target/release/${{ env.BINARY_ARTIFACT }}
+          if-no-files-found: error
 
   golden-render:
     runs-on: ubuntu-24.04
@@ -62,3 +58,17 @@ jobs:
 
       - name: Compare golden PNGs
         run: .venv-golden/bin/python scripts/compare-golden.py
+
+  deploy-pi:
+    needs: build-server
+    runs-on: [self-hosted, pi]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.BINARY_ARTIFACT }}
+          path: _artifact
+
+      - name: Deploy to Pi
+        run: ./scripts/pi-deploy.sh "_artifact/${{ env.BINARY_ARTIFACT }}"

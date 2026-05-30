@@ -10,7 +10,7 @@
   <script src="/static/js/render.js"></script>
 </head>
 <body>
-  <h1>Label printer <span id="status" class="bad">checking...</span> <button id="wakeBtn" type="button" class="btn btn-sm" hidden>Wake</button></h1>
+  <h1>Label printer <span id="status" class="bad">checking...</span> <span id="mem" class="mem" hidden></span> <button id="wakeBtn" type="button" class="btn btn-sm" hidden>Wake</button></h1>
 
   <div id="draftEditor" class="draft-editor"></div>
   <button type="button" id="addLineBtn" class="btn btn-sm">Add line</button>
@@ -953,6 +953,17 @@
       wakeBtn.hidden = cls === "ok" || cls === "printing";
     }
 
+    function updateMemDisplay(mem) {
+      const el = $("mem");
+      if (!mem || mem.avail_mb == null || mem.total_mb == null) {
+        el.hidden = true;
+        return;
+      }
+      el.hidden = false;
+      el.textContent = mem.avail_mb + " / " + mem.total_mb + " MB free";
+      el.className = mem.avail_mb < 64 ? "mem low" : "mem";
+    }
+
     function updateStatusDisplay() {
       if (printInFlight > 0) {
         setStatus("printing", "printing");
@@ -1000,6 +1011,7 @@
       try {
         const r = await (await fetch("/api/status")).json();
         usbOk = !!r.ok;
+        updateMemDisplay(r.mem);
         if (r.printing || printInFlight > 0) {
           updateStatusDisplay();
           return;
@@ -1008,6 +1020,7 @@
       } catch {
         usbOk = false;
         setStatus("error", "bad");
+        updateMemDisplay(null);
       }
     }
 

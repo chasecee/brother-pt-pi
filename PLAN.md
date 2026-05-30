@@ -40,30 +40,24 @@ Printer on Pi USB. Keep the printer on AC power; sleep drops USB.
 
 ### Daily dev (push from Mac, auto-deploy on Pi)
 
-`git push` to `main` triggers CI: build `ptlabel-server` for `linux/arm64`, publish to GitHub Releases. `ptlabel-sync.timer` runs `git pull`, downloads the latest release binary if changed, and restarts the service.
+`git push` triggers CI: build arm64 binary on GitHub, then a **deploy job runs on your Pi's self-hosted runner** — rsyncs the repo + binary to `~/ptlabel` and restarts. No Docker, no git pull timer, no GitHub Releases.
 
 ```bash
 # Mac
 make mac-dev
 git push
 
-# Pi — one-time bootstrap
-PTLABEL_GITHUB_TOKEN=ghp_... ./scripts/pi-bootstrap.sh git@github.com:chasecee/brother-pt-pi.git
-# public repo: token optional
+# Pi — one-time bootstrap (shallow clone + USB + systemd + runner)
+RUNNER_TOKEN=xxx ./scripts/pi-bootstrap.sh https://github.com/chasecee/brother-pt-pi.git
 ```
 
-Private repo token lives in `/etc/ptlabel/env` (see `deploy/ptlabel.env.example`).
-
-Manual update on Pi:
-
-```bash
-cd ~/ptlabel && ./scripts/pi-sync.sh
-```
+Get `RUNNER_TOKEN` from GitHub: repo **Settings → Actions → Runners → New self-hosted runner** (expires in ~1 hour).
 
 Verify:
 
 ```bash
 ~/ptlabel/scripts/pi-verify.sh
+journalctl -u actions.runner.* -f
 ```
 
 Local release build:
@@ -75,8 +69,8 @@ make build
 
 ### Pi prerequisites
 
-- Raspberry Pi OS 64-bit Lite (arm64); 512 MB OK on Zero 2 W with swap
-- Git read access to repo (deploy key for private repos; read-only PAT for release downloads)
+- Raspberry Pi OS 64-bit Lite (arm64); 512 MB OK on Zero 2 W with swap + runner (~50–100 MB idle)
+- Self-hosted GitHub Actions runner on the Pi (deploy only; build stays on GitHub)
 - `uhubctl`, `usbutils` (`lsusb`)
 - One-time on Mac: `make fonts` then commit `fonts/`
 

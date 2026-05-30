@@ -35,6 +35,18 @@ h1 { font-size: 1.2rem; }
 #status.bad { background: var(--danger); }
 #status.printing { background: var(--warn); }
 
+.mem {
+  font-size: 0.75rem;
+  font-weight: normal;
+  opacity: 0.75;
+  margin-left: 0.35rem;
+}
+
+.mem.low {
+  color: var(--warn);
+  opacity: 1;
+}
+
 input[type=text],
 input[type=number],
 select,
