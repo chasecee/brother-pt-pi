@@ -12,7 +12,7 @@ jobs:
   build-server:
     runs-on: ubuntu-24.04-arm
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -26,7 +26,7 @@ jobs:
           cp target/release/ptlabel-server "target/release/${{ env.BINARY_ARTIFACT }}"
 
       - name: Upload binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ env.BINARY_ARTIFACT }}
           path: target/release/${{ env.BINARY_ARTIFACT }}
@@ -35,9 +35,9 @@ jobs:
   golden-render:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -47,7 +47,7 @@ jobs:
           .venv-golden/bin/pip install -r tests/requirements-golden.txt
           .venv-golden/bin/python scripts/render-golden.py
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: "22"
 
@@ -63,9 +63,9 @@ jobs:
     needs: build-server
     runs-on: [self-hosted, pi]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: ${{ env.BINARY_ARTIFACT }}
           path: _artifact
