@@ -6,8 +6,8 @@
     <title>Label Buddy</title>
     <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/static/style.css" />
-    <script src="/static/js/opentype.min.js"></script>
-    <script src="/static/js/render.js"></script>
+    <script defer src="/static/js/opentype.min.js"></script>
+    <script defer src="/static/js/render.js"></script>
   </head>
   <body>
     <h1>
@@ -1424,7 +1424,7 @@
         }
       };
 
-      refreshStatus().then(refreshMedia);
+      Promise.all([refreshStatus(), refreshMedia()]);
       startStatusPolling();
       startMediaPolling();
       $("wakeBtn").onclick = wakePrinter;
@@ -1643,26 +1643,28 @@
         closeAllChipConfirms();
       });
 
-      loadConfig()
-        .then(() => loadFonts())
-        .then(async () => {
-          await PtRender.loadIconCatalog();
-          renderIconQuickPicks();
-          await loadIconCategories();
-          await loadServerState();
-          renderRecent();
-          if (getDraftLines().length !== labels.length) {
-            await syncFromEditor();
-          } else {
-            renderTable();
-            await Promise.all(labels.map(fetchPreview));
-            renderTable();
-          }
-          await Promise.all(
-            recent.filter((item) => !item.png).map(fetchPreview),
-          );
-          renderRecent();
-        });
+      window.addEventListener("DOMContentLoaded", async () => {
+        await Promise.all([
+          loadConfig(),
+          PtRender.loadIconCatalog(),
+          loadIconCategories(),
+        ]);
+        await loadFonts();
+        renderIconQuickPicks();
+        await loadServerState();
+        renderRecent();
+        if (getDraftLines().length !== labels.length) {
+          await syncFromEditor();
+        } else {
+          renderTable();
+          await Promise.all(labels.map(fetchPreview));
+          renderTable();
+        }
+        await Promise.all(
+          recent.filter((item) => !item.png).map(fetchPreview),
+        );
+        renderRecent();
+      });
     </script>
   </body>
 </html>

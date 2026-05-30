@@ -20,6 +20,7 @@ use base64::Engine;
 use clap::Parser;
 use serde::Deserialize;
 use serde_json::{json, Value};
+use tower_http::compression::CompressionLayer;
 use tower_http::services::ServeDir;
 use tower_http::set_header::SetResponseHeaderLayer;
 use tracing_subscriber::EnvFilter;
@@ -173,6 +174,7 @@ async fn main() -> anyhow::Result<()> {
         .nest("/font-previews", font_previews)
         .nest("/fonts", fonts_static)
         .nest("/icons/thumbs", icon_thumbs)
+        .layer(CompressionLayer::new().gzip(true).br(true))
         .with_state(state);
 
     let addr: SocketAddr = format!("{}:{}", args.host, args.port).parse()?;
