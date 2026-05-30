@@ -15,12 +15,16 @@ rsync -a \
   --exclude .venv-golden \
   "$SRC/" "$ROOT/"
 
+if command -v systemctl >/dev/null; then
+  sudo systemctl stop ptlabel.service 2>/dev/null || true
+fi
+
 cp "$BIN_SRC" "$ROOT/bin/ptlabel-server"
 chmod +x "$ROOT/bin/ptlabel-server"
 chmod +x "$ROOT/scripts/"*.sh 2>/dev/null || true
 
 if command -v systemctl >/dev/null; then
-  sudo systemctl restart ptlabel.service 2>/dev/null || true
+  sudo systemctl start ptlabel.service 2>/dev/null || true
 fi
 
 echo "pi-deploy: $ROOT ($(git -C "$SRC" rev-parse --short HEAD 2>/dev/null || echo unknown))"
