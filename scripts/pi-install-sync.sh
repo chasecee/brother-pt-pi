@@ -35,6 +35,7 @@ as_root cp "$tmp/ptlabel-sync.service" /etc/systemd/system/
 as_root cp "$tmp/ptlabel-sync.timer" /etc/systemd/system/
 
 as_root systemctl daemon-reload
+as_root systemctl enable --now ptlabel.service
 as_root systemctl enable --now ptlabel-sync.timer
 as_root systemctl start ptlabel-sync.service
 

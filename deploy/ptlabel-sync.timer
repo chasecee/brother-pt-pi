@@ -1,5 +1,5 @@
 [Unit]
-Description=Poll ptlabel repo and image updates
+Description=Poll ptlabel repo and release updates
 
 [Timer]
 OnBootSec=1min

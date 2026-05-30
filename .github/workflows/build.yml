@@ -6,13 +6,13 @@ on:
   workflow_dispatch:
 
 env:
-  BINARY_NAME: ptlabel-server
+  RELEASE_ASSET: ptlabel-server-linux-arm64
 
 jobs:
   build-server:
     runs-on: ubuntu-24.04-arm
     permissions:
-      contents: read
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -23,14 +23,18 @@ jobs:
           workspaces: .
 
       - name: Build arm64 binary
-        run: cargo build --release -p ptlabel-server
+        run: |
+          cargo build --release -p ptlabel-server
+          cp target/release/ptlabel-server "target/release/${{ env.RELEASE_ASSET }}"
 
-      - name: Upload binary artifact
-        uses: actions/upload-artifact@v4
+      - name: Publish Pi release
+        uses: softprops/action-gh-release@v2
         with:
-          name: ptlabel-server-linux-arm64
-          path: target/release/ptlabel-server
-          if-no-files-found: error
+          tag_name: pi-${{ github.run_number }}
+          name: Pi build ${{ github.run_number }}
+          body: ${{ github.sha }}
+          files: target/release/${{ env.RELEASE_ASSET }}
+          make_latest: true
 
   golden-render:
     runs-on: ubuntu-24.04
@@ -57,4 +61,4 @@ jobs:
           node scripts/render-golden.mjs
 
       - name: Compare golden PNGs
-        run: python3 scripts/compare-golden.py
+        run: .venv-golden/bin/python scripts/compare-golden.py

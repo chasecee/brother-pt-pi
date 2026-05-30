@@ -15,6 +15,9 @@ as_root() {
   if [[ $EUID -eq 0 ]]; then "$@"; else sudo "$@"; fi
 }
 
+as_root apt-get update -qq
+as_root apt-get install -y git usbutils uhubctl curl
+
 if [[ ! -d "$ROOT/.git" ]]; then
   git clone --branch "$BRANCH" "$REPO" "$ROOT"
 fi
@@ -25,40 +28,23 @@ chmod +x scripts/pi-verify.sh scripts/pi-usb-setup.sh scripts/pi-sync.sh scripts
 
 ./scripts/pi-usb-setup.sh
 
-export PTLABEL_ROOT="$ROOT"
-export PTLABEL_BRANCH="$BRANCH"
-./scripts/pi-sync.sh || true
-./scripts/pi-install-sync.sh
-
-if [[ ! -x "$ROOT/bin/ptlabel-server" ]]; then
-  echo "copy arm64 binary to $ROOT/bin/ptlabel-server (from CI release or local cross-build)" >&2
+if [[ -n "${PTLABEL_GITHUB_TOKEN:-${GITHUB_TOKEN:-}}" ]]; then
+  as_root mkdir -p /etc/ptlabel
+  if [[ ! -f /etc/ptlabel/env ]]; then
+    printf 'PTLABEL_GITHUB_TOKEN=%s\n' "${PTLABEL_GITHUB_TOKEN:-$GITHUB_TOKEN}" | as_root tee /etc/ptlabel/env >/dev/null
+    as_root chmod 600 /etc/ptlabel/env
+    echo "wrote /etc/ptlabel/env (private repo token)"
+  fi
+elif [[ ! -f /etc/ptlabel/env ]]; then
+  echo "private repo: set PTLABEL_GITHUB_TOKEN before bootstrap or add /etc/ptlabel/env" >&2
 fi
 
-render_unit() {
-  sed \
-    -e "s|__PTLABEL_ROOT__|$ROOT|g" \
-    -e "s|__PTLABEL_BRANCH__|$BRANCH|g" \
-    -e "s|__PTLABEL_USER__|$RUN_USER|g" \
-    "$1"
-}
-
-tmp="$(mktemp -d)"
-trap 'rm -rf "$tmp"' EXIT
-render_unit "$ROOT/deploy/ptlabel.service" >"$tmp/ptlabel.service"
-render_unit "$ROOT/deploy/ptlabel-sync.service" >"$tmp/ptlabel-sync.service"
-render_unit "$ROOT/deploy/ptlabel-sync.timer" >"$tmp/ptlabel-sync.timer"
-
-as_root cp "$tmp/ptlabel.service" /etc/systemd/system/
-as_root cp "$tmp/ptlabel-sync.service" /etc/systemd/system/
-as_root cp "$tmp/ptlabel-sync.timer" /etc/systemd/system/
-
-as_root systemctl daemon-reload
-as_root systemctl enable --now ptlabel.service
-as_root systemctl enable --now ptlabel-sync.timer
-as_root systemctl start ptlabel-sync.service
+export PTLABEL_ROOT="$ROOT"
+export PTLABEL_BRANCH="$BRANCH"
+./scripts/pi-install-sync.sh
+./scripts/pi-sync.sh || true
 
 ./scripts/pi-verify.sh || true
 
 echo "bootstrap done: $ROOT"
-echo "binary: $ROOT/bin/ptlabel-server"
-echo "updates: ptlabel-sync.timer runs git pull + restart every 60s"
+echo "updates: ptlabel-sync.timer runs git pull + release binary every 60s"

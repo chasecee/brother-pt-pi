@@ -40,7 +40,7 @@ Printer on Pi USB. Keep the printer on AC power; sleep drops USB.
 
 ### Daily dev (push from Mac, auto-deploy on Pi)
 
-`git push` to `main` triggers CI to build `ptlabel-server` for `linux/arm64`. Copy the artifact to `~/ptlabel/bin/ptlabel-server` on the Pi (or use release download). `ptlabel-sync.timer` runs `git pull` + `systemctl restart ptlabel` every 60s.
+`git push` to `main` triggers CI: build `ptlabel-server` for `linux/arm64`, publish to GitHub Releases. `ptlabel-sync.timer` runs `git pull`, downloads the latest release binary if changed, and restarts the service.
 
 ```bash
 # Mac
@@ -48,9 +48,11 @@ make mac-dev
 git push
 
 # Pi — one-time bootstrap
-./scripts/pi-bootstrap.sh git@github.com:chasecee/brother-pt-pi.git
-# then install CI binary to ~/ptlabel/bin/ptlabel-server
+PTLABEL_GITHUB_TOKEN=ghp_... ./scripts/pi-bootstrap.sh git@github.com:chasecee/brother-pt-pi.git
+# public repo: token optional
 ```
+
+Private repo token lives in `/etc/ptlabel/env` (see `deploy/ptlabel.env.example`).
 
 Manual update on Pi:
 
@@ -74,7 +76,7 @@ make build
 ### Pi prerequisites
 
 - Raspberry Pi OS 64-bit Lite (arm64); 512 MB OK on Zero 2 W with swap
-- Git read access to repo (deploy key for private repos)
+- Git read access to repo (deploy key for private repos; read-only PAT for release downloads)
 - `uhubctl`, `usbutils` (`lsusb`)
 - One-time on Mac: `make fonts` then commit `fonts/`
 
@@ -156,7 +158,7 @@ preset_value = round(baseline_18mm * height_px / 112)
 
 | `LABEL_PAD_PX` | `24` | Default horizontal margin (18 mm baseline; overridden by detected media) |
 
-Shared state lives in `{PTLABEL_DATA_DIR}/state.json` (Docker volume `./data:/app/data`). All browsers on the LAN read/write via `/api/state`. Recent prints are recorded server-side on successful print.
+Shared state lives in `{PTLABEL_DATA_DIR}/state.json`. All browsers on the LAN read/write via `/api/state`. Recent prints are recorded server-side on successful print.
 
 ## API
 
