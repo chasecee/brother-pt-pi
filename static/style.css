@@ -35,24 +35,51 @@ h1 { font-size: 1.2rem; }
 #status.bad { background: var(--danger); }
 #status.printing { background: var(--warn); }
 
-.mem {
-  font-size: 0.75rem;
-  font-weight: normal;
-  opacity: 0.75;
+.cog {
+  background: transparent;
+  border: 0;
+  color: inherit;
+  padding: 0.25rem;
   margin-left: 0.35rem;
+  cursor: pointer;
+  vertical-align: middle;
+  opacity: 0.55;
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius);
+  transition: opacity .15s, background .15s;
 }
+.cog:hover { opacity: 1; background: color-mix(in srgb, var(--fg) 8%, transparent); }
+.cog svg { transition: transform .25s ease; }
+.cog[aria-expanded="true"] { opacity: 1; }
+.cog[aria-expanded="true"] svg { transform: rotate(60deg); }
 
-.mem.low {
-  color: var(--warn);
-  opacity: 1;
+.system-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows .22s ease;
 }
-
-.meta-link {
-  font-size: 0.75rem;
-  font-weight: normal;
-  opacity: 0.75;
-  margin-left: 0.35rem;
+.system-panel.open { grid-template-rows: 1fr; }
+.system-panel-inner {
+  min-height: 0;
+  overflow: hidden;
 }
+.system-panel.open .system-panel-inner {
+  margin: 0 0 1rem;
+  padding: .6rem .8rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--fg) 3%, var(--bg));
+}
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: .8rem;
+  padding: .15rem 0;
+}
+.stat-row > span:first-child { opacity: 0.6; }
+.stat-row .low { color: var(--warn); }
 
 input[type=text],
 input[type=number],

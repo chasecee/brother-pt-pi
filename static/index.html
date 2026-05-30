@@ -5,23 +5,47 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Label Buddy</title>
     <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="/static/style.css" />
-    <script defer src="/static/js/opentype.min.js"></script>
-    <script defer src="/static/js/render.js"></script>
+    <link rel="stylesheet" href="/static/style.css?v=__V__" />
+    <script defer src="/static/js/opentype.min.js?v=__V__"></script>
+    <script defer src="/static/js/render.js?v=__V__"></script>
   </head>
   <body>
     <h1>
       Label printer <span id="status" class="bad">checking...</span>
-      <span id="mem" class="mem" hidden></span>
-      <a
-        class="meta-link"
-        href="https://github.com/chasecee/brother-pt-pi/actions"
-        target="_blank"
-        rel="noopener"
-        >Actions</a
-      >
       <button id="wakeBtn" type="button" class="btn btn-sm" hidden>Wake</button>
+      <button
+        id="settingsBtn"
+        type="button"
+        class="cog"
+        aria-label="System info"
+        aria-expanded="false"
+        aria-controls="systemPanel"
+      >
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+          <path
+            fill="currentColor"
+            d="M12 8a4 4 0 100 8 4 4 0 000-8zm9.4 4a7.4 7.4 0 00-.1-1.2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 00-2-1.2l-.4-2.6h-4l-.4 2.6a7.4 7.4 0 00-2 1.2l-2.5-1-2 3.5 2.1 1.6a7.6 7.6 0 000 2.4l-2.1 1.6 2 3.5 2.5-1c.6.5 1.3.9 2 1.2l.4 2.6h4l.4-2.6a7.4 7.4 0 002-1.2l2.5 1 2-3.5-2.1-1.6c.1-.4.1-.8.1-1.2z"
+          />
+        </svg>
+      </button>
     </h1>
+    <div id="systemPanel" class="system-panel">
+      <div class="system-panel-inner">
+        <div class="stat-row"><span>Memory</span><span id="statMem">—</span></div>
+        <div class="stat-row"><span>Wi-Fi</span><span id="statWifi">—</span></div>
+        <div class="stat-row"><span>CPU temp</span><span id="statTemp">—</span></div>
+        <div class="stat-row"><span>Uptime</span><span id="statUptime">—</span></div>
+        <div class="stat-row"><span>Deployed</span><span id="statDeployed">—</span></div>
+        <div class="stat-row">
+          <a
+            href="https://github.com/chasecee/brother-pt-pi/actions"
+            target="_blank"
+            rel="noopener"
+            >GitHub Actions</a
+          >
+        </div>
+      </div>
+    </div>
 
     <div id="draftEditor" class="draft-editor"></div>
     <button type="button" id="addLineBtn" class="btn btn-sm">Add line</button>
@@ -1060,16 +1084,66 @@
         wakeBtn.hidden = cls === "ok" || cls === "printing";
       }
 
-      function updateMemDisplay(mem) {
-        const el = $("mem");
-        if (!mem || mem.avail_mb == null || mem.total_mb == null) {
-          el.hidden = true;
-          return;
+      function formatRelative(seconds) {
+        if (!Number.isFinite(seconds) || seconds < 0) return "—";
+        if (seconds < 60) return `${Math.round(seconds)}s`;
+        if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
+        if (seconds < 86400) {
+          const h = Math.floor(seconds / 3600);
+          const m = Math.round((seconds - h * 3600) / 60);
+          return m ? `${h}h ${m}m` : `${h}h`;
         }
-        el.hidden = false;
-        el.textContent = mem.avail_mb + " / " + mem.total_mb + " MB free";
-        el.className = mem.avail_mb < 64 ? "mem low" : "mem";
+        const d = Math.floor(seconds / 86400);
+        const h = Math.round((seconds - d * 86400) / 3600);
+        return h ? `${d}d ${h}h` : `${d}d`;
       }
+
+      function wifiQuality(dbm) {
+        if (dbm >= -55) return "excellent";
+        if (dbm >= -65) return "good";
+        if (dbm >= -75) return "fair";
+        return "weak";
+      }
+
+      function updateSystemPanel(r) {
+        const mem = r && r.mem;
+        if (mem && mem.avail_mb != null && mem.total_mb != null) {
+          $("statMem").textContent = `${mem.avail_mb} / ${mem.total_mb} MB free`;
+          $("statMem").classList.toggle("low", mem.avail_mb < 64);
+        } else {
+          $("statMem").textContent = "—";
+        }
+        const wifi = r && r.wifi;
+        if (wifi && wifi.signal_dbm != null) {
+          $("statWifi").textContent = `${wifi.signal_dbm} dBm (${wifiQuality(
+            wifi.signal_dbm,
+          )})`;
+        } else {
+          $("statWifi").textContent = "—";
+        }
+        $("statTemp").textContent =
+          r && r.temp_c != null ? `${r.temp_c.toFixed(1)} °C` : "—";
+        $("statUptime").textContent =
+          r && r.uptime_s != null ? formatRelative(r.uptime_s) : "—";
+        if (r && r.deployed_at) {
+          const ts = Number(r.deployed_at);
+          if (Number.isFinite(ts)) {
+            const ageS = Date.now() / 1000 - ts;
+            $("statDeployed").textContent = `${formatRelative(ageS)} ago`;
+            $("statDeployed").title = new Date(ts * 1000).toLocaleString();
+          }
+        } else {
+          $("statDeployed").textContent = "—";
+        }
+      }
+
+      $("settingsBtn").addEventListener("click", () => {
+        const btn = $("settingsBtn");
+        const panel = $("systemPanel");
+        const open = !panel.classList.contains("open");
+        panel.classList.toggle("open", open);
+        btn.setAttribute("aria-expanded", open ? "true" : "false");
+      });
 
       function updateStatusDisplay() {
         if (printInFlight > 0) {
@@ -1122,7 +1196,7 @@
         try {
           const r = await (await fetch("/api/status")).json();
           usbOk = !!r.ok;
-          updateMemDisplay(r.mem);
+          updateSystemPanel(r);
           if (r.printing || printInFlight > 0) {
             updateStatusDisplay();
             return;
@@ -1131,7 +1205,7 @@
         } catch {
           usbOk = false;
           setStatus("error", "bad");
-          updateMemDisplay(null);
+          updateSystemPanel(null);
         }
       }
 

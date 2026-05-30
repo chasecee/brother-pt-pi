@@ -53,6 +53,7 @@ struct AppState {
     limits: Limits,
     store: Arc<StateStore>,
     printer: Arc<PrinterService>,
+    asset_version: String,
 }
 
 #[derive(Deserialize)]
@@ -138,11 +139,15 @@ async fn main() -> anyhow::Result<()> {
         limits,
         store,
         printer,
+        asset_version: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs().to_string())
+            .unwrap_or_else(|_| "0".to_string()),
     };
 
     let cache_year = SetResponseHeaderLayer::if_not_present(
         header::CACHE_CONTROL,
-        header::HeaderValue::from_static("public, max-age=31536000"),
+        header::HeaderValue::from_static("public, max-age=31536000, immutable"),
     );
 
     let font_previews = Router::new()
@@ -153,6 +158,9 @@ async fn main() -> anyhow::Result<()> {
         .layer(cache_year.clone());
     let icon_thumbs = Router::new()
         .nest_service("/", ServeDir::new(root.join("icons").join("thumbs")))
+        .layer(cache_year.clone());
+    let static_assets = Router::new()
+        .nest_service("/", ServeDir::new(root.join("static")))
         .layer(cache_year);
 
     let app = Router::new()
@@ -170,7 +178,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/icons/custom", post(api_icon_custom))
         .route("/icons/custom/:uuid", get(icon_custom_file))
         .route("/icons/catalog.json", get(icon_catalog_json))
-        .nest_service("/static", ServeDir::new(root.join("static")))
+        .nest("/static", static_assets)
         .nest("/font-previews", font_previews)
         .nest("/fonts", fonts_static)
         .nest("/icons/thumbs", icon_thumbs)
@@ -185,11 +193,14 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn index(State(state): State<AppState>) -> Response {
-    match tokio::fs::read(state.root.join("static").join("index.html")).await {
-        Ok(bytes) => (
+    match tokio::fs::read_to_string(state.root.join("static").join("index.html")).await {
+        Ok(html) => (
             StatusCode::OK,
-            [(header::CONTENT_TYPE, "text/html; charset=utf-8")],
-            bytes,
+            [
+                (header::CONTENT_TYPE, "text/html; charset=utf-8"),
+                (header::CACHE_CONTROL, "no-cache"),
+            ],
+            html.replace("__V__", &state.asset_version),
         )
             .into_response(),
         Err(_) => (StatusCode::NOT_FOUND, "index.html not found").into_response(),
@@ -227,9 +238,11 @@ async fn api_status(State(state): State<AppState>) -> Json<Value> {
         "printing": state.printer.is_printing(),
         "info": "",
         "err": "",
+        "deployed_at": state.asset_version,
     });
-    if let Some(mem) = sysinfo::linux_mem_mb() {
-        body["mem"] = mem;
+    let map = body.as_object_mut().unwrap();
+    for (k, v) in sysinfo::linux_sysinfo() {
+        map.insert(k, v);
     }
     Json(body)
 }
