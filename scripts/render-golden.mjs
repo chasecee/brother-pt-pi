@@ -48,6 +48,10 @@ const sandbox = {
     if (url === "/icons/catalog.json") {
       return { json: async () => iconCatalog };
     }
+    if (path.isAbsolute(url) && fs.existsSync(url)) {
+      const buf = fs.readFileSync(url);
+      return { arrayBuffer: async () => buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) };
+    }
     throw new Error(`fetch not mocked: ${url}`);
   },
 };

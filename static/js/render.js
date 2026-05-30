@@ -40,7 +40,7 @@ const PtRender = (() => {
   async function loadFont(url) {
     if (!url) throw new Error("no font url");
     if (fontCache.has(url)) return fontCache.get(url);
-    const p = opentype.load(url);
+    const p = fetch(url).then((r) => r.arrayBuffer()).then((buf) => opentype.parse(buf));
     fontCache.set(url, p);
     return p;
   }
