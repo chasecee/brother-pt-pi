@@ -9,3 +9,4 @@ chain-print/target/
 __pycache__/
 *.pyc
 data/
+/bin/
