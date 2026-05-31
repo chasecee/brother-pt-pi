@@ -202,6 +202,7 @@
       let currentIconCategory = "";
       let currentIconList = [];
       let iconSearchTimer = null;
+      let iconLibraryLoaded = false;
       const DEFAULT_ICON_CATEGORY = "dp-emoji";
       const ICON_QUICK_PICKS = [
         { id: "dp-emoji:57345", title: "Smiley" },
@@ -663,6 +664,7 @@
         const img = document.createElement("img");
         img.src = thumbUrl;
         img.alt = "";
+        img.decoding = "async";
         frame.append(img);
         const remove = createRemoveBtn("Remove icon");
         remove.addEventListener("mousedown", (e) => e.preventDefault());
@@ -794,8 +796,9 @@
         addIcon.type = "button";
         addIcon.textContent = "Icon";
         addIcon.title = "Pick an icon from the library below";
-        addIcon.onclick = () => {
+        addIcon.onclick = async () => {
           closeAllAddMenus();
+          await ensureIconLibraryLoaded();
           const acc = $("iconAccordion");
           acc.open = true;
           acc.scrollIntoView({ block: "nearest", behavior: "smooth" });
@@ -948,6 +951,8 @@
           const img = document.createElement("img");
           img.alt = pick.title;
           img.src = iconThumbUrl(pick.id);
+          img.loading = "lazy";
+          img.decoding = "async";
           btn.append(img);
           btn.onclick = (e) => {
             e.preventDefault();
@@ -1383,6 +1388,8 @@
           const img = document.createElement("img");
           if (item.png) img.src = item.png;
           img.alt = "";
+          img.loading = "lazy";
+          img.decoding = "async";
 
           const qty = document.createElement("input");
           qty.type = "number";
@@ -1438,6 +1445,8 @@
           const img = document.createElement("img");
           if (item.png) img.src = item.png;
           img.alt = "";
+          img.loading = "lazy";
+          img.decoding = "async";
 
           const qty = document.createElement("span");
           qty.className = "recent-qty";
@@ -1545,6 +1554,8 @@
           const img = document.createElement("img");
           img.alt = "";
           img.dataset.src = icon.thumb_url;
+          img.loading = "lazy";
+          img.decoding = "async";
           btn.append(img);
           btn.onclick = () => insertIconIntoRow(icon.id, icon.thumb_url);
           grid.append(btn);
@@ -1574,6 +1585,8 @@
 
           const img = document.createElement("img");
           img.alt = "";
+          img.loading = "lazy";
+          img.decoding = "async";
           if (cat.preview_thumb_url) img.src = cat.preview_thumb_url;
 
           const label = document.createElement("span");
@@ -1620,9 +1633,17 @@
           selectIconCategory(preferred ? preferred.id : iconCategories[0].id);
         }
       }
+      async function ensureIconLibraryLoaded() {
+        if (iconLibraryLoaded) return;
+        await loadIconCategories();
+        iconLibraryLoaded = true;
+      }
       $("iconSearch").addEventListener("input", () => {
         clearTimeout(iconSearchTimer);
         iconSearchTimer = setTimeout(runIconSearch, 200);
+      });
+      $("iconAccordion").addEventListener("toggle", async () => {
+        if ($("iconAccordion").open) await ensureIconLibraryLoaded();
       });
 
       document.querySelector(".icon-upload").addEventListener("click", () => {
@@ -1718,13 +1739,12 @@
       });
 
       window.addEventListener("DOMContentLoaded", async () => {
-        await Promise.all([
-          loadConfig(),
-          PtRender.loadIconCatalog(),
-          loadIconCategories(),
-        ]);
+        await loadConfig();
         await loadFonts();
         renderIconQuickPicks();
+        if ($("iconAccordion").open) {
+          await ensureIconLibraryLoaded();
+        }
         await loadServerState();
         renderRecent();
         if (getDraftLines().length !== labels.length) {

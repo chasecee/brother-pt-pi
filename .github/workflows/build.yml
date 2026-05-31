@@ -6,24 +6,31 @@ on:
   workflow_dispatch:
 
 env:
-  BINARY_ARTIFACT: ptlabel-server-linux-arm64
+  BINARY_ARTIFACT: ptlabel-server-linux-armv6hf
 
 jobs:
   build-server:
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: arm-unknown-linux-gnueabihf
+
+      - name: Install ARMv6 cross toolchain
+        run: sudo apt-get update && sudo apt-get install -y gcc-arm-linux-gnueabihf
 
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: .
 
-      - name: Build arm64 binary
+      - name: Build ARMv6 binary
         run: |
-          cargo build --release -p ptlabel-server
-          cp target/release/ptlabel-server "target/release/${{ env.BINARY_ARTIFACT }}"
+          export CARGO_TARGET_ARM_UNKNOWN_LINUX_GNUEABIHF_LINKER=arm-linux-gnueabihf-gcc
+          export RUSTFLAGS="-C target-cpu=arm1176jzf-s -C target-feature=+v6,+vfp2"
+          cargo build --release --target arm-unknown-linux-gnueabihf -p ptlabel-server
+          cp target/arm-unknown-linux-gnueabihf/release/ptlabel-server "target/release/${{ env.BINARY_ARTIFACT }}"
 
       - name: Upload binary
         uses: actions/upload-artifact@v7
@@ -31,6 +38,37 @@ jobs:
           name: ${{ env.BINARY_ARTIFACT }}
           path: target/release/${{ env.BINARY_ARTIFACT }}
           if-no-files-found: error
+
+  publish-release:
+    needs: build-server
+    if: github.ref_name == 'rust'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ env.BINARY_ARTIFACT }}
+          path: release
+
+      - name: Write checksum
+        run: |
+          cd release
+          sha256sum "${{ env.BINARY_ARTIFACT }}" > "${{ env.BINARY_ARTIFACT }}.sha256"
+
+      - name: Publish rust-latest release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view rust-latest >/dev/null 2>&1 || \
+            gh release create rust-latest \
+              --title "ptlabel rust-latest" \
+              --notes "Latest rust branch ARMv6 build for Pi Zero 1." \
+              --prerelease
+          gh release upload rust-latest \
+            "release/${{ env.BINARY_ARTIFACT }}" \
+            "release/${{ env.BINARY_ARTIFACT }}.sha256" \
+            --clobber
 
   golden-render:
     runs-on: ubuntu-24.04

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BIN_SRC="${1:?usage: $0 /path/to/ptlabel-server-linux-arm64}"
+BIN_SRC="${1:?usage: $0 /path/to/ptlabel-server-linux-armv6hf}"
 SHA="${GITHUB_SHA:?GITHUB_SHA not set; run via CI}"
 ROOT="${PTLABEL_ROOT:-$HOME/ptlabel}"
 
