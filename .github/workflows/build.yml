@@ -60,12 +60,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release view rust-latest >/dev/null 2>&1 || \
+          gh release view rust-latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
             gh release create rust-latest \
+              --repo "$GITHUB_REPOSITORY" \
               --title "ptlabel rust-latest" \
               --notes "Latest rust branch ARMv6 build for Pi Zero 1." \
               --prerelease
           gh release upload rust-latest \
+            --repo "$GITHUB_REPOSITORY" \
             "release/${{ env.BINARY_ARTIFACT }}" \
             "release/${{ env.BINARY_ARTIFACT }}.sha256" \
             --clobber
