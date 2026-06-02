@@ -39,64 +39,64 @@ impl StateStore {
 
     fn normalize_prefs(&self, raw: &Value) -> Value {
         let mut prefs = self.defaults.prefs_defaults();
-        let Some(obj) = raw.as_object() else {
+        if !raw.is_object() {
             return prefs;
-        };
-        if let Some(family) = obj.get("fontFamily").and_then(|v| v.as_str()) {
+        }
+        if let Some(family) = raw.get("fontFamily").and_then(|v| v.as_str()) {
             let t = family.trim();
             if !t.is_empty() {
                 prefs["fontFamily"] = json!(t);
             }
         }
-        if let Some(v) = obj.get("bold") {
+        if let Some(v) = raw.get("bold") {
             prefs["bold"] = json!(v.as_bool().unwrap_or(true));
         }
-        if let Some(v) = obj.get("italic") {
+        if let Some(v) = raw.get("italic") {
             prefs["italic"] = json!(v.as_bool().unwrap_or(false));
         }
         let lim = &self.limits;
         prefs["fontSize"] = json!(config::clamp_int(
-            &obj["fontSize"],
+            &raw["fontSize"],
             prefs["fontSize"].as_i64().unwrap_or(76) as i32,
             lim.font_size[0],
             lim.font_size[1],
         ));
         prefs["vAlign"] = json!(config::clamp_int(
-            &obj["vAlign"],
+            &raw["vAlign"],
             prefs["vAlign"].as_i64().unwrap_or(0) as i32,
             lim.v_align[0],
             lim.v_align[1],
         ));
         prefs["letterSpacing"] = json!(config::coerce_float(
-            &obj["letterSpacing"],
+            &raw["letterSpacing"],
             prefs["letterSpacing"].as_f64().unwrap_or(-0.5),
         ));
         prefs["marginH"] = json!(config::clamp_int(
-            &obj["marginH"],
+            &raw["marginH"],
             prefs["marginH"].as_i64().unwrap_or(24) as i32,
             lim.margin_h[0],
             lim.margin_h[1],
         ));
         prefs["iconGap"] = json!(config::clamp_int(
-            &obj["iconGap"],
+            &raw["iconGap"],
             prefs["iconGap"].as_i64().unwrap_or(4) as i32,
             lim.icon_gap[0],
             lim.icon_gap[1],
         ));
-        let icon_size = config::coerce_float(
-            &obj["iconSize"],
-            prefs["iconSize"].as_f64().unwrap_or(1.0),
-        );
+        let icon_size =
+            config::coerce_float(&raw["iconSize"], prefs["iconSize"].as_f64().unwrap_or(1.0));
         prefs["iconSize"] = json!(icon_size.clamp(lim.icon_size[0], lim.icon_size[1]));
         prefs
     }
 
     fn normalize_label(&self, raw: &Value) -> Option<Value> {
         let blocks = migrate_label_dict(raw)?;
-        let obj = raw.as_object()?;
+        if !raw.is_object() {
+            return None;
+        }
         let d = &self.defaults;
         let lim = &self.limits;
-        let family = obj
+        let family = raw
             .get("font_family")
             .and_then(|v| v.as_str())
             .map(|s| s.trim())
@@ -104,16 +104,16 @@ impl StateStore {
             .unwrap_or(d.font_family.as_str());
         Some(json!({
             "blocks": blocks,
-            "qty": config::clamp_int(&obj["qty"], 1, lim.qty[0], lim.qty[1]),
-            "font_size": config::clamp_int(&obj["font_size"], d.font_size, lim.font_size[0], lim.font_size[1]),
+            "qty": config::clamp_int(&raw["qty"], 1, lim.qty[0], lim.qty[1]),
+            "font_size": config::clamp_int(&raw["font_size"], d.font_size, lim.font_size[0], lim.font_size[1]),
             "font_family": family,
-            "bold": obj.get("bold").and_then(|v| v.as_bool()).unwrap_or(d.bold),
-            "italic": obj.get("italic").and_then(|v| v.as_bool()).unwrap_or(d.italic),
-            "v_align": config::clamp_int(&obj["v_align"], d.v_align, lim.v_align[0], lim.v_align[1]),
-            "letter_spacing": config::coerce_float(&obj["letter_spacing"], d.letter_spacing),
-            "margin_h": config::clamp_int(&obj["margin_h"], d.margin_h, lim.margin_h[0], lim.margin_h[1]),
-            "icon_gap": config::clamp_int(&obj["icon_gap"], d.icon_gap, lim.icon_gap[0], lim.icon_gap[1]),
-            "icon_size": config::coerce_float(&obj["icon_size"], d.icon_size).clamp(lim.icon_size[0], lim.icon_size[1]),
+            "bold": raw.get("bold").and_then(|v| v.as_bool()).unwrap_or(d.bold),
+            "italic": raw.get("italic").and_then(|v| v.as_bool()).unwrap_or(d.italic),
+            "v_align": config::clamp_int(&raw["v_align"], d.v_align, lim.v_align[0], lim.v_align[1]),
+            "letter_spacing": config::coerce_float(&raw["letter_spacing"], d.letter_spacing),
+            "margin_h": config::clamp_int(&raw["margin_h"], d.margin_h, lim.margin_h[0], lim.margin_h[1]),
+            "icon_gap": config::clamp_int(&raw["icon_gap"], d.icon_gap, lim.icon_gap[0], lim.icon_gap[1]),
+            "icon_size": config::coerce_float(&raw["icon_size"], d.icon_size).clamp(lim.icon_size[0], lim.icon_size[1]),
         }))
     }
 
@@ -154,13 +154,13 @@ impl StateStore {
 
     fn normalize_state(&self, raw: &Value) -> Value {
         let mut state = self.default_state();
-        let Some(obj) = raw.as_object() else {
+        if !raw.is_object() {
             return state;
-        };
-        state["prefs"] = self.normalize_prefs(&obj["prefs"]);
-        state["draft"] = migrate_draft(&obj["draft"]);
-        state["queue"] = json!(self.normalize_queue(&obj["queue"]));
-        state["recent"] = json!(self.normalize_recent(&obj["recent"]));
+        }
+        state["prefs"] = self.normalize_prefs(&raw["prefs"]);
+        state["draft"] = migrate_draft(&raw["draft"]);
+        state["queue"] = json!(self.normalize_queue(&raw["queue"]));
+        state["recent"] = json!(self.normalize_recent(&raw["recent"]));
         state
     }
 

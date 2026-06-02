@@ -1,0 +1,92 @@
+#!/bin/sh
+# Bring up wlan0 + wpa_supplicant + DHCP in background so boot is not delayed.
+# Live status visible via /var/log/wifi.log (shown on diagnostics screen).
+
+PIDFILE=/run/wpa_supplicant.wlan0.pid
+DHCPPID=/run/udhcpc.wlan0.pid
+CONF=/etc/wpa_supplicant.conf
+LOG=/var/log/wifi.log
+COUNTRY="$(awk -F= '/^country=/{gsub(/[ "]/,"",$2); print $2}' "$CONF" 2>/dev/null)"
+: "${COUNTRY:=US}"
+
+log() { printf '[wifi %s] %s\n' "$(date '+%H:%M:%S')" "$*" >>"$LOG"; }
+
+wait_iface() {
+  i=0
+  while [ $i -lt 30 ]; do
+    ip link show "$1" >/dev/null 2>&1 && return 0
+    sleep 1
+    i=$((i + 1))
+  done
+  return 1
+}
+
+wait_link() {
+  i=0
+  while [ $i -lt 45 ]; do
+    case "$(iw dev wlan0 link 2>/dev/null | head -n1)" in
+      Connected*) return 0 ;;
+    esac
+    sleep 1
+    i=$((i + 1))
+  done
+  return 1
+}
+
+run() {
+  [ -f "$CONF" ] || { log "missing $CONF"; return 1; }
+
+  modprobe brcmfmac 2>>"$LOG" || true
+
+  log "waiting for wlan0..."
+  if ! wait_iface wlan0; then
+    log "wlan0 never appeared. brcmfmac probe failed."
+    dmesg | grep -iE 'brcm|sdio|firmware|wlan|cyfmac' | tail -n 40 >>"$LOG" 2>&1
+    return 1
+  fi
+  log "wlan0 present"
+
+  iw reg set "$COUNTRY" 2>>"$LOG" || true
+  ip link set wlan0 up 2>>"$LOG" || { log "ip link set wlan0 up failed"; return 1; }
+
+  log "starting wpa_supplicant"
+  /usr/sbin/wpa_supplicant -B -i wlan0 -c "$CONF" -P "$PIDFILE" >>"$LOG" 2>&1 \
+    || { log "wpa_supplicant failed"; return 1; }
+
+  log "waiting for association..."
+  if ! wait_link; then
+    log "association timed out"
+    log "--- iw scan (top SSIDs) ---"
+    iw dev wlan0 scan 2>/dev/null | awk '/^BSS /{b=$2} /signal:/{s=$2} /SSID:/{print s,b,$0}' | sort -nr | head -n 10 >>"$LOG"
+    log "--- wpa_cli status ---"
+    wpa_cli -i wlan0 status >>"$LOG" 2>&1
+    return 1
+  fi
+  log "associated: $(iw dev wlan0 link | head -n1)"
+
+  log "running udhcpc"
+  udhcpc -i wlan0 -p "$DHCPPID" -t 6 -T 3 >>"$LOG" 2>&1 \
+    || { log "dhcp failed"; return 1; }
+
+  log "wlan0 ip: $(ip -4 -o addr show wlan0 | awk '{split($4,a,"/"); print a[1]}')"
+  return 0
+}
+
+start() {
+  mkdir -p "$(dirname "$LOG")"
+  : >"$LOG"
+  log "S35wifi: launching in background"
+  ( run; log "done" ) >/dev/null 2>&1 &
+}
+
+stop() {
+  [ -f "$DHCPPID" ] && kill "$(cat "$DHCPPID")" 2>/dev/null && rm -f "$DHCPPID"
+  [ -f "$PIDFILE" ] && kill "$(cat "$PIDFILE")" 2>/dev/null && rm -f "$PIDFILE"
+}
+
+case "${1:-start}" in
+  start) start ;;
+  stop) stop ;;
+  restart) stop; start ;;
+  *) echo "usage: $0 {start|stop|restart}"; exit 1 ;;
+esac

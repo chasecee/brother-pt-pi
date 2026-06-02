@@ -1,0 +1,58 @@
+#!/usr/bin/env sh
+set -u
+
+TTY=/dev/tty1
+URL=http://127.0.0.1:5000/api/status
+SERVER_LOG=/var/log/ptlabel/server.log
+WIFI_LOG=/var/log/wifi.log
+
+iface_ip() {
+  ip -4 -o addr show dev "$1" 2>/dev/null | awk '{split($4,a,"/"); print a[1]}'
+}
+
+best_ip() {
+  addr="$(iface_ip wlan0)"
+  [ -n "$addr" ] && { echo "$addr"; return; }
+  echo "n/a"
+}
+
+while :; do
+  now="$(date '+%Y-%m-%d %H:%M:%S')"
+  uptime_s="$(awk '{print int($1)}' /proc/uptime 2>/dev/null)"
+
+  if status="$(curl -fsS --max-time 2 "$URL" 2>/dev/null)"; then
+    ok="$(printf '%s' "$status" | jq -r '.ok // false')"
+    printing="$(printf '%s' "$status" | jq -r '.printing // false')"
+    temp="$(printf '%s' "$status" | jq -r '.temp_c // "n/a"')"
+    mem="$(printf '%s' "$status" | jq -r '.mem.avail_mb // "n/a"')"
+    wifi="$(printf '%s' "$status" | jq -r '.wifi.signal_dbm // "n/a"')"
+  else
+    ok="false"; printing="false"; temp="n/a"; mem="n/a"; wifi="n/a"
+  fi
+
+  ip_main="$(best_ip)"
+  wlan_link="$(iw dev wlan0 link 2>/dev/null | head -n1)"
+  : "${wlan_link:=no wlan0}"
+  brcm_loaded="$(grep -c '^brcmfmac ' /proc/modules 2>/dev/null)"
+  brcm_loaded="${brcm_loaded:-0}"
+
+  {
+    printf '\033c'
+    printf 'PTLabel Diagnostics  (up %ss)\n' "$uptime_s"
+    printf 'time: %s\n' "$now"
+    printf 'ip: %s   ssh: root@%s pw: ptlabel\n' "$ip_main" "$ip_main"
+    printf 'wifi link: %s\n' "$wlan_link"
+    printf 'brcmfmac loaded: %s\n' "$brcm_loaded"
+    printf 'server: ok=%s printing=%s temp=%s mem=%s rssi=%s\n' "$ok" "$printing" "$temp" "$mem" "$wifi"
+    if [ -f "$WIFI_LOG" ]; then
+      printf '\n--- wifi.log ---\n'
+      tail -n 10 "$WIFI_LOG"
+    fi
+    if [ -f "$SERVER_LOG" ]; then
+      printf '\n--- server.log ---\n'
+      tail -n 6 "$SERVER_LOG"
+    fi
+  } >"$TTY" 2>/dev/null
+
+  sleep 3
+done

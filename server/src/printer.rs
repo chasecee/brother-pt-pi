@@ -118,35 +118,48 @@ impl PrinterService {
     pub fn wake(&self) -> Value {
         let printer_dev = find_printer_sysfs();
         info!("wake: printer_sysfs={:?} usb_ready={}", printer_dev, self.usb_ready());
-        let locations = printer_dev
-            .as_ref()
-            .map(|dev| hub_chain(dev))
-            .unwrap_or_default();
-        match vbus_cycle(&locations) {
-            Ok(()) => {}
-            Err(err) => {
+
+        // VBUS power-cycle is only safe on host controllers that genuinely
+        // support per-port power switching. Pi Zero / Pi 1 use dwc_otg which
+        // advertises PPPS but the kernel driver rejects the hub control
+        // requests — uhubctl "off" disables the port, and uhubctl "on" is a
+        // no-op, so the port stays dead until reboot. Skip vbus_cycle there
+        // and rely on the printer's own Auto-Power-On (configured via
+        // P-touch Editor) to wake from USB activity.
+        if controller_supports_vbus_cycle() {
+            let locations = printer_dev
+                .as_ref()
+                .map(|dev| hub_chain(dev))
+                .unwrap_or_default();
+            if let Err(err) = vbus_cycle(&locations) {
                 error!("wake: vbus cycle failed: {err}");
                 return json!({ "ok": false, "err": err.to_string() });
             }
-        }
-        let deadline = Instant::now() + Duration::from_secs(12);
-        let mut waited = 0.0;
-        while Instant::now() < deadline {
-            if self.usb_ready() {
-                info!("wake: re-enumerated after {waited:.1}s");
-                break;
+            let deadline = Instant::now() + Duration::from_secs(12);
+            let mut waited = 0.0;
+            while Instant::now() < deadline {
+                if self.usb_ready() {
+                    info!("wake: re-enumerated after {waited:.1}s");
+                    break;
+                }
+                thread::sleep(Duration::from_millis(500));
+                waited += 0.5;
             }
-            thread::sleep(Duration::from_millis(500));
-            waited += 0.5;
-        }
-        if !self.usb_ready() {
-            error!("wake: printer never re-enumerated within {waited:.1}s");
+            if !self.usb_ready() {
+                error!("wake: printer never re-enumerated within {waited:.1}s");
+                return json!({
+                    "ok": false,
+                    "err": "printer did not re-enumerate after VBUS cycle - check Auto Power On in Brother's settings tool",
+                });
+            }
+            thread::sleep(Duration::from_millis(1500));
+        } else if !self.usb_ready() {
+            info!("wake: vbus cycle unsupported on this controller; printer not visible");
             return json!({
                 "ok": false,
-                "err": "printer did not re-enumerate after VBUS cycle — check Auto Power On is enabled in Brother's settings tool",
+                "err": "printer not connected (host controller does not support VBUS power cycling - enable Auto Power On in Brother's settings tool and physically reconnect)",
             });
         }
-        thread::sleep(Duration::from_millis(1500));
         let media = self.query_media();
         if !media.get("ok").and_then(|v| v.as_bool()).unwrap_or(false) {
             let err = media
@@ -168,6 +181,20 @@ impl PrinterService {
 
     pub fn print_pngs(&self, png_paths: &[PathBuf]) -> Result<usize> {
         let _guard = self.print_lock.lock();
+
+        // If the printer is not visible at all, do one wake (which vbus-cycles
+        // the root hub to power on a sleeping/off printer) before giving up.
+        // Skips the 3x retry storm when the printer is simply unplugged.
+        if find_printer_sysfs().is_none() && !self.usb_ready() {
+            info!("print: no printer visible, attempting single wake");
+            let _ = self.wake();
+            if !self.usb_ready() {
+                return Err(anyhow!(
+                    "printer not connected (USB vendor {PRINTER_VID} not present after wake)"
+                ));
+            }
+        }
+
         let mut last_err = anyhow!("print failed");
         for attempt in 0..self.chain_print_retries {
             if attempt > 0 {
@@ -228,6 +255,15 @@ impl PrinterService {
 
 const PRINTER_VID: &str = "04f9";
 const PRINTER_PID: &str = "20af";
+
+// Pi Zero / Pi 1 use dwc_otg which can't actually power-cycle its single USB
+// port; calling uhubctl off+on permanently disables the port until reboot.
+fn controller_supports_vbus_cycle() -> bool {
+    if Path::new("/sys/bus/platform/drivers/dwc_otg").is_dir() {
+        return false;
+    }
+    Command::new("uhubctl").output().is_ok()
+}
 
 fn find_printer_sysfs() -> Option<PathBuf> {
     let root = Path::new("/sys/bus/usb/devices");

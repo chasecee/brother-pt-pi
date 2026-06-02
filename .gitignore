@@ -10,3 +10,5 @@ __pycache__/
 *.pyc
 data/
 /bin/
+/.cache/
+buildroot-external/board/ptlabel-pi0/wpa_supplicant.conf

@@ -1,0 +1,4 @@
+PTLABEL_ROOT=/opt/ptlabel
+PTLABEL_DATA_DIR=/opt/ptlabel/data
+PTLABEL_PORT=5000
+PTLABEL_EXTRA_ARGS=--lite

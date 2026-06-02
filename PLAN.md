@@ -31,48 +31,47 @@ Requires:
 
 Quit Brother P-touch apps before printing; they hold the USB device.
 
-## Pi deployment (Pi 4B / Pi Zero 2 W)
+## Pi deployment (Pi Zero W 1.1)
 
-Target: Raspberry Pi OS **64-bit Lite** (Bookworm), native binary + systemd.
+Target: custom Buildroot image (`ptlabel_pi0_defconfig`), ARMv6 + VFPv2, BusyBox
+init, dropbear SSH, chrony NTP. See [BUILDROOT.md](BUILDROOT.md) for the full
+flow and the toolchain rationale.
 
-Printer on Pi USB. Keep the printer on AC power; sleep drops USB.
-`uhubctl` on the host for wake (installed via apt on Pi).
+USB printer on the Pi's data micro-USB port (inner, not the PWR one). Keep the
+printer on AC power.
 
-### Daily dev (push from Mac, auto-deploy on Pi)
+### Printer power settings (one-time, via Brother app)
 
-`git push` triggers CI: build arm64 binary on GitHub, then a **deploy job runs on your Pi's self-hosted runner** — rsyncs the repo + binary to `~/ptlabel` and restarts. No Docker, no git pull timer, no GitHub Releases.
+The Pi Zero's `dwc_otg` USB controller can't actually power-cycle its port,
+so host-side VBUS wake is a no-op there. Instead, configure the printer to
+manage its own power via Brother's **Printer Setting Tool** (Windows):
 
-```bash
-# Mac
-make mac-dev
-git push
+- **Auto Power On** = enabled (printer wakes on USB activity)
+- **Auto Power Off** = disabled, or set to a long interval
 
-# Pi — one-time bootstrap (shallow clone + USB + systemd + runner)
-RUNNER_TOKEN=xxx ./scripts/pi-bootstrap.sh https://github.com/chasecee/brother-pt-pi.git
-```
+With those set, the printer stays addressable from the Pi without any
+host-side intervention. On other Pi models (Pi 4, Pi Zero 2, etc.) the
+server falls back to a real VBUS cycle automatically.
 
-Get `RUNNER_TOKEN` from GitHub: repo **Settings → Actions → Runners → New self-hosted runner** (expires in ~1 hour).
-
-Verify:
-
-```bash
-~/ptlabel/scripts/pi-verify.sh
-journalctl -u actions.runner.* -f
-```
-
-Local release build:
+### First flash
 
 ```bash
-make build
-# target/release/ptlabel-server
+cp buildroot-external/board/ptlabel-pi0/wpa_supplicant.conf.example \
+   buildroot-external/board/ptlabel-pi0/wpa_supplicant.conf
+# edit the new file with your SSID/PSK, then:
+./scripts/br-build-flash.sh --disk /dev/diskN
 ```
 
-### Pi prerequisites
+### Daily dev (no reflash)
 
-- Raspberry Pi OS 64-bit Lite (arm64); 512 MB OK on Zero 2 W with swap + runner (~50–100 MB idle)
-- Self-hosted GitHub Actions runner on the Pi (deploy only; build stays on GitHub)
-- `uhubctl`, `usbutils` (`lsusb`)
-- One-time on Mac: `make fonts` then commit `fonts/`
+```bash
+make mac-dev       # iterate locally
+./deploy.sh        # cross-build for ARMv6 and push to live Pi
+```
+
+`deploy.sh` rebuilds the Rust binary against Buildroot's toolchain, `scp`s it
+into `/opt/ptlabel/bin/`, restarts `S50ptlabel`, and prints `/api/status` plus
+the new log tail.
 
 ## chain-print
 
@@ -164,7 +163,7 @@ Shared state lives in `{PTLABEL_DATA_DIR}/state.json`. All browsers on the LAN r
 - `GET /api/media` — query loaded tape via USB (width, kind, colors, errors); skip if printing
 - `GET /api/fonts` — font catalog with `/fonts/` URLs per variant
 - `POST /api/print` — print pre-rendered PNGs (`{ png, qty, meta }` per label); records recent on success
-- `POST /api/wake` — VBUS cycle + status query (returns media info)
+- `POST /api/wake` — VBUS cycle + status query on hosts that support PPPS; on Pi Zero (dwc_otg) this is just a status query, since the controller can't power-cycle its port (rely on the printer's own Auto Power On instead)
 
 ## UI behavior
 
