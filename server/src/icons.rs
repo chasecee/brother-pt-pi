@@ -13,10 +13,6 @@ pub fn icons_dir(root: &Path) -> PathBuf {
     root.join("icons")
 }
 
-pub fn thumbs_dir(root: &Path) -> PathBuf {
-    icons_dir(root).join("thumbs")
-}
-
 pub fn custom_icons_dir(data_dir: &Path) -> PathBuf {
     data_dir.join("icons").join("custom")
 }
@@ -34,13 +30,6 @@ fn load_catalog(root: &Path) -> Value {
 
 pub fn catalog(root: &Path) -> &'static Value {
     CATALOG.get_or_init(|| load_catalog(root))
-}
-
-pub fn get_icon(root: &Path, icon_id: &str) -> Option<Value> {
-    catalog(root)
-        .get("icons")?
-        .get(icon_id)
-        .cloned()
 }
 
 pub fn list_categories(root: &Path) -> Vec<Value> {

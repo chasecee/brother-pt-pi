@@ -8,7 +8,7 @@ Rust `ptlabel-server` + browser Canvas/opentype.js rendering + chain-print over 
 ## Stack
 
 - **Render:** browser Canvas + opentype.js (`static/js/render.js`); Brother fonts from `/fonts/`
-- **Server:** Rust `ptlabel-server` (axum) — state, static assets, USB print/wake/media
+- **Server:** Rust `ptlabel-server` (axum) — state, static assets, USB print/media
 - **Print:** `chain-print` library (vendored `ptouch` crate) over USB with chain cuts
 - **UI:** static `index.html`; shared state on Pi (`data/state.json`)
 
@@ -42,16 +42,14 @@ printer on AC power.
 
 ### Printer power settings (one-time, via Brother app)
 
-The Pi Zero's `dwc_otg` USB controller can't actually power-cycle its port,
-so host-side VBUS wake is a no-op there. Instead, configure the printer to
-manage its own power via Brother's **Printer Setting Tool** (Windows):
+The printer manages its own power. Configure once via Brother's
+**Printer Setting Tool** (Windows):
 
 - **Auto Power On** = enabled (printer wakes on USB activity)
 - **Auto Power Off** = disabled, or set to a long interval
 
 With those set, the printer stays addressable from the Pi without any
-host-side intervention. On other Pi models (Pi 4, Pi Zero 2, etc.) the
-server falls back to a real VBUS cycle automatically.
+host-side intervention.
 
 ### First flash
 
@@ -115,9 +113,9 @@ The PT-P710BT reports loaded tape over USB via `ESC i S` (32-byte status). The v
 
 **Query path**
 
-1. Add `chain-print --status-json` (or extend `--wake`) to emit structured status after connect.
-2. New `GET /api/media` (or enrich `/api/status`) — calls chain-print, returns width/kind/colors/errors.
-3. Wake button and periodic refresh trigger the query; skip while printing (USB lock held by chain-print).
+1. `chain-print --status-json` emits structured status after connect.
+2. `GET /api/media` calls chain-print, returns width/kind/colors/errors.
+3. Periodic refresh triggers the query; skip while printing (USB lock held by chain-print).
 
 **Timing:** status query is one USB round trip (~0.5–2 s including connect). Passive USB enumeration (`ioreg`/`lsusb`) stays instant and remains the fast path for "device visible" checks during print.
 
@@ -163,14 +161,13 @@ Shared state lives in `{PTLABEL_DATA_DIR}/state.json`. All browsers on the LAN r
 - `GET /api/media` — query loaded tape via USB (width, kind, colors, errors); skip if printing
 - `GET /api/fonts` — font catalog with `/fonts/` URLs per variant
 - `POST /api/print` — print pre-rendered PNGs (`{ png, qty, meta }` per label); records recent on success
-- `POST /api/wake` — VBUS cycle + status query on hosts that support PPPS; on Pi Zero (dwc_otg) this is just a status query, since the controller can't power-cycle its port (rely on the printer's own Auto Power On instead)
 
 ## UI behavior
 
 - Shared state on Pi is authoritative; no browser localStorage for queue/draft/prefs/recent
 - Textarea holds label text, one line per label — it is the editor, not a staging area
 - Draft saves immediately on input; labels sync after 500ms idle
-- Status: passive USB check for connected/printing; media details from `/api/media` on load, wake, and periodic refresh (not during print)
+- Status: passive USB check for connected/printing; media details from `/api/media` on load and periodic refresh (not during print)
 - Detected width applies preset defaults to settings panel; preview tape height scales with width
 - Each row: preview image, quantity, Print button
 - Header: label count + Print all (one chain tape run)

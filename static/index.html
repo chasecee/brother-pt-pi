@@ -12,7 +12,6 @@
   <body>
     <h1>
       Label printer <span id="status" class="bad">checking...</span>
-      <button id="wakeBtn" type="button" class="btn btn-sm" hidden>Wake</button>
       <button
         id="settingsBtn"
         type="button"
@@ -1081,12 +1080,39 @@
         applyPrefs({ ...DEFAULT_PREFS });
       }
 
+      const TAPE_SWATCH = {
+        white: "#f5f5f5",
+        black: "#1a1a1a",
+        red: "#c62828",
+        blue: "#1565c0",
+        yellow: "#fbc02d",
+        green: "#2e7d32",
+        clear: "#e0e0e0",
+        silver: "#bdbdbd",
+        gold: "#c9a227",
+      };
+
+      function tapeColor(name) {
+        return TAPE_SWATCH[(name || "").toLowerCase()] || "#888";
+      }
+
       function setStatus(text, cls) {
         const el = $("status");
-        const wakeBtn = $("wakeBtn");
         el.textContent = text;
         el.className = cls;
-        wakeBtn.hidden = cls === "ok" || cls === "printing";
+        el.style.removeProperty("--ink");
+      }
+
+      function setStatusMedia(media) {
+        const el = $("status");
+        el.className = "ok";
+        el.style.setProperty("--ink", tapeColor(media.text_color));
+        el.innerHTML =
+          '<span class="tape-swatch" style="background:' +
+          tapeColor(media.tape_color) +
+          '"></span>' +
+          media.width_mm +
+          "mm";
       }
 
       function formatRelative(seconds) {
@@ -1160,53 +1186,29 @@
           return;
         }
         if (detectedMedia && detectedMedia.width_mm) {
-          let text = detectedMedia.width_mm + " mm";
           if (
             detectedMedia.errors &&
             detectedMedia.errors.includes("no_media")
           ) {
-            text += " · no media";
-          } else if (detectedMedia.tape_color && detectedMedia.text_color) {
-            text +=
-              " · " + detectedMedia.tape_color + "/" + detectedMedia.text_color;
+            setStatus(detectedMedia.width_mm + "mm · no media", "bad");
+            return;
           }
-          setStatus(text, "ok");
+          setStatusMedia(detectedMedia);
           return;
         }
         setStatus("ready", "ok");
       }
 
-      async function wakePrinter() {
-        const wakeBtn = $("wakeBtn");
-        wakeBtn.disabled = true;
-        setStatus("waking...", "printing");
-        try {
-          const r = await (await fetch("/api/wake", { method: "POST" })).json();
-          if (!r.ok) {
-            alert("Wake failed: " + (r.err || "unknown"));
-            return;
-          }
-          usbOk = true;
-          applyMedia(r.media);
-        } catch {
-          alert("Wake failed");
-        } finally {
-          wakeBtn.disabled = false;
-          await refreshStatus();
-          updateStatusDisplay();
-        }
-      }
-
       async function refreshStatus() {
         try {
           const r = await (await fetch("/api/status")).json();
+          const wasOk = usbOk;
           usbOk = !!r.ok;
           updateSystemPanel(r);
-          if (r.printing || printInFlight > 0) {
-            updateStatusDisplay();
-            return;
-          }
           updateStatusDisplay();
+          if (usbOk && !wasOk && !r.printing && printInFlight === 0) {
+            refreshMedia();
+          }
         } catch {
           usbOk = false;
           setStatus("error", "bad");
@@ -1510,7 +1512,6 @@
       Promise.all([refreshStatus(), refreshMedia()]);
       startStatusPolling();
       startMediaPolling();
-      $("wakeBtn").onclick = wakePrinter;
       updateTapeScale();
       updateIconLayoutStyles();
       window.addEventListener("resize", updateTapeScale);

@@ -173,7 +173,6 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/state", get(api_state_get).put(api_state_put))
         .route("/api/status", get(api_status))
         .route("/api/media", get(api_media))
-        .route("/api/wake", post(api_wake))
         .route("/api/print", post(api_print))
         .route("/api/fonts", get(api_fonts))
         .route("/api/icons/categories", get(api_icon_categories))
@@ -261,20 +260,6 @@ async fn api_media(State(state): State<AppState>) -> Result<Json<Value>, (Status
         ));
     }
     let result = state.printer.query_media();
-    if !result.get("ok").and_then(|v| v.as_bool()).unwrap_or(false) {
-        return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(result)));
-    }
-    Ok(Json(result))
-}
-
-async fn api_wake(State(state): State<AppState>) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
-    if state.printer.is_printing() {
-        return Err((
-            StatusCode::CONFLICT,
-            Json(json!({ "ok": false, "err": "printing" })),
-        ));
-    }
-    let result = state.printer.wake();
     if !result.get("ok").and_then(|v| v.as_bool()).unwrap_or(false) {
         return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(result)));
     }

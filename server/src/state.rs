@@ -263,14 +263,6 @@ fn chrono_now() -> String {
         .to_string()
 }
 
-pub fn normalize_print_meta(raw: &Value, defaults: &LabelDefaults, limits: &Limits) -> Option<Value> {
-    if let Some(meta) = raw.get("meta") {
-        let store = StateStore::new(PathBuf::new(), defaults.clone(), limits.clone());
-        return store.normalize_label_from_meta(meta);
-    }
-    None
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

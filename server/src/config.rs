@@ -81,10 +81,6 @@ pub fn tape_height_mm() -> f64 {
     env_float("TAPE_HEIGHT_MM", BASELINE_MM)
 }
 
-pub fn tape_height_px() -> i32 {
-    env_int("TAPE_HEIGHT_PX", BASELINE_HEIGHT_PX)
-}
-
 pub fn preset_for_width(mm: i32) -> Value {
     let height_px_map = [(6, 32), (9, 50), (12, 70), (18, 112), (24, 128)];
     let defaults = LabelDefaults::from_env();

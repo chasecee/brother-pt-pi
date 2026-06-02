@@ -3,7 +3,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
-use anyhow::{Context, Result};
 use serde_json::{json, Value};
 
 static CATALOG: OnceLock<HashMap<String, HashMap<String, String>>> = OnceLock::new();
@@ -67,28 +66,3 @@ pub fn list_fonts(root: &Path) -> Value {
     json!({ "families": families })
 }
 
-pub fn resolve_font_path(root: &Path, family: &str, bold: bool, italic: bool) -> Result<PathBuf> {
-    let cat = catalog(root);
-    let variants = cat
-        .get(family)
-        .or_else(|| cat.get("Helsinki"))
-        .context("font family not found")?;
-    let keys: &[&str] = if bold && italic {
-        &["boldItalic", "bold", "italic", "regular"]
-    } else if bold {
-        &["bold", "boldItalic", "regular"]
-    } else if italic {
-        &["italic", "boldItalic", "regular"]
-    } else {
-        &["regular", "bold", "italic", "boldItalic"]
-    };
-    for key in keys {
-        if let Some(name) = variants.get(*key) {
-            let path = fonts_dir(root).join(name);
-            if path.is_file() {
-                return Ok(path);
-            }
-        }
-    }
-    anyhow::bail!("no font file for {family}")
-}
