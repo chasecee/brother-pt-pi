@@ -269,11 +269,7 @@ async fn api_media(
             Json(json!({ "ok": false, "err": "printing" })),
         ));
     }
-    let result = state.printer.query_media();
-    if !result.get("ok").and_then(|v| v.as_bool()).unwrap_or(false) {
-        return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(result)));
-    }
-    Ok(Json(result))
+    Ok(Json(state.printer.query_media()))
 }
 
 async fn api_print(

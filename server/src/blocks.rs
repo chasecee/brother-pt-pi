@@ -70,6 +70,27 @@ fn normalize_text_block(obj: &Map<String, Value>, limits: &Limits) -> Option<Val
     Some(Value::Object(entry))
 }
 
+fn normalize_custom_crop(obj: &Map<String, Value>) -> Option<Value> {
+    let crop = obj.get("crop")?.as_object()?;
+    let x = crop.get("x")?.as_f64()?;
+    let y = crop.get("y")?.as_f64()?;
+    let w = crop.get("w")?.as_f64()?;
+    let h = crop.get("h")?.as_f64()?;
+    if !(x.is_finite() && y.is_finite() && w.is_finite() && h.is_finite()) {
+        return None;
+    }
+    if w <= 0.0 || h <= 0.0 {
+        return None;
+    }
+    if x < 0.0 || y < 0.0 {
+        return None;
+    }
+    if x + w > 1.0 || y + h > 1.0 {
+        return None;
+    }
+    Some(json!({ "x": x, "y": y, "w": w, "h": h }))
+}
+
 pub fn normalize_blocks(raw: &Value, limits: &Limits) -> Vec<Value> {
     let Some(arr) = raw.as_array() else {
         return vec![];
@@ -96,20 +117,31 @@ pub fn normalize_blocks(raw: &Value, limits: &Limits) -> Vec<Value> {
                 let mut entry = Map::new();
                 entry.insert("type".into(), json!("icon"));
                 entry.insert("id".into(), json!(icon_id));
-                let height = obj.get("height").and_then(|v| v.as_f64()).unwrap_or(1.0);
-                if (height - 1.0).abs() > f64::EPSILON {
-                    entry.insert("height".into(), json!(height.clamp(0.25, 2.0)));
-                }
                 if icon_id.starts_with("custom:") {
                     if let Some(fit) = obj.get("fit").and_then(|v| v.as_str()) {
-                        if matches!(fit, "fit" | "cover" | "crop") {
-                            entry.insert("fit".into(), json!(fit));
+                        let normalized_fit = match fit {
+                            "fit" => Some("contain"),
+                            "contain" | "cover" | "crop" => Some(fit),
+                            _ => None,
+                        };
+                        if let Some(value) = normalized_fit {
+                            entry.insert("fit".into(), json!(value));
                         }
+                    }
+                    let width = obj.get("width").and_then(|v| v.as_f64()).unwrap_or(1.0);
+                    entry.insert("width".into(), json!(width.clamp(0.1, 6.0)));
+                    if let Some(crop) = normalize_custom_crop(obj) {
+                        entry.insert("crop".into(), crop);
                     }
                     if let Some(rotate) = obj.get("rotate").and_then(|v| v.as_i64()) {
                         if matches!(rotate, 0 | 90 | 180 | 270) && rotate != 0 {
                             entry.insert("rotate".into(), json!(rotate));
                         }
+                    }
+                } else {
+                    let height = obj.get("height").and_then(|v| v.as_f64()).unwrap_or(1.0);
+                    if (height - 1.0).abs() > f64::EPSILON {
+                        entry.insert("height".into(), json!(height.clamp(0.25, 2.0)));
                     }
                 }
                 out.push(Value::Object(entry));

@@ -1,4 +1,5 @@
 import { renderDrawer } from "./drawer.js";
+import { openCropDialog } from "./crop-dialog.js";
 import {
   iconThumbUrl,
   isCustomIcon,
@@ -10,6 +11,26 @@ import {
 
 function clone(v) {
   return JSON.parse(JSON.stringify(v));
+}
+
+function isCaretAtStart(el) {
+  const sel = document.getSelection();
+  if (!sel || sel.rangeCount === 0) return false;
+  const range = sel.getRangeAt(0);
+  if (!range.collapsed || range.startOffset !== 0) return false;
+  const node = range.startContainer;
+  return node === el || node === el.firstChild;
+}
+
+function focusCaretAtEnd(el) {
+  el.focus();
+  const sel = document.getSelection();
+  if (!sel) return;
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  range.collapse(false);
+  sel.removeAllRanges();
+  sel.addRange(range);
 }
 
 function textBlockDefaults(row) {
@@ -41,16 +62,67 @@ function normalizeTextBlock(block, row) {
 
 function normalizeIconBlock(block) {
   const out = { type: "icon", id: block.id };
-  if (block.height != null) out.height = block.height;
-  if (block.fit) out.fit = block.fit;
+  if (isCustomIcon(block.id)) {
+    const width = Number(block.width);
+    if (Number.isFinite(width) && width > 0) out.width = Math.max(0.1, Math.min(6, width));
+    const fit = block.fit === "fit" ? "contain" : block.fit;
+    if (fit === "contain" || fit === "cover" || fit === "crop") out.fit = fit;
+    if (block.crop) {
+      const { x, y, w, h } = block.crop;
+      if (
+        Number.isFinite(x) &&
+        Number.isFinite(y) &&
+        Number.isFinite(w) &&
+        Number.isFinite(h) &&
+        w > 0 &&
+        h > 0
+      ) {
+        out.crop = { x, y, w, h };
+      }
+    }
+  } else if (block.height != null) {
+    out.height = block.height;
+  }
   if (block.rotate) out.rotate = block.rotate;
   return out;
+}
+
+function clampImageWidth(width, fallback = 1) {
+  const value = Number(width);
+  if (!Number.isFinite(value) || value <= 0) return fallback;
+  return Math.max(0.1, Math.min(6, value));
+}
+
+function imageFitMode(fit) {
+  if (fit === "fit") return "contain";
+  if (fit === "contain" || fit === "cover" || fit === "crop") return fit;
+  return "contain";
+}
+
+async function imageAspectFromFile(file) {
+  return new Promise((resolve) => {
+    const src = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(src);
+      if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+        resolve(img.naturalWidth / img.naturalHeight);
+        return;
+      }
+      resolve(1);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(src);
+      resolve(1);
+    };
+    img.src = src;
+  });
 }
 
 export function createStageController({
   rowsEl,
   drawerEl,
-  fontNames,
+  fonts,
   resolveStageFamily,
   fontMetrics,
   limits,
@@ -81,9 +153,17 @@ export function createStageController({
   }
 
   function setActive(next, { rebuild = false } = {}) {
-    state.active = { ...state.active, ...next };
-    if (rebuild) rebuildRows();
-    applyActiveState();
+    const prevMode = state.active.mode;
+    const nextMode = next.mode ?? prevMode;
+    const animate =
+      (rebuild || nextMode !== prevMode) && document.startViewTransition;
+    const apply = () => {
+      state.active = { ...state.active, ...next };
+      if (rebuild) rebuildRows();
+      applyActiveState();
+    };
+    if (animate) document.startViewTransition(apply);
+    else apply();
   }
 
   function applyTextStyleToInput(input, seg) {
@@ -214,25 +294,50 @@ export function createStageController({
     const row = state.rows[rowIndex];
     if (!row) return;
     const block = row.blocks[segIndex];
-    if (!block || block.type !== "icon") return;
-    block.fit = fit;
+    if (!block || block.type !== "icon" || !isCustomIcon(block.id)) return;
+    block.fit = imageFitMode(fit);
     signalChange();
-    const el = querySegEl(rowIndex, segIndex);
-    if (el) el.dataset.fit = fit;
-    applyActiveState();
+    setActive({ mode: "image", rowIndex, segIndex }, { rebuild: true });
   }
 
   function rotateImage(rowIndex, segIndex) {
     const row = state.rows[rowIndex];
     if (!row) return;
     const block = row.blocks[segIndex];
-    if (!block || block.type !== "icon") return;
+    if (!block || block.type !== "icon" || !isCustomIcon(block.id)) return;
     const cur = parseInt(block.rotate || 0, 10) || 0;
     block.rotate = (cur + 90) % 360;
     signalChange();
-    const el = querySegEl(rowIndex, segIndex);
-    if (el) el.dataset.rotate = String(block.rotate);
-    applyActiveState();
+    setActive({ mode: "image", rowIndex, segIndex }, { rebuild: true });
+  }
+
+  function setImageWidth(rowIndex, segIndex, width) {
+    const row = state.rows[rowIndex];
+    if (!row) return;
+    const block = row.blocks[segIndex];
+    if (!block || block.type !== "icon" || !isCustomIcon(block.id)) return;
+    block.width = clampImageWidth(width, clampImageWidth(block.width, 1));
+    signalChange();
+    setActive({ mode: "image", rowIndex, segIndex }, { rebuild: true });
+  }
+
+  async function openImageCrop(rowIndex, segIndex) {
+    const row = state.rows[rowIndex];
+    if (!row) return;
+    const block = row.blocks[segIndex];
+    if (!block || block.type !== "icon" || !isCustomIcon(block.id)) return;
+    const imageUrl = iconThumbUrl(block.id);
+    const aspect = clampImageWidth(block.width, 1);
+    const crop = await openCropDialog({
+      imageUrl,
+      aspect,
+      initial: block.crop || null,
+    });
+    if (!crop) return;
+    block.crop = crop;
+    block.fit = "crop";
+    signalChange();
+    setActive({ mode: "image", rowIndex, segIndex }, { rebuild: true });
   }
 
   async function uploadImageAt(rowIndex, segIndex) {
@@ -244,6 +349,7 @@ export function createStageController({
       const file = input.files?.[0];
       if (!file) return;
       try {
+        const width = await imageAspectFromFile(file);
         const out = await uploadCustomIcon(file);
         const row = state.rows[rowIndex];
         if (!row) return;
@@ -251,7 +357,8 @@ export function createStageController({
           row.blocks[segIndex] = {
             type: "icon",
             id: out.id,
-            fit: "crop",
+            fit: "contain",
+            width: clampImageWidth(width),
           };
           signalChange();
           setActive(
@@ -310,11 +417,13 @@ export function createStageController({
         const file = fakeInput.files?.[0];
         if (!file) return;
         try {
+          const width = await imageAspectFromFile(file);
           const out = await uploadCustomIcon(file);
           insertBlock(targetRow, targetIndex, {
             type: "icon",
             id: out.id,
-            fit: "crop",
+            fit: "contain",
+            width: clampImageWidth(width),
           });
         } catch (e) {
           showToast(e.message || "Upload failed");
@@ -346,9 +455,12 @@ export function createStageController({
         mode === "font"
           ? segmentToDrawerShape(row, block)
           : mode === "image" && block
-            ? { fit: block.fit || "crop" }
+            ? {
+                fit: imageFitMode(block.fit),
+                width: clampImageWidth(block.width, 1),
+              }
             : null,
-      fontNames,
+      fonts,
       iconState: state.iconState,
       onTextStyleChange: (patch) => updateSegmentTextStyle(rowIndex, segIndex, patch),
       onInsertType: drawerInsertType,
@@ -357,10 +469,16 @@ export function createStageController({
       onPickIcon: pickIcon,
       onUploadImage: async (file) => {
         try {
+          const width = await imageAspectFromFile(file);
           const out = await uploadCustomIcon(file);
           const r = state.rows[rowIndex];
           if (!r) return;
-          r.blocks[segIndex] = { type: "icon", id: out.id, fit: "crop" };
+          r.blocks[segIndex] = {
+            type: "icon",
+            id: out.id,
+            fit: "contain",
+            width: clampImageWidth(width),
+          };
           signalChange();
           setActive(
             { mode: "image", rowIndex, segIndex },
@@ -371,6 +489,8 @@ export function createStageController({
         }
       },
       onSetImageMode: (fit) => updateImageMode(rowIndex, segIndex, fit),
+      onSetImageWidth: (width) => setImageWidth(rowIndex, segIndex, width),
+      onOpenImageCrop: () => openImageCrop(rowIndex, segIndex),
       onRotateImage: () => rotateImage(rowIndex, segIndex),
       onRemoveSegment: () => removeSegment(rowIndex, segIndex),
     });
@@ -380,6 +500,30 @@ export function createStageController({
     return rowsEl.querySelector(
       `.stage-row[data-row="${rowIndex}"] [data-seg="${segIndex}"]`,
     );
+  }
+
+  async function paintCustomPreview(rowIndex, segIndex, heightPx) {
+    const row = state.rows[rowIndex];
+    if (!row) return;
+    const block = row.blocks[segIndex];
+    if (!block || block.type !== "icon" || !isCustomIcon(block.id)) return;
+    const seg = querySegEl(rowIndex, segIndex);
+    if (!seg) return;
+    const token = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    seg.dataset.previewToken = token;
+    try {
+      const canvas = await globalThis.PtRender.iconCanvas(block.id, heightPx, block);
+      if (!seg.isConnected || seg.dataset.previewToken !== token) return;
+      const widthScale = clampImageWidth(
+        block.width,
+        canvas.height > 0 ? canvas.width / canvas.height : 1,
+      );
+      seg.style.setProperty("--seg-width", String(widthScale));
+      const img = seg.querySelector("img");
+      if (img) img.src = canvas.toDataURL("image/png");
+    } catch {
+      // ignore
+    }
   }
 
   function makeSegAdd(rowIndex, insertIndex, position) {
@@ -407,16 +551,16 @@ export function createStageController({
       const block = row.blocks[i];
       if (block.type === "text") {
         const seg = normalizeTextBlock(block, row);
-        const input = document.createElement("input");
-        input.type = "text";
-        input.className = "seg-text";
-        input.dataset.seg = String(i);
-        input.value = seg.value;
-        input.placeholder = "Text";
-        input.autocomplete = "off";
-        input.spellcheck = false;
-        applyTextStyleToInput(input, seg);
-        input.addEventListener("focus", () => {
+        const span = document.createElement("span");
+        span.className = "seg-text";
+        span.dataset.seg = String(i);
+        span.contentEditable = "plaintext-only";
+        span.spellcheck = false;
+        span.setAttribute("role", "textbox");
+        span.dataset.placeholder = "Text";
+        if (seg.value) span.textContent = seg.value;
+        applyTextStyleToInput(span, seg);
+        span.addEventListener("focus", () => {
           if (
             state.active.mode === "font" &&
             state.active.rowIndex === rowIndex &&
@@ -426,34 +570,35 @@ export function createStageController({
           }
           setActive({ mode: "font", rowIndex, segIndex: i, insertIndex: -1 });
         });
-        input.addEventListener("input", () => {
-          row.blocks[i].value = input.value;
+        span.addEventListener("input", () => {
+          row.blocks[i].value = span.textContent || "";
           signalChange();
         });
-        input.addEventListener("keydown", (e) => {
+        span.addEventListener("keydown", (e) => {
           if (e.key === "Enter") {
             e.preventDefault();
             addRow(rowIndex + 1);
           } else if (
             e.key === "Backspace" &&
-            input.selectionStart === 0 &&
-            input.selectionEnd === 0 &&
-            !input.value
+            !span.textContent &&
+            isCaretAtStart(span)
           ) {
             e.preventDefault();
             removeSegment(rowIndex, i);
           }
         });
-        track.append(input);
+        track.append(span);
       } else if (block.type === "icon") {
         const seg = document.createElement("button");
         seg.type = "button";
-        seg.className = isCustomIcon(block.id) ? "seg-icon seg-image" : "seg-icon";
+        const custom = isCustomIcon(block.id);
+        seg.className = custom ? "seg-icon seg-image" : "seg-icon";
         seg.dataset.seg = String(i);
-        seg.dataset.fit = block.fit || "";
-        seg.dataset.rotate = String(block.rotate || 0);
+        if (custom) {
+          seg.style.setProperty("--seg-width", String(clampImageWidth(block.width, 1)));
+        }
         const img = document.createElement("img");
-        img.src = iconThumbUrl(block.id);
+        img.src = custom ? "" : iconThumbUrl(block.id);
         img.alt = "";
         seg.append(img);
         seg.onclick = (e) => {
@@ -505,8 +650,15 @@ export function createStageController({
     const lineH = Math.max(8, Math.round((maxAscent + maxDescent) * k));
     rowNode.style.setProperty("--row-line-h", `${lineH}px`);
     for (const icon of rowNode.querySelectorAll(".seg-icon")) {
-      const scale = parseFloat(row.icon_size) || 1;
-      icon.style.height = `${Math.max(8, Math.round(lineH * scale))}px`;
+      const segIndex = parseInt(icon.dataset.seg || "-1", 10);
+      const block = row.blocks[segIndex];
+      if (block && block.type === "icon" && isCustomIcon(block.id)) {
+        icon.style.height = `${lineH}px`;
+        paintCustomPreview(rowIndex, segIndex, lineH);
+      } else {
+        const scale = parseFloat(row.icon_size) || 1;
+        icon.style.height = `${Math.max(8, Math.round(lineH * scale))}px`;
+      }
     }
   }
 
@@ -563,16 +715,9 @@ export function createStageController({
       pendingFocus = null;
       requestAnimationFrame(() => {
         const el = querySegEl(rowIndex, segIndex);
-        if (el && el.tagName === "INPUT") {
-          el.focus();
-          if (caret === "end") {
-            const len = el.value.length;
-            try {
-              el.setSelectionRange(len, len);
-            } catch {
-              // ignore for non-text inputs
-            }
-          }
+        if (el && el.classList.contains("seg-text")) {
+          if (caret === "end") focusCaretAtEnd(el);
+          else el.focus();
         }
       });
     }
@@ -600,6 +745,9 @@ export function createStageController({
     for (const rowNode of rowsEl.querySelectorAll(".stage-row")) {
       rowNode.classList.remove("active");
     }
+    for (const seg of rowsEl.querySelectorAll(".seg-text, .seg-icon")) {
+      seg.classList.remove("seg-active");
+    }
     for (const add of rowsEl.querySelectorAll(".seg-add")) {
       add.setAttribute("aria-expanded", "false");
     }
@@ -607,6 +755,10 @@ export function createStageController({
       const rowNode = rowNodeAt(state.active.rowIndex);
       if (rowNode) {
         rowNode.classList.add("active");
+        if (state.active.segIndex >= 0 && state.active.mode !== "picker") {
+          const seg = rowNode.querySelector(`[data-seg="${state.active.segIndex}"]`);
+          if (seg) seg.classList.add("seg-active");
+        }
         if (state.active.mode === "picker") {
           const selector =
             state.active.insertIndex === 0

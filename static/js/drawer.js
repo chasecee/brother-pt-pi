@@ -13,24 +13,155 @@ function el(tag, attrs = {}, children = []) {
   return node;
 }
 
-function clearDrawer(container, mode = "empty") {
+function setMode(container, mode, bodyClass = "") {
   container.dataset.mode = mode;
-  container.innerHTML = "";
+  let body = container.firstElementChild;
+  if (!body || !body.classList.contains("drawer-body")) {
+    body = document.createElement("div");
+    container.replaceChildren(body);
+  }
+  body.className = bodyClass ? `drawer-body ${bodyClass}` : "drawer-body";
+  body.replaceChildren();
+  return body;
+}
+
+let fontPickerOpen = false;
+let fontPickerSearch = "";
+let fontDocClickWired = false;
+
+function wireFontDocClick() {
+  if (fontDocClickWired) return;
+  fontDocClickWired = true;
+  document.addEventListener("mousedown", (e) => {
+    if (!fontPickerOpen) return;
+    const trigger = document.querySelector(".drawer-font-current");
+    const panel = document.querySelector(".drawer-font-panel");
+    if (trigger?.contains(e.target) || panel?.contains(e.target)) return;
+    fontPickerOpen = false;
+    fontPickerSearch = "";
+    const apply = () => {
+      if (panel) panel.hidden = true;
+      if (trigger) trigger.setAttribute("aria-expanded", "false");
+    };
+    if (document.startViewTransition) document.startViewTransition(apply);
+    else apply();
+  });
+}
+
+function buildFontPicker(segment, fonts, onTextStyleChange) {
+  wireFontDocClick();
+  const current = fonts.find((f) => f.name === segment.font_family) || null;
+
+  const triggerName = el("span", { className: "drawer-font-current-name" });
+  triggerName.textContent = segment.font_family;
+  if (current?.previewFamily) {
+    triggerName.style.fontFamily = `"${current.previewFamily}", system-ui, sans-serif`;
+  }
+  const trigger = el(
+    "button",
+    {
+      type: "button",
+      className: "drawer-font-current",
+      "aria-expanded": String(fontPickerOpen),
+      "aria-haspopup": "listbox",
+    },
+    [triggerName],
+  );
+
+  const panel = el("div", { className: "drawer-font-panel" });
+  if (!fontPickerOpen) panel.hidden = true;
+
+  const search = el("input", {
+    type: "search",
+    className: "drawer-font-search",
+    placeholder: "Search fonts",
+    autocomplete: "off",
+    value: fontPickerSearch,
+  });
+
+  const list = el("div", { className: "drawer-font-list", role: "listbox" });
+
+  const observer = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        const row = entry.target;
+        const fam = row.dataset.previewFamily;
+        if (fam) row.style.fontFamily = `"${fam}", system-ui, sans-serif`;
+        observer.unobserve(row);
+      }
+    },
+    { root: list, rootMargin: "120px" },
+  );
+
+  for (const fam of fonts) {
+    const active = fam.name === segment.font_family;
+    const row = el("button", {
+      type: "button",
+      className: `drawer-font-row${active ? " active" : ""}`,
+      role: "option",
+      "aria-selected": String(active),
+      text: fam.name,
+    });
+    row.dataset.family = fam.name;
+    if (fam.previewFamily) row.dataset.previewFamily = fam.previewFamily;
+    row.addEventListener("click", () => {
+      fontPickerOpen = false;
+      fontPickerSearch = "";
+      onTextStyleChange({ font_family: fam.name });
+    });
+    list.append(row);
+    observer.observe(row);
+  }
+
+  function filter() {
+    const q = fontPickerSearch.trim().toLowerCase();
+    for (const row of list.children) {
+      const hit = !q || row.dataset.family.toLowerCase().includes(q);
+      row.hidden = !hit;
+    }
+  }
+  filter();
+
+  search.addEventListener("input", () => {
+    fontPickerSearch = search.value;
+    filter();
+  });
+
+  function setOpen(open) {
+    fontPickerOpen = open;
+    const apply = () => {
+      panel.hidden = !open;
+      trigger.setAttribute("aria-expanded", String(open));
+    };
+    if (document.startViewTransition) {
+      document.startViewTransition(apply);
+    } else {
+      apply();
+    }
+    if (open) {
+      requestAnimationFrame(() => {
+        search.focus({ preventScroll: true });
+        const active = list.querySelector(".drawer-font-row.active");
+        if (active) active.scrollIntoView({ block: "nearest" });
+      });
+    }
+  }
+
+  trigger.addEventListener("click", (e) => {
+    e.stopPropagation();
+    setOpen(panel.hidden);
+  });
+
+  panel.append(search, list);
+  return { trigger, panel };
 }
 
 function fontDrawer(container, ctx) {
-  const { segment, fontNames, onTextStyleChange } = ctx;
-  const wrapper = el("div", { className: "drawer-body" });
+  const { segment, fonts, onTextStyleChange } = ctx;
+  const wrapper = setMode(container, "font", "drawer-font");
 
-  const fontSelect = el("select", { className: "drawer-font-family" });
-  for (const name of fontNames) {
-    const option = el("option", { value: name, text: name });
-    if (name === segment.font_family) option.selected = true;
-    fontSelect.append(option);
-  }
-  fontSelect.addEventListener("change", () =>
-    onTextStyleChange({ font_family: fontSelect.value }),
-  );
+  const { trigger, panel } = buildFontPicker(segment, fonts, onTextStyleChange);
 
   const bold = el("input", { type: "checkbox" });
   bold.checked = !!segment.bold;
@@ -81,12 +212,16 @@ function fontDrawer(container, ctx) {
   const valignWrap = el("label", {}, [document.createTextNode("V align"), valign]);
 
   wrapper.append(
-    el("div", { className: "drawer-row" }, [fontSelect]),
-    el("div", { className: "drawer-row" }, [boldWrap, italicWrap]),
-    el("div", { className: "drawer-row" }, [sizeWrap, spacingWrap, valignWrap]),
+    el("div", { className: "drawer-row drawer-font-top" }, [
+      trigger,
+      boldWrap,
+      italicWrap,
+      sizeWrap,
+      spacingWrap,
+      valignWrap,
+    ]),
+    panel,
   );
-  clearDrawer(container, "font");
-  container.append(wrapper);
 }
 
 const PICKER_ICONS = {
@@ -97,7 +232,7 @@ const PICKER_ICONS = {
 };
 
 function pickerDrawer(container, ctx) {
-  const wrap = el("div", { className: "drawer-body drawer-picker" });
+  const wrap = setMode(container, "picker", "drawer-picker");
   const mk = (type, label) => {
     const glyph = el("span", { className: "drawer-picker-glyph" });
     glyph.innerHTML = PICKER_ICONS[type] || "";
@@ -112,8 +247,6 @@ function pickerDrawer(container, ctx) {
     );
   };
   wrap.append(mk("text", "Text"), mk("icon", "Icon"), mk("image", "Image"));
-  clearDrawer(container, "picker");
-  container.append(wrap);
 }
 
 function iconGrid(icons, onPick) {
@@ -147,7 +280,7 @@ function iconDrawer(container, ctx) {
   const searchSelStart = searchHadFocus ? prevSearchEl.selectionStart : null;
   const searchSelEnd = searchHadFocus ? prevSearchEl.selectionEnd : null;
 
-  const wrap = el("div", { className: "drawer-body" });
+  const wrap = setMode(container, "icon");
   const panel = el("div", { className: "drawer-icon-panel" });
 
   const search = el("input", {
@@ -207,8 +340,6 @@ function iconDrawer(container, ctx) {
 
   panel.append(search, cats, body);
   wrap.append(panel);
-  clearDrawer(container, "icon");
-  container.append(wrap);
 
   cats.scrollLeft = prevCatsScroll;
   if (body.classList.contains("drawer-icon-grid")) {
@@ -229,9 +360,16 @@ function iconDrawer(container, ctx) {
 }
 
 function imageDrawer(container, ctx) {
-  const { onUploadImage, onSetImageMode, onRotateImage, onRemoveSegment, segment } =
-    ctx;
-  const wrap = el("div", { className: "drawer-body" });
+  const {
+    onUploadImage,
+    onSetImageMode,
+    onSetImageWidth,
+    onOpenImageCrop,
+    onRotateImage,
+    onRemoveSegment,
+    segment,
+  } = ctx;
+  const wrap = setMode(container, "image");
 
   const upload = el("input", { type: "file", accept: "image/png,image/jpeg" });
   upload.addEventListener("change", async () => {
@@ -241,13 +379,39 @@ function imageDrawer(container, ctx) {
   });
   const uploadWrap = el("label", {}, [document.createTextNode("Upload"), upload]);
 
-  const modeWrap = el("div", { className: "drawer-row" });
-  for (const mode of ["fit", "cover", "crop"]) {
+  const widthValue = Number(segment.width) || 1;
+  const widthSlider = el("input", {
+    type: "range",
+    min: "0.1",
+    max: "6",
+    step: "0.05",
+    value: widthValue.toFixed(2),
+  });
+  const widthReadout = el("span", {
+    className: "drawer-slider-value",
+    text: `${widthValue.toFixed(2)}x`,
+  });
+  widthSlider.addEventListener("input", () => {
+    const width = parseFloat(widthSlider.value) || widthValue;
+    widthReadout.textContent = `${width.toFixed(2)}x`;
+    onSetImageWidth(width);
+  });
+  const widthWrap = el("div", { className: "drawer-row drawer-slider" }, [
+    el("label", { text: "Width" }),
+    widthSlider,
+    widthReadout,
+  ]);
+
+  const modeWrap = el("div", { className: "drawer-row drawer-segmented" });
+  for (const mode of ["contain", "cover", "crop"]) {
     const btn = el("button", {
       type: "button",
       className: `btn btn-sm${segment.fit === mode ? " active" : ""}`,
       text: mode,
-      onclick: () => onSetImageMode(mode),
+      onclick: () => {
+        if (mode === "crop") onOpenImageCrop();
+        else onSetImageMode(mode);
+      },
     });
     modeWrap.append(btn);
   }
@@ -263,19 +427,26 @@ function imageDrawer(container, ctx) {
     text: "Remove",
     onclick: onRemoveSegment,
   });
-  wrap.append(uploadWrap, modeWrap, el("div", { className: "drawer-row" }, [rotate, remove]));
-  clearDrawer(container, "image");
-  container.append(wrap);
+  wrap.append(
+    uploadWrap,
+    widthWrap,
+    modeWrap,
+    el("div", { className: "drawer-row" }, [rotate, remove]),
+  );
 }
 
 export function renderDrawer(container, ctx) {
+  if (!ctx || ctx.mode !== "font") {
+    fontPickerOpen = false;
+    fontPickerSearch = "";
+  }
   if (!ctx || !ctx.mode || ctx.mode === "empty") {
-    clearDrawer(container, "empty");
+    setMode(container, "empty");
     return;
   }
   if (ctx.mode === "font") return fontDrawer(container, ctx);
   if (ctx.mode === "picker") return pickerDrawer(container, ctx);
   if (ctx.mode === "icon") return iconDrawer(container, ctx);
   if (ctx.mode === "image") return imageDrawer(container, ctx);
-  clearDrawer(container, "empty");
+  setMode(container, "empty");
 }

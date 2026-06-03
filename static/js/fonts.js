@@ -66,8 +66,11 @@ export async function loadFonts() {
       const cacheKey = `${fam.name}:${key}:${url}`;
       if (fontFaceCache.has(cacheKey)) continue;
       fontFaceCache.add(cacheKey);
+      const fmt = url.toLowerCase().endsWith(".otf")
+        ? 'format("opentype")'
+        : 'format("truetype")';
       css.push(
-        `@font-face{font-family:"${fam.cssFamily}";src:url("${url}") format("truetype");font-weight:${weight};font-style:${style};font-display:swap}`,
+        `@font-face{font-family:"${fam.cssFamily}";src:url("${url}") ${fmt};font-weight:${weight};font-style:${style};font-display:swap}`,
       );
     }
     if (fam.slug) {
@@ -84,14 +87,19 @@ function getFamilyMeta(name) {
   return fontCatalog.get(name) || null;
 }
 
-export function listFontNames() {
-  return [...fontCatalog.keys()].sort((a, b) => a.localeCompare(b));
+export function listFonts() {
+  return [...fontCatalog.values()]
+    .map((fam) => ({
+      name: fam.name,
+      previewFamily: fam.slug ? `${fam.cssFamily}-preview` : null,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export function resolveStageFamily(name) {
   const fam = getFamilyMeta(name);
   if (!fam) return "system-ui, sans-serif";
-  return `"${fam.cssFamily}", "${fam.cssFamily}-preview", system-ui, sans-serif`;
+  return `"${fam.cssFamily}", system-ui, sans-serif`;
 }
 
 async function loadVariantFont(name, bold, italic) {

@@ -112,7 +112,7 @@ const PtRender = (() => {
     return out;
   }
 
-  function imageToGrayscaleCanvas(img) {
+  function imageTo1BitCanvas(img) {
     const c = document.createElement("canvas");
     c.width = img.width;
     c.height = img.height;
@@ -127,9 +127,10 @@ const PtRender = (() => {
       const b = data.data[i + 2];
       const a = data.data[i + 3];
       const gray = a < 128 ? 255 : Math.round(0.299 * r + 0.587 * g + 0.114 * b);
-      data.data[i] = gray;
-      data.data[i + 1] = gray;
-      data.data[i + 2] = gray;
+      const bit = gray < 128 ? 0 : 255;
+      data.data[i] = bit;
+      data.data[i + 1] = bit;
+      data.data[i + 2] = bit;
       data.data[i + 3] = 255;
     }
     ctx.putImageData(data, 0, 0);
@@ -166,64 +167,80 @@ const PtRender = (() => {
     return out;
   }
 
-  function fitBox(src, box, mode) {
-    const w = src.width;
-    const h = src.height;
-    if (w < 1 || h < 1) {
-      const c = document.createElement("canvas");
-      c.width = box;
-      c.height = box;
-      const ctx = c.getContext("2d");
-      ctx.fillStyle = "#fff";
-      ctx.fillRect(0, 0, box, box);
-      return c;
+  function applyCropRect(src, crop) {
+    if (!crop) return src;
+    const x = Number(crop.x);
+    const y = Number(crop.y);
+    const w = Number(crop.w);
+    const h = Number(crop.h);
+    if (
+      !Number.isFinite(x) ||
+      !Number.isFinite(y) ||
+      !Number.isFinite(w) ||
+      !Number.isFinite(h) ||
+      w <= 0 ||
+      h <= 0
+    ) {
+      return src;
     }
+    const sx = Math.max(0, Math.round(x * src.width));
+    const sy = Math.max(0, Math.round(y * src.height));
+    const ex = Math.min(src.width, Math.round((x + w) * src.width));
+    const ey = Math.min(src.height, Math.round((y + h) * src.height));
+    const cw = Math.max(1, ex - sx);
+    const ch = Math.max(1, ey - sy);
     const out = document.createElement("canvas");
-    out.width = box;
-    out.height = box;
-    const ctx = out.getContext("2d");
-    ctx.fillStyle = "#fff";
-    ctx.fillRect(0, 0, box, box);
-    let nw, nh;
-    if (mode === "cover") {
-      const scale = Math.max(box / w, box / h);
-      nw = Math.max(1, Math.round(w * scale));
-      nh = Math.max(1, Math.round(h * scale));
-      const tmp = document.createElement("canvas");
-      tmp.width = nw;
-      tmp.height = nh;
-      tmp.getContext("2d").drawImage(src, 0, 0, nw, nh);
-      const left = Math.floor((nw - box) / 2);
-      const top = Math.floor((nh - box) / 2);
-      ctx.drawImage(tmp, left, top, box, box, 0, 0, box, box);
-      return out;
-    }
-    const scale = Math.min(box / w, box / h);
-    nw = Math.max(1, Math.round(w * scale));
-    nh = Math.max(1, Math.round(h * scale));
-    ctx.drawImage(src, Math.floor((box - nw) / 2), Math.floor((box - nh) / 2), nw, nh);
+    out.width = cw;
+    out.height = ch;
+    out.getContext("2d").drawImage(src, sx, sy, cw, ch, 0, 0, cw, ch);
     return out;
   }
 
-  function processIconCanvas(src, targetH, fit, rotate) {
-    let c = src;
-    if (fit === "crop") {
-      const bbox = contentBBox(c);
-      if (bbox) {
-        const tmp = document.createElement("canvas");
-        tmp.width = bbox.maxX - bbox.minX;
-        tmp.height = bbox.maxY - bbox.minY;
-        tmp.getContext("2d").drawImage(
-          c,
-          bbox.minX, bbox.minY, tmp.width, tmp.height,
-          0, 0, tmp.width, tmp.height
-        );
-        c = tmp;
-      }
+  function drawIntoBox(src, boxW, boxH, mode) {
+    const out = document.createElement("canvas");
+    out.width = boxW;
+    out.height = boxH;
+    const ctx = out.getContext("2d");
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, boxW, boxH);
+    const w = src.width;
+    const h = src.height;
+    if (w < 1 || h < 1) return out;
+    if (mode === "crop") {
+      ctx.drawImage(src, 0, 0, w, h, 0, 0, boxW, boxH);
+      return out;
     }
-    c = applyRotate(c, rotate);
-    if (fit === "fit" || fit === "cover") return fitBox(c, targetH, fit);
-    return scaleCanvasToHeight(c, targetH);
+    const scale =
+      mode === "cover" ? Math.max(boxW / w, boxH / h) : Math.min(boxW / w, boxH / h);
+    const dw = Math.max(1, Math.round(w * scale));
+    const dh = Math.max(1, Math.round(h * scale));
+    const dx = Math.floor((boxW - dw) / 2);
+    const dy = Math.floor((boxH - dh) / 2);
+    ctx.drawImage(src, dx, dy, dw, dh);
+    return out;
+  }
+
+  function normalizedCustomFit(fit) {
+    if (fit === "fit") return "contain";
+    if (fit === "contain" || fit === "cover" || fit === "crop") return fit;
+    return "crop";
+  }
+
+  function customWidthScale(block, src) {
+    const width = Number(block.width);
+    if (Number.isFinite(width) && width > 0) {
+      return Math.max(0.1, Math.min(6, width));
+    }
+    if (src.height > 0) return src.width / src.height;
+    return 1;
+  }
+
+  function processCustomImageCanvas(src, targetH, fit, rotate, crop, widthScale) {
+    let c = applyRotate(src, rotate);
+    if (fit === "crop" && crop) c = applyCropRect(c, crop);
+    const boxH = Math.max(1, targetH);
+    const boxW = Math.max(1, Math.round(boxH * widthScale));
+    return drawIntoBox(c, boxW, boxH, fit);
   }
 
   async function rasterizeBrotherGlyph(family, codepoint, targetH) {
@@ -263,11 +280,18 @@ const PtRender = (() => {
   async function iconCanvas(iconId, targetH, block) {
     if (iconId.startsWith("custom:")) {
       const uuid = iconId.slice(7);
-      const fit = block.fit === "fit" || block.fit === "cover" ? block.fit : "crop";
+      const fit = normalizedCustomFit(block.fit);
       const rotate = [0, 90, 180, 270].includes(block.rotate) ? block.rotate : 0;
       const img = await loadImage(`/icons/custom/${uuid}`);
-      const gray = imageToGrayscaleCanvas(img);
-      return processIconCanvas(gray, targetH, fit, rotate);
+      const src = imageTo1BitCanvas(img);
+      return processCustomImageCanvas(
+        src,
+        targetH,
+        fit,
+        rotate,
+        block.crop || null,
+        customWidthScale(block, src),
+      );
     }
     await loadIconCatalog();
     const meta = iconCatalog?.icons?.[iconId];
@@ -286,26 +310,8 @@ const PtRender = (() => {
     return prevKind === "icon" && kind === "icon" ? Math.max(0, gap) : 0;
   }
 
-  function canvasToDataUrl(canvas, forPrint) {
-    if (!forPrint) return canvas.toDataURL("image/png");
-    const out = document.createElement("canvas");
-    out.width = canvas.width;
-    out.height = canvas.height;
-    const ctx = out.getContext("2d");
-    ctx.fillStyle = "#fff";
-    ctx.fillRect(0, 0, out.width, out.height);
-    const src = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height);
-    const dst = ctx.createImageData(out.width, out.height);
-    for (let i = 0; i < src.data.length; i += 4) {
-      const gray = src.data[i];
-      const v = gray < 128 ? 0 : 255;
-      dst.data[i] = v;
-      dst.data[i + 1] = v;
-      dst.data[i + 2] = v;
-      dst.data[i + 3] = 255;
-    }
-    ctx.putImageData(dst, 0, 0);
-    return out.toDataURL("image/png");
+  function canvasToDataUrl(canvas, _forPrint) {
+    return canvas.toDataURL("image/png");
   }
 
   function textStyleForBlock(block, opts) {
@@ -390,6 +396,12 @@ const PtRender = (() => {
           lineWidth(seg.font, seg.value, seg.font_size, seg.letter_spacing),
         );
       }
+      if (seg.block && seg.block.id && seg.block.id.startsWith("custom:")) {
+        return Math.max(
+          1,
+          Math.round(seg.canvas.height * customWidthScale(seg.block, seg.canvas)),
+        );
+      }
       return seg.canvas.width;
     });
     const contentW = segWidths.reduce((a, b) => a + b, 0) + segGaps;
@@ -442,6 +454,7 @@ const PtRender = (() => {
     setIconCatalog,
     loadIconCatalog,
     renderLabel,
+    iconCanvas,
     resolveFontUrl,
   };
 })();

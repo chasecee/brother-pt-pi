@@ -149,20 +149,6 @@ impl Render {
 
         debug!("Textbox: {:?}", tb);
 
-        #[cfg(nope)]
-        let a = match opts.h_align {
-            HAlign::Centre => CenterAligned,
-            HAlign::Left => LeftAligned,
-            HAlign::Right => RightAligned,
-            HAlign::Justify => Justified,
-        };
-        #[cfg(nope)]
-        let v = match opts.v_align {
-            VAlign::Centre => CenterAligned,
-            VAlign::Top => TopAligned,
-            VAlign::Bottom => BottomAligned,
-        };
-
         let a = CenterAligned;
         let v = CenterAligned;
         let h = Exact(Hidden);

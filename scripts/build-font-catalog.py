@@ -72,11 +72,13 @@ def pick_variant(variants: dict[str, str]) -> str | None:
     return next(iter(variants), None)
 
 
-def subset_text(family: str) -> str:
-    return "".join(dict.fromkeys(family))
+def supported_subset_text(font: TTFont, family: str) -> str:
+    cmap = font.getBestCmap() or {}
+    unique = list(dict.fromkeys(family))
+    return "".join(ch for ch in unique if ord(ch) in cmap)
 
 
-def write_subset(src: Path, text: str, dest: Path) -> None:
+def write_subset(src: Path, family: str, dest: Path) -> str:
     options = Options()
     options.flavor = "woff2"
     options.desubroutinize = True
@@ -85,10 +87,14 @@ def write_subset(src: Path, text: str, dest: Path) -> None:
     options.layout_scripts = []
     options.drop_tables += ["GSUB", "GPOS", "GDEF", "BASE", "JSTF"]
     font = TTFont(str(src))
+    text = supported_subset_text(font, family)
+    if not text:
+        return ""
     subsetter = Subsetter(options=options)
     subsetter.populate(text=text)
     subsetter.subset(font)
     save_font(font, str(dest), options)
+    return text
 
 
 def build_catalog() -> dict:
@@ -130,9 +136,12 @@ def build_previews(catalog: dict) -> dict:
         filename = f"{slug}.woff2"
         dest = PREVIEWS_DIR / filename
         try:
-            write_subset(src, subset_text(family), dest)
+            subset = write_subset(src, family, dest)
         except Exception as e:
             print(f"skip preview {family}: {e}", file=sys.stderr)
+            continue
+        if not subset:
+            print(f"skip preview {family}: no name glyphs in font", file=sys.stderr)
             continue
         expected_files.add(filename)
         index[family] = {"slug": slug, "file": filename, "variant": variant}

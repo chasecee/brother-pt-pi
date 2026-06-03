@@ -24,31 +24,6 @@
     "file": "atlanta.woff2",
     "variant": "regular"
   },
-  "BR Face J1": {
-    "slug": "br-face-j1",
-    "file": "br-face-j1.woff2",
-    "variant": "regular"
-  },
-  "BR Face J2": {
-    "slug": "br-face-j2",
-    "file": "br-face-j2.woff2",
-    "variant": "regular"
-  },
-  "BR Face J3": {
-    "slug": "br-face-j3",
-    "file": "br-face-j3.woff2",
-    "variant": "regular"
-  },
-  "BR Face J4": {
-    "slug": "br-face-j4",
-    "file": "br-face-j4.woff2",
-    "variant": "regular"
-  },
-  "BR-OCRB": {
-    "slug": "br-ocrb",
-    "file": "br-ocrb.woff2",
-    "variant": "regular"
-  },
   "Belgium": {
     "slug": "belgium",
     "file": "belgium.woff2",
@@ -182,36 +157,6 @@
   "Oklahoma": {
     "slug": "oklahoma",
     "file": "oklahoma.woff2",
-    "variant": "regular"
-  },
-  "PT Dingbats 1": {
-    "slug": "pt-dingbats-1",
-    "file": "pt-dingbats-1.woff2",
-    "variant": "regular"
-  },
-  "PT Dingbats 2": {
-    "slug": "pt-dingbats-2",
-    "file": "pt-dingbats-2.woff2",
-    "variant": "regular"
-  },
-  "PT Dingbats 3": {
-    "slug": "pt-dingbats-3",
-    "file": "pt-dingbats-3.woff2",
-    "variant": "regular"
-  },
-  "PT Dingbats 4": {
-    "slug": "pt-dingbats-4",
-    "file": "pt-dingbats-4.woff2",
-    "variant": "regular"
-  },
-  "PT Symbol 1": {
-    "slug": "pt-symbol-1",
-    "file": "pt-symbol-1.woff2",
-    "variant": "regular"
-  },
-  "PT Symbol 2": {
-    "slug": "pt-symbol-2",
-    "file": "pt-symbol-2.woff2",
     "variant": "regular"
   },
   "PT Utah Condensed": {

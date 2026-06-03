@@ -1,6 +1,6 @@
 import {
   loadFonts,
-  listFontNames,
+  listFonts,
   resolveStageFamily,
   fontMetrics,
 } from "./fonts.js";
@@ -422,7 +422,7 @@ async function init() {
   stage = createStageController({
     rowsEl: $("rows"),
     drawerEl: $("drawer"),
-    fontNames: listFontNames(),
+    fonts: listFonts(),
     resolveStageFamily,
     fontMetrics,
     limits: LIMITS,
