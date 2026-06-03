@@ -90,7 +90,7 @@ impl StateStore {
     }
 
     fn normalize_label(&self, raw: &Value) -> Option<Value> {
-        let blocks = migrate_label_dict(raw)?;
+        let blocks = migrate_label_dict(raw, &self.limits)?;
         if !raw.is_object() {
             return None;
         }
@@ -158,7 +158,7 @@ impl StateStore {
             return state;
         }
         state["prefs"] = self.normalize_prefs(&raw["prefs"]);
-        state["draft"] = migrate_draft(&raw["draft"]);
+        state["draft"] = migrate_draft(&raw["draft"], &self.limits);
         state["queue"] = json!(self.normalize_queue(&raw["queue"]));
         state["recent"] = json!(self.normalize_recent(&raw["recent"]));
         state
@@ -211,14 +211,19 @@ impl StateStore {
         self.load()
     }
 
-    pub fn update(&self, prefs: Option<Value>, draft: Option<Value>, queue: Option<Value>) -> Value {
+    pub fn update(
+        &self,
+        prefs: Option<Value>,
+        draft: Option<Value>,
+        queue: Option<Value>,
+    ) -> Value {
         let _g = self.lock.lock();
         let mut state = self.load();
         if let Some(p) = prefs {
             state["prefs"] = self.normalize_prefs(&p);
         }
         if let Some(d) = draft {
-            state["draft"] = migrate_draft(&d);
+            state["draft"] = migrate_draft(&d, &self.limits);
         }
         if let Some(q) = queue {
             state["queue"] = json!(self.normalize_queue(&q));
@@ -258,9 +263,7 @@ impl StateStore {
 }
 
 fn chrono_now() -> String {
-    chrono::Utc::now()
-        .format("%Y-%m-%dT%H:%M:%SZ")
-        .to_string()
+    chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string()
 }
 
 #[cfg(test)]

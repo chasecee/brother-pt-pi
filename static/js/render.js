@@ -308,26 +308,74 @@ const PtRender = (() => {
     return out.toDataURL("image/png");
   }
 
+  function textStyleForBlock(block, opts) {
+    return {
+      value: String(block.value || ""),
+      font_family: block.font_family || opts.font_family,
+      bold: typeof block.bold === "boolean" ? block.bold : !!opts.bold,
+      italic: typeof block.italic === "boolean" ? block.italic : !!opts.italic,
+      font_size: Math.max(1, parseInt(block.font_size ?? opts.font_size, 10) || opts.font_size),
+      letter_spacing: Number(
+        block.letter_spacing ?? opts.letter_spacing ?? 0,
+      ),
+      v_align: parseInt(block.v_align ?? opts.v_align ?? 0, 10) || 0,
+    };
+  }
+
   async function renderBlocks(blocks, opts, tapeH, forPrint = false) {
     const margin = Math.max(0, opts.margin_h || 0);
-    const spacing = Number(opts.letter_spacing || 0);
-    const fontUrl = resolveFontUrl(opts.font_family, opts.bold, opts.italic);
-    const font = await loadFont(fontUrl);
-    const fontSize = opts.font_size;
-    const ascent = font.ascender * (fontSize / font.unitsPerEm);
-    const descent = Math.abs(font.descender * (fontSize / font.unitsPerEm));
-    const lineH = ascent + descent;
-    const iconCap = Math.max(8, tapeH - 4);
     const iconGap = Math.max(0, parseInt(opts.icon_gap, 10) || 0);
-
-    const segments = [];
+    const prepared = [];
+    let maxAscent = 0;
+    let maxDescent = 0;
     for (const block of blocks) {
       if (block.type === "text") {
-        segments.push({ kind: "text", value: String(block.value || "") });
+        const style = textStyleForBlock(block, opts);
+        const fontUrl = resolveFontUrl(
+          style.font_family,
+          style.bold,
+          style.italic,
+        );
+        const font = await loadFont(fontUrl);
+        const ascent = font.ascender * (style.font_size / font.unitsPerEm);
+        const descent = Math.abs(
+          font.descender * (style.font_size / font.unitsPerEm),
+        );
+        if (ascent > maxAscent) maxAscent = ascent;
+        if (descent > maxDescent) maxDescent = descent;
+        prepared.push({
+          kind: "text",
+          ...style,
+          font,
+          ascent,
+          descent,
+        });
       } else if (block.type === "icon" && block.id) {
-        const scale = iconScale(block, opts);
+        prepared.push({ kind: "icon", block });
+      }
+    }
+    if (maxAscent <= 0 || maxDescent <= 0) {
+      const fallbackUrl = resolveFontUrl(opts.font_family, opts.bold, opts.italic);
+      const fallbackFont = await loadFont(fallbackUrl);
+      const fallbackSize = Math.max(1, parseInt(opts.font_size, 10) || 1);
+      maxAscent = fallbackFont.ascender * (fallbackSize / fallbackFont.unitsPerEm);
+      maxDescent = Math.abs(
+        fallbackFont.descender * (fallbackSize / fallbackFont.unitsPerEm),
+      );
+    }
+    const lineH = maxAscent + maxDescent;
+    const iconCap = Math.max(8, tapeH - 4);
+    const segments = [];
+    for (const seg of prepared) {
+      if (seg.kind === "icon") {
+        const scale = iconScale(seg.block, opts);
         const ih = Math.max(8, Math.min(iconCap, Math.round(lineH * scale)));
-        segments.push({ kind: "icon", canvas: await iconCanvas(block.id, ih, block) });
+        segments.push({
+          kind: "icon",
+          canvas: await iconCanvas(seg.block.id, ih, seg.block),
+        });
+      } else {
+        segments.push(seg);
       }
     }
 
@@ -337,7 +385,11 @@ const PtRender = (() => {
     }
 
     const segWidths = segments.map((seg) => {
-      if (seg.kind === "text") return Math.round(lineWidth(font, seg.value, fontSize, spacing));
+      if (seg.kind === "text") {
+        return Math.round(
+          lineWidth(seg.font, seg.value, seg.font_size, seg.letter_spacing),
+        );
+      }
       return seg.canvas.width;
     });
     const contentW = segWidths.reduce((a, b) => a + b, 0) + segGaps;
@@ -352,18 +404,26 @@ const PtRender = (() => {
     ctx.fillRect(0, 0, imgW, imgH);
     ctx.fillStyle = "#000";
 
-    const blockTop = Math.floor((imgH - lineH) / 2) + (parseInt(opts.v_align, 10) || 0);
-    const baseline = blockTop + ascent;
+    const blockTop = Math.floor((imgH - lineH) / 2);
+    const baseline = blockTop + maxAscent;
     let x = margin + Math.floor((contentW - segWidths.reduce((a, b) => a + b, 0) - segGaps) / 2);
 
     for (let i = 0; i < segments.length; i++) {
       const seg = segments[i];
       if (i > 0) x += gapBefore(segments[i - 1].kind, seg.kind, iconGap);
       if (seg.kind === "text") {
-        drawLine(ctx, font, x, baseline, seg.value, fontSize, spacing);
+        drawLine(
+          ctx,
+          seg.font,
+          x,
+          baseline + seg.v_align,
+          seg.value,
+          seg.font_size,
+          seg.letter_spacing,
+        );
         x += segWidths[i];
       } else {
-        const iy = baseline - ascent + Math.floor((lineH - seg.canvas.height) / 2);
+        const iy = blockTop + Math.floor((lineH - seg.canvas.height) / 2);
         ctx.drawImage(seg.canvas, x, Math.max(0, iy));
         x += segWidths[i];
       }

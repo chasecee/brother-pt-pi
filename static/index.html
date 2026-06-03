@@ -10,8 +10,10 @@
     <script defer src="/static/js/render.js?v=__V__"></script>
   </head>
   <body>
-    <h1>
-      Label printer <span id="status" class="bad">checking...</span>
+    <header class="topbar">
+      <h1>
+        Label printer <span id="status" class="bad">checking...</span>
+      </h1>
       <button
         id="settingsBtn"
         type="button"
@@ -20,16 +22,27 @@
         aria-expanded="false"
         aria-controls="systemPanel"
       >
-        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
           <path
             fill="currentColor"
             d="M12 8a4 4 0 100 8 4 4 0 000-8zm9.4 4a7.4 7.4 0 00-.1-1.2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 00-2-1.2l-.4-2.6h-4l-.4 2.6a7.4 7.4 0 00-2 1.2l-2.5-1-2 3.5 2.1 1.6a7.6 7.6 0 000 2.4l-2.1 1.6 2 3.5 2.5-1c.6.5 1.3.9 2 1.2l.4 2.6h4l.4-2.6a7.4 7.4 0 002-1.2l2.5 1 2-3.5-2.1-1.6c.1-.4.1-.8.1-1.2z"
           />
         </svg>
       </button>
-    </h1>
+    </header>
+
     <div id="systemPanel" class="system-panel">
       <div class="system-panel-inner">
+        <div class="settings-group">
+          <label class="settings-field">
+            <span>Margin</span>
+            <input id="prefMargin" type="number" min="0" max="128" step="1" />
+          </label>
+          <label class="settings-field">
+            <span>V align</span>
+            <input id="prefVAlign" type="number" min="-32" max="32" step="1" />
+          </label>
+        </div>
         <div class="stat-row"><span>Memory</span><span id="statMem">—</span></div>
         <div class="stat-row"><span>Wi-Fi</span><span id="statWifi">—</span></div>
         <div class="stat-row"><span>CPU temp</span><span id="statTemp">—</span></div>
@@ -46,136 +59,34 @@
       </div>
     </div>
 
-    <div id="draftEditor" class="draft-editor"></div>
-    <button type="button" id="addLineBtn" class="btn btn-sm">Add line</button>
+    <main class="editor">
+      <section id="stage" class="stage" aria-label="Label preview and editor">
+        <div id="rows" class="rows" role="list"></div>
+      </section>
 
-    <div class="settings">
-      <details class="font-accordion" id="fontAccordion">
-        <summary class="font-accordion-summary">
-          <span>Font</span>
-          <span id="fontAccordionHint" class="font-accordion-hint"></span>
-        </summary>
-        <div class="font-accordion-body">
-          <div class="row font-picker-row">
-            <div class="font-picker">
-              <button
-                type="button"
-                id="fontCurrent"
-                class="font-current"
-                aria-expanded="false"
-                aria-controls="fontPanel"
-              ></button>
-              <div id="fontPanel" class="font-panel" hidden>
-                <input
-                  type="search"
-                  id="fontSearch"
-                  placeholder="Search fonts"
-                  autocomplete="off"
-                />
-                <div id="fontList" class="font-list"></div>
-              </div>
-            </div>
-            <label><input type="checkbox" id="bold" checked /> Bold</label>
-            <label><input type="checkbox" id="italic" /> Italic</label>
-          </div>
-          <div class="row">
-            <label
-              >Size <input type="number" id="fontSize" min="10" max="128"
-            /></label>
-            <label
-              >V align <input type="number" id="vAlign" min="-32" max="32"
-            /></label>
-            <label
-              >Spacing
-              <input
-                type="number"
-                id="letterSpacing"
-                min="-5"
-                max="20"
-                step="0.5"
-            /></label>
-          </div>
-        </div>
-      </details>
-      <details class="font-accordion icon-accordion" id="iconAccordion">
-        <summary class="font-accordion-summary icon-accordion-summary">
-          <span id="iconQuickPicks" class="icon-quick-picks"></span>
-        </summary>
-        <div class="font-accordion-body">
-          <div id="iconCategoryStrip" class="icon-category-strip"></div>
-          <input
-            type="search"
-            id="iconSearch"
-            placeholder="Search icons"
-            autocomplete="off"
-          />
-          <div id="iconGrid" class="icon-grid"></div>
-          <label class="icon-upload">
-            Upload image
-            <input
-              type="file"
-              id="iconUpload"
-              accept="image/png,image/jpeg"
-              hidden
-            />
-          </label>
-          <div class="row">
-            <label
-              >Gap <input type="number" id="iconGap" min="0" max="64"
-            /></label>
-            <label
-              >Size
-              <input type="number" id="iconSize" min="0.25" max="2" step="0.05"
-            /></label>
-          </div>
-        </div>
-      </details>
-      <div class="row">
-        <label
-          >Margin <input type="number" id="marginH" min="0" max="128"
-        /></label>
-        <label
-          >Qty
-          <input
-            type="number"
-            id="qty"
-            class="narrow"
-            value="1"
-            min="1"
-            max="99"
-        /></label>
+      <section
+        id="drawer"
+        class="drawer"
+        data-mode="empty"
+        aria-live="polite"
+      ></section>
+
+      <div class="stage-foot">
+        <button id="rowAdd" type="button" class="row-add">+ label line</button>
+        <button id="printBtn" type="button" class="btn btn-primary">Print</button>
       </div>
-    </div>
+    </main>
 
-    <div class="queue-header">
-      <h2>Queue (<span id="count">0</span>)</h2>
-      <button id="printBtn" class="btn btn-primary">Print all</button>
-    </div>
-
-    <div class="queue-table">
-      <div class="head">Label preview</div>
-      <div class="head">Quantity</div>
-      <div class="head"></div>
-      <div class="head"></div>
-      <div id="queue"></div>
-    </div>
-
-    <details id="recentSection" class="recent-section font-accordion" hidden>
-      <summary class="font-accordion-summary">
+    <details id="recentSection" class="recent" hidden>
+      <summary>
         <span>Recently printed</span>
-        <span id="recentHint" class="font-accordion-hint"></span>
+        <span id="recentHint" class="recent-hint"></span>
       </summary>
-      <div class="font-accordion-body">
-        <div class="queue-table recent-table">
-          <div class="head">Label preview</div>
-          <div class="head">Quantity</div>
-          <div class="head"></div>
-          <div id="recent"></div>
-        </div>
-      </div>
+      <div id="recent" class="recent-list"></div>
     </details>
+
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-    <script defer src="/static/js/app.js?v=__V__"></script>
+    <script type="module" src="/static/js/app.js?v=__V__"></script>
   </body>
 </html>

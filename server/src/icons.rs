@@ -59,10 +59,49 @@ pub fn list_categories(root: &Path) -> Vec<Value> {
                     .cmp(b.get("title").and_then(|v| v.as_str()).unwrap_or(""))
             })
     });
+    let mut by_category: HashMap<String, Vec<(String, String)>> = HashMap::new();
+    if let Some(icons) = cat.get("icons").and_then(|v| v.as_object()) {
+        for (icon_id, meta) in icons {
+            let cat_id = meta
+                .get("category")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            if cat_id.is_empty() {
+                continue;
+            }
+            let thumb = meta
+                .get("thumb")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            if thumb.is_empty() {
+                continue;
+            }
+            by_category
+                .entry(cat_id)
+                .or_default()
+                .push((icon_id.clone(), thumb));
+        }
+        for list in by_category.values_mut() {
+            list.sort_by(|a, b| a.0.cmp(&b.0));
+        }
+    }
     for entry in &mut cats {
         if let Some(thumb) = entry.get("preview_thumb").and_then(|v| v.as_str()) {
             entry["preview_thumb_url"] = json!(format!("/icons/thumbs/{thumb}"));
         }
+        let id = entry.get("id").and_then(|v| v.as_str()).unwrap_or("");
+        let thumbs: Vec<Value> = by_category
+            .get(id)
+            .map(|list| {
+                list.iter()
+                    .take(4)
+                    .map(|(_, t)| json!(format!("/icons/thumbs/{t}")))
+                    .collect()
+            })
+            .unwrap_or_default();
+        entry["preview_thumb_urls"] = json!(thumbs);
     }
     cats
 }

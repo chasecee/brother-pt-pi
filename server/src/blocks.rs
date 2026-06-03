@@ -1,5 +1,7 @@
 use serde_json::{json, Map, Value};
 
+use crate::config::Limits;
+
 pub fn blocks_have_content(blocks: &Value) -> bool {
     let Some(arr) = blocks.as_array() else {
         return false;
@@ -19,7 +21,11 @@ pub fn blocks_have_content(blocks: &Value) -> bool {
                 }
             }
             Some("icon") => {
-                if obj.get("id").and_then(|v| v.as_str()).is_some_and(|s| !s.is_empty()) {
+                if obj
+                    .get("id")
+                    .and_then(|v| v.as_str())
+                    .is_some_and(|s| !s.is_empty())
+                {
                     return true;
                 }
             }
@@ -29,7 +35,42 @@ pub fn blocks_have_content(blocks: &Value) -> bool {
     false
 }
 
-pub fn normalize_blocks(raw: &Value) -> Vec<Value> {
+fn normalize_text_block(obj: &Map<String, Value>, limits: &Limits) -> Option<Value> {
+    let value = obj.get("value")?.as_str().unwrap_or("").to_string();
+    let mut entry = Map::new();
+    entry.insert("type".into(), json!("text"));
+    entry.insert("value".into(), json!(value));
+    if let Some(font_family) = obj.get("font_family").and_then(|v| v.as_str()) {
+        let trimmed = font_family.trim();
+        if !trimmed.is_empty() {
+            entry.insert("font_family".into(), json!(trimmed));
+        }
+    }
+    if let Some(bold) = obj.get("bold").and_then(|v| v.as_bool()) {
+        entry.insert("bold".into(), json!(bold));
+    }
+    if let Some(italic) = obj.get("italic").and_then(|v| v.as_bool()) {
+        entry.insert("italic".into(), json!(italic));
+    }
+    if let Some(font_size) = obj.get("font_size").and_then(|v| v.as_i64()) {
+        entry.insert(
+            "font_size".into(),
+            json!((font_size as i32).clamp(limits.font_size[0], limits.font_size[1])),
+        );
+    }
+    if let Some(v_align) = obj.get("v_align").and_then(|v| v.as_i64()) {
+        entry.insert(
+            "v_align".into(),
+            json!((v_align as i32).clamp(limits.v_align[0], limits.v_align[1])),
+        );
+    }
+    if let Some(letter_spacing) = obj.get("letter_spacing").and_then(|v| v.as_f64()) {
+        entry.insert("letter_spacing".into(), json!(letter_spacing));
+    }
+    Some(Value::Object(entry))
+}
+
+pub fn normalize_blocks(raw: &Value, limits: &Limits) -> Vec<Value> {
     let Some(arr) = raw.as_array() else {
         return vec![];
     };
@@ -40,10 +81,9 @@ pub fn normalize_blocks(raw: &Value) -> Vec<Value> {
         };
         match obj.get("type").and_then(|v| v.as_str()) {
             Some("text") => {
-                let Some(value) = obj.get("value") else {
-                    continue;
-                };
-                out.push(json!({ "type": "text", "value": value.as_str().unwrap_or("").to_string() }));
+                if let Some(block) = normalize_text_block(obj, limits) {
+                    out.push(block);
+                }
             }
             Some("icon") => {
                 let Some(icon_id) = obj.get("id").and_then(|v| v.as_str()) else {
@@ -56,10 +96,7 @@ pub fn normalize_blocks(raw: &Value) -> Vec<Value> {
                 let mut entry = Map::new();
                 entry.insert("type".into(), json!("icon"));
                 entry.insert("id".into(), json!(icon_id));
-                let height = obj
-                    .get("height")
-                    .and_then(|v| v.as_f64())
-                    .unwrap_or(1.0);
+                let height = obj.get("height").and_then(|v| v.as_f64()).unwrap_or(1.0);
                 if (height - 1.0).abs() > f64::EPSILON {
                     entry.insert("height".into(), json!(height.clamp(0.25, 2.0)));
                 }
@@ -90,12 +127,12 @@ pub fn blocks_from_text(text: &str) -> Vec<Value> {
     vec![json!({ "type": "text", "value": text })]
 }
 
-pub fn migrate_label_dict(raw: &Value) -> Option<Vec<Value>> {
+pub fn migrate_label_dict(raw: &Value, limits: &Limits) -> Option<Vec<Value>> {
     let Some(obj) = raw.as_object() else {
         return None;
     };
     if obj.contains_key("blocks") {
-        let blocks = normalize_blocks(&obj["blocks"]);
+        let blocks = normalize_blocks(&obj["blocks"], limits);
         return if blocks_have_content(&json!(blocks)) {
             Some(blocks)
         } else {
@@ -111,11 +148,11 @@ pub fn migrate_label_dict(raw: &Value) -> Option<Vec<Value>> {
     None
 }
 
-pub fn migrate_draft(raw: &Value) -> Value {
+pub fn migrate_draft(raw: &Value, limits: &Limits) -> Value {
     if let Some(lines) = raw.get("lines").and_then(|v| v.as_array()) {
         let mut out = Vec::new();
         for line in lines {
-            let blocks = normalize_blocks(line);
+            let blocks = normalize_blocks(line, limits);
             if blocks_have_content(&json!(blocks)) {
                 out.push(blocks);
             }

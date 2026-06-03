@@ -1,0 +1,116 @@
+const fontCatalog = new Map();
+const fontFaceCache = new Set();
+const fontParseCache = new Map();
+
+function cssFamilyName(name) {
+  return `ptp-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+}
+
+function styleKey(bold, italic) {
+  if (bold && italic) return "boldItalic";
+  if (bold) return "bold";
+  if (italic) return "italic";
+  return "regular";
+}
+
+function resolveVariant(variants, bold, italic) {
+  const key = styleKey(bold, italic);
+  const order =
+    key === "boldItalic"
+      ? ["boldItalic", "bold", "italic", "regular"]
+      : key === "bold"
+        ? ["bold", "boldItalic", "regular", "italic"]
+        : key === "italic"
+          ? ["italic", "boldItalic", "regular", "bold"]
+          : ["regular", "bold", "italic", "boldItalic"];
+  for (const k of order) {
+    if (variants[k]) return variants[k];
+  }
+  return null;
+}
+
+function ensureFontFaceSheet() {
+  let el = document.getElementById("fontFaces");
+  if (!el) {
+    el = document.createElement("style");
+    el.id = "fontFaces";
+    document.head.append(el);
+  }
+  return el;
+}
+
+export async function loadFonts() {
+  const resp = await fetch("/api/fonts");
+  const data = await resp.json();
+  const families = data.families || [];
+  fontCatalog.clear();
+  for (const fam of families) {
+    fontCatalog.set(fam.name, {
+      name: fam.name,
+      variants: fam.variants || {},
+      slug: fam.slug || null,
+      cssFamily: cssFamilyName(fam.name),
+    });
+  }
+  const css = [];
+  for (const fam of fontCatalog.values()) {
+    const rules = [
+      ["regular", 400, "normal"],
+      ["bold", 700, "normal"],
+      ["italic", 400, "italic"],
+      ["boldItalic", 700, "italic"],
+    ];
+    for (const [key, weight, style] of rules) {
+      const url = fam.variants[key];
+      if (!url) continue;
+      const cacheKey = `${fam.name}:${key}:${url}`;
+      if (fontFaceCache.has(cacheKey)) continue;
+      fontFaceCache.add(cacheKey);
+      css.push(
+        `@font-face{font-family:"${fam.cssFamily}";src:url("${url}") format("truetype");font-weight:${weight};font-style:${style};font-display:swap}`,
+      );
+    }
+    if (fam.slug) {
+      css.push(
+        `@font-face{font-family:"${fam.cssFamily}-preview";src:url("/font-previews/${fam.slug}.woff2") format("woff2");font-display:swap}`,
+      );
+    }
+  }
+  ensureFontFaceSheet().textContent = css.join("\n");
+  return families;
+}
+
+function getFamilyMeta(name) {
+  return fontCatalog.get(name) || null;
+}
+
+export function listFontNames() {
+  return [...fontCatalog.keys()].sort((a, b) => a.localeCompare(b));
+}
+
+export function resolveStageFamily(name) {
+  const fam = getFamilyMeta(name);
+  if (!fam) return "system-ui, sans-serif";
+  return `"${fam.cssFamily}", "${fam.cssFamily}-preview", system-ui, sans-serif`;
+}
+
+async function loadVariantFont(name, bold, italic) {
+  const fam = getFamilyMeta(name);
+  if (!fam) throw new Error("missing font family");
+  const url = resolveVariant(fam.variants, bold, italic);
+  if (!url) throw new Error("missing font variant");
+  if (fontParseCache.has(url)) return fontParseCache.get(url);
+  const p = fetch(url)
+    .then((r) => r.arrayBuffer())
+    .then((buf) => opentype.parse(buf));
+  fontParseCache.set(url, p);
+  return p;
+}
+
+export async function fontMetrics(name, bold, italic, fontSize) {
+  const font = await loadVariantFont(name, bold, italic);
+  const size = Math.max(1, Number(fontSize) || 1);
+  const ascent = font.ascender * (size / font.unitsPerEm);
+  const descent = Math.abs(font.descender * (size / font.unitsPerEm));
+  return { ascent, descent };
+}

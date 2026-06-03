@@ -24,9 +24,7 @@ use tower_http::services::ServeDir;
 use tower_http::set_header::SetResponseHeaderLayer;
 use tracing_subscriber::EnvFilter;
 
-use crate::config::{
-    tape_height_mm, LabelDefaults, Limits, CUSTOM_ICON_MAX_UPLOAD_BYTES,
-};
+use crate::config::{tape_height_mm, LabelDefaults, Limits, CUSTOM_ICON_MAX_UPLOAD_BYTES};
 use crate::icons::{custom_icon_path, save_custom_icon};
 use crate::printer::PrinterService;
 use crate::state::StateStore;
@@ -88,9 +86,7 @@ struct StateUpdate {
 }
 
 fn decode_png_field(raw: &str) -> Result<Vec<u8>, String> {
-    let b64 = raw
-        .strip_prefix("data:image/png;base64,")
-        .unwrap_or(raw);
+    let b64 = raw.strip_prefix("data:image/png;base64,").unwrap_or(raw);
     base64::engine::general_purpose::STANDARD
         .decode(b64)
         .map_err(|e| e.to_string())
@@ -112,7 +108,9 @@ fn find_root() -> PathBuf {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env().add_directive("ptlabel_server=info".parse()?))
+        .with_env_filter(
+            EnvFilter::from_default_env().add_directive("ptlabel_server=info".parse()?),
+        )
         .init();
 
     let args = Args::parse();
@@ -122,9 +120,7 @@ async fn main() -> anyhow::Result<()> {
             .map(PathBuf::from)
             .unwrap_or_else(find_root)
     });
-    let data_dir = args
-        .data_dir
-        .unwrap_or_else(|| root.join("data"));
+    let data_dir = args.data_dir.unwrap_or_else(|| root.join("data"));
     let defaults = LabelDefaults::from_env();
     let limits = Limits::new();
     let store = Arc::new(StateStore::new(
@@ -192,7 +188,10 @@ async fn main() -> anyhow::Result<()> {
         .with_state(state);
 
     let addr: SocketAddr = format!("{}:{}", args.host, args.port).parse()?;
-    tracing::info!("ptlabel-server listening on http://{addr} (dev={})", args.dev);
+    tracing::info!(
+        "ptlabel-server listening on http://{addr} (dev={})",
+        args.dev
+    );
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, app).await?;
     Ok(())
@@ -261,7 +260,9 @@ async fn api_status(State(state): State<AppState>) -> Json<Value> {
     Json(body)
 }
 
-async fn api_media(State(state): State<AppState>) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+async fn api_media(
+    State(state): State<AppState>,
+) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
     if state.printer.is_printing() {
         return Err((
             StatusCode::CONFLICT,
@@ -303,7 +304,10 @@ async fn api_print(
                 Json(json!({ "ok": false, "err": "empty png" })),
             ));
         }
-        let qty = item.qty.unwrap_or(1).clamp(lim.qty[0] as u32, lim.qty[1] as u32);
+        let qty = item
+            .qty
+            .unwrap_or(1)
+            .clamp(lim.qty[0] as u32, lim.qty[1] as u32);
         png_labels.push((png, qty));
         if let Some(meta) = &item.meta {
             meta_items.push(meta.clone());
@@ -351,7 +355,9 @@ async fn api_icons(
             Json(json!({ "ok": false, "err": "category required" })),
         ));
     }
-    Ok(Json(json!({ "icons": icons::icons_in_category(&state.root, &category) })))
+    Ok(Json(
+        json!({ "icons": icons::icons_in_category(&state.root, &category) }),
+    ))
 }
 
 async fn api_icon_search(
@@ -367,16 +373,12 @@ async fn api_icon_custom(
     mut multipart: Multipart,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
     let mut file_bytes: Option<Bytes> = None;
-    while let Some(field) = multipart
-        .next_field()
-        .await
-        .map_err(|e| {
-            (
-                StatusCode::BAD_REQUEST,
-                Json(json!({ "ok": false, "err": e.to_string() })),
-            )
-        })?
-    {
+    while let Some(field) = multipart.next_field().await.map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "ok": false, "err": e.to_string() })),
+        )
+    })? {
         if field.name() == Some("file") {
             let data = field.bytes().await.map_err(|e| {
                 (
@@ -401,7 +403,9 @@ async fn api_icon_custom(
         ));
     }
     match save_custom_icon(&state.data_dir, &bytes) {
-        Ok((id, thumb_url)) => Ok(Json(json!({ "ok": true, "id": id, "thumb_url": thumb_url }))),
+        Ok((id, thumb_url)) => Ok(Json(
+            json!({ "ok": true, "id": id, "thumb_url": thumb_url }),
+        )),
         Err(e) => Err((
             StatusCode::BAD_REQUEST,
             Json(json!({ "ok": false, "err": e.to_string() })),
@@ -422,12 +426,9 @@ async fn icon_custom_file(
         return Err(StatusCode::NOT_FOUND);
     };
     match tokio::fs::read(&path).await {
-        Ok(bytes) => Ok((
-            StatusCode::OK,
-            [(header::CONTENT_TYPE, "image/png")],
-            bytes,
-        )
-            .into_response()),
+        Ok(bytes) => {
+            Ok((StatusCode::OK, [(header::CONTENT_TYPE, "image/png")], bytes).into_response())
+        }
         Err(_) => Err(StatusCode::NOT_FOUND),
     }
 }
