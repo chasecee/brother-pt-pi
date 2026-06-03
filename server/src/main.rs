@@ -42,8 +42,8 @@ struct Args {
     root: Option<PathBuf>,
     #[arg(long, env = "PTLABEL_DATA_DIR")]
     data_dir: Option<PathBuf>,
-    #[arg(long, env = "PTLABEL_LITE", default_value_t = false)]
-    lite: bool,
+    #[arg(long, env = "PTLABEL_DEV", default_value_t = false)]
+    dev: bool,
 }
 
 #[derive(Clone)]
@@ -55,7 +55,7 @@ struct AppState {
     store: Arc<StateStore>,
     printer: Arc<PrinterService>,
     asset_version: String,
-    lite: bool,
+    dev: bool,
 }
 
 #[derive(Deserialize)]
@@ -141,31 +141,35 @@ async fn main() -> anyhow::Result<()> {
         limits,
         store,
         printer,
-        lite: args.lite,
+        dev: args.dev,
         asset_version: std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs().to_string())
             .unwrap_or_else(|_| "0".to_string()),
     };
 
-    let cache_year = SetResponseHeaderLayer::if_not_present(
+    let cache_policy = SetResponseHeaderLayer::if_not_present(
         header::CACHE_CONTROL,
-        header::HeaderValue::from_static("public, max-age=31536000, immutable"),
+        if args.dev {
+            header::HeaderValue::from_static("no-store")
+        } else {
+            header::HeaderValue::from_static("public, max-age=31536000, immutable")
+        },
     );
 
     let static_assets = Router::new()
         .nest_service("/", ServeDir::new(root.join("static")))
-        .layer(cache_year.clone());
+        .layer(cache_policy.clone());
 
     let font_previews = Router::new()
         .nest_service("/", ServeDir::new(root.join("fonts").join("previews")))
-        .layer(cache_year.clone());
+        .layer(cache_policy.clone());
     let fonts_static = Router::new()
         .nest_service("/", ServeDir::new(root.join("fonts")))
-        .layer(cache_year.clone());
+        .layer(cache_policy.clone());
     let icon_thumbs = Router::new()
         .nest_service("/", ServeDir::new(root.join("icons").join("thumbs")))
-        .layer(cache_year.clone());
+        .layer(cache_policy.clone());
 
     let app = Router::new()
         .route("/", get(index))
@@ -188,13 +192,21 @@ async fn main() -> anyhow::Result<()> {
         .with_state(state);
 
     let addr: SocketAddr = format!("{}:{}", args.host, args.port).parse()?;
-    tracing::info!("ptlabel-server listening on http://{addr} (lite={})", args.lite);
+    tracing::info!("ptlabel-server listening on http://{addr} (dev={})", args.dev);
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, app).await?;
     Ok(())
 }
 
 async fn index(State(state): State<AppState>) -> Response {
+    let version = if state.dev {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis().to_string())
+            .unwrap_or_else(|_| "0".to_string())
+    } else {
+        state.asset_version.clone()
+    };
     match tokio::fs::read_to_string(state.root.join("static").join("index.html")).await {
         Ok(html) => (
             StatusCode::OK,
@@ -202,7 +214,7 @@ async fn index(State(state): State<AppState>) -> Response {
                 (header::CONTENT_TYPE, "text/html; charset=utf-8"),
                 (header::CACHE_CONTROL, "no-cache"),
             ],
-            html.replace("__V__", &state.asset_version),
+            html.replace("__V__", &version),
         )
             .into_response(),
         Err(_) => (StatusCode::NOT_FOUND, "index.html not found").into_response(),
@@ -240,14 +252,11 @@ async fn api_status(State(state): State<AppState>) -> Json<Value> {
         "printing": state.printer.is_printing(),
         "info": "",
         "err": "",
-        "lite": state.lite,
         "deployed_at": state.asset_version,
     });
     let map = body.as_object_mut().unwrap();
-    if !state.lite {
-        for (k, v) in sysinfo::linux_sysinfo() {
-            map.insert(k, v);
-        }
+    for (k, v) in sysinfo::linux_sysinfo() {
+        map.insert(k, v);
     }
     Json(body)
 }

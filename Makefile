@@ -1,7 +1,10 @@
-.PHONY: mac-dev mac-print build deploy br-build br-flash br-rust fonts icons golden help
+.PHONY: mac-dev mac-dev-live mac-print build deploy br-build br-flash br-rust fonts icons golden help
 
 mac-dev:
 	./scripts/dev-mac.sh
+
+mac-dev-live:
+	./scripts/dev-mac-live.sh
 
 mac-print:
 	cargo build --release -p chain-print
@@ -33,7 +36,8 @@ golden:
 	./scripts/render-golden.sh
 
 help:
-	@echo "mac-dev   - native Mac dev (port 5001)"
+	@echo "mac-dev      - native Mac dev (port 5001, dev cache policy)"
+	@echo "mac-dev-live - mac dev with auto-restart (cargo-watch)"
 	@echo "mac-print - smoke test chain-print binary"
 	@echo "build     - native release ptlabel-server (host arch)"
 	@echo "deploy    - cross-build for Pi Zero W and push to running Pi"

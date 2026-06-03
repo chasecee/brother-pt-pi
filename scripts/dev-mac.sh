@@ -19,4 +19,4 @@ else
 fi
 
 echo "http://127.0.0.1:5001"
-exec target/release/ptlabel-server --port 5001
+exec target/release/ptlabel-server --port 5001 --dev

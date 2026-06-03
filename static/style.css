@@ -713,3 +713,30 @@ select { max-width: 12rem; }
   min-width: 2.5rem;
   text-align: center;
 }
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 1rem;
+  transform: translate(-50%, .75rem);
+  background: var(--fg);
+  color: var(--bg);
+  border-radius: var(--radius);
+  padding: .55rem .75rem;
+  font-size: .85rem;
+  line-height: 1.2;
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--fg) 25%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .18s ease, transform .18s ease;
+  z-index: 120;
+  max-width: min(92vw, 36rem);
+}
+.toast.error {
+  background: var(--danger);
+  color: var(--danger-fg);
+}
+.toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
