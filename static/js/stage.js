@@ -449,6 +449,8 @@ export function createStageController({
       return;
     }
     const block = row.blocks[segIndex];
+    const selectedIconId =
+      block && block.type === "icon" && !isCustomIcon(block.id) ? block.id : "";
     renderDrawer(drawerEl, {
       mode,
       segment:
@@ -462,6 +464,7 @@ export function createStageController({
             : null,
       fonts,
       iconState: state.iconState,
+      selectedIconId,
       onTextStyleChange: (patch) => updateSegmentTextStyle(rowIndex, segIndex, patch),
       onInsertType: drawerInsertType,
       onSearchIcons: setIconSearch,
@@ -673,6 +676,24 @@ export function createStageController({
       li.setAttribute("role", "listitem");
       li.dataset.row = String(rowIndex);
 
+      const duplicate = document.createElement("button");
+      duplicate.type = "button";
+      duplicate.className = "row-btn row-duplicate";
+      duplicate.setAttribute("aria-label", "Duplicate label line");
+      duplicate.title = "Duplicate label line";
+      duplicate.innerHTML =
+        '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M9 3a2 2 0 0 0-2 2v1H5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1h2a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H9zm0 2h10v12h-2V8a2 2 0 0 0-2-2H9V5zM5 8h10v11H5V8z"/></svg>';
+      duplicate.onclick = () => {
+        const copy = clone(row);
+        const idx = rowIndex + 1;
+        state.rows.splice(idx, 0, copy);
+        signalChange();
+        setActive(
+          { mode: "empty", rowIndex: -1, segIndex: -1, insertIndex: -1 },
+          { rebuild: true },
+        );
+      };
+
       const qty = document.createElement("input");
       qty.type = "number";
       qty.className = "row-qty";
@@ -690,8 +711,11 @@ export function createStageController({
 
       const remove = document.createElement("button");
       remove.type = "button";
-      remove.className = "row-remove";
-      remove.textContent = "x";
+      remove.className = "row-btn row-remove";
+      remove.setAttribute("aria-label", "Remove label line");
+      remove.title = "Remove label line";
+      remove.innerHTML =
+        '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M6.4 5L5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4 17.6 5 12 10.6z"/></svg>';
       remove.onclick = () => {
         state.rows.splice(rowIndex, 1);
         ensureNonEmpty();
@@ -704,7 +728,7 @@ export function createStageController({
 
       const tail = document.createElement("div");
       tail.className = "row-tail";
-      tail.append(qty, remove);
+      tail.append(duplicate, qty, remove);
       li.append(rowTrack(row, rowIndex), tail);
       rowsEl.append(li);
       applyRowMetricsForIndex(rowIndex);

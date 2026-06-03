@@ -249,8 +249,65 @@ function pickerDrawer(container, ctx) {
   wrap.append(mk("text", "Text"), mk("icon", "Icon"), mk("image", "Image"));
 }
 
-function iconGrid(icons, onPick) {
+function buildCatButton(cat, active, onChooseCategory) {
+  const urls = (
+    cat.preview_thumb_urls?.length
+      ? cat.preview_thumb_urls
+      : cat.preview_thumb_url
+        ? [cat.preview_thumb_url]
+        : []
+  ).slice(0, 4);
+  const grid = el("span", { className: "drawer-icon-cat-grid" });
+  if (urls.length) {
+    for (const url of urls) {
+      grid.append(
+        el("span", { className: "drawer-icon-cat-cell" }, [
+          el("img", { src: url, alt: "" }),
+        ]),
+      );
+    }
+  } else {
+    grid.append(
+      el("span", {
+        className: "drawer-icon-cat-fallback",
+        text: cat.title?.slice(0, 2) || "?",
+      }),
+    );
+  }
+  const btn = el(
+    "button",
+    {
+      type: "button",
+      className: `drawer-icon-cat${active ? " active" : ""}`,
+      title: cat.title,
+      onclick: () => onChooseCategory(cat.id),
+    },
+    [grid],
+  );
+  btn.dataset.catId = cat.id;
+  return btn;
+}
+
+function buildIconCats(categories, activeId, onChooseCategory) {
+  const cats = el("div", { className: "drawer-icon-cats" });
+  cats.dataset.catIds = categories.map((c) => c.id).join("|");
+  for (const cat of categories) {
+    cats.append(buildCatButton(cat, cat.id === activeId, onChooseCategory));
+  }
+  return cats;
+}
+
+function syncSelectedIcon(grid, selectedIconId) {
+  for (const btn of grid.children) {
+    const active = !!selectedIconId && btn.dataset.iconId === selectedIconId;
+    btn.classList.toggle("active", active);
+    btn.setAttribute("aria-selected", String(active));
+  }
+}
+
+function buildIconGrid(icons, onPick, selectedIconId) {
   const grid = el("div", { className: "drawer-icon-grid" });
+  grid.dataset.iconIds = icons.map((i) => i.id).join("|");
   for (const icon of icons) {
     const img = el("img", { src: icon.thumb_url, alt: "" });
     const btn = el(
@@ -263,22 +320,70 @@ function iconGrid(icons, onPick) {
       },
       [img],
     );
+    btn.dataset.iconId = icon.id;
     grid.append(btn);
   }
+  syncSelectedIcon(grid, selectedIconId);
   return grid;
 }
 
+function buildIconBody(icons, loaded, onPickIcon, selectedIconId) {
+  if (icons.length) return buildIconGrid(icons, onPickIcon, selectedIconId);
+  return el("div", {
+    className: "drawer-empty",
+    text: loaded ? "No icons" : "Loading icons…",
+  });
+}
+
 function iconDrawer(container, ctx) {
-  const { iconState, onSearchIcons, onChooseCategory, onPickIcon } = ctx;
-  const prevCatsEl = container.querySelector(".drawer-icon-cats");
-  const prevGridEl = container.querySelector(".drawer-icon-grid");
-  const prevSearchEl = container.querySelector('input[type="search"]');
-  const prevCatsScroll = prevCatsEl ? prevCatsEl.scrollLeft : 0;
-  const prevGridScroll = prevGridEl ? prevGridEl.scrollTop : 0;
-  const searchHadFocus =
-    prevSearchEl && document.activeElement === prevSearchEl;
-  const searchSelStart = searchHadFocus ? prevSearchEl.selectionStart : null;
-  const searchSelEnd = searchHadFocus ? prevSearchEl.selectionEnd : null;
+  const { iconState, onSearchIcons, onChooseCategory, onPickIcon, selectedIconId } =
+    ctx;
+  const categories = iconState.categories || [];
+  const icons = iconState.icons || [];
+  const catSig = categories.map((c) => c.id).join("|");
+  const iconSig = icons.map((i) => i.id).join("|");
+
+  const existingPanel =
+    container.dataset.mode === "icon"
+      ? container.querySelector(".drawer-icon-panel")
+      : null;
+
+  if (existingPanel) {
+    const search = existingPanel.querySelector('input[type="search"]');
+    if (search && document.activeElement !== search) {
+      const next = iconState.searchQuery || "";
+      if (search.value !== next) search.value = next;
+    }
+
+    const oldCats = existingPanel.querySelector(".drawer-icon-cats");
+    if (oldCats.dataset.catIds === catSig) {
+      for (const btn of oldCats.children) {
+        btn.classList.toggle(
+          "active",
+          btn.dataset.catId === iconState.categoryId,
+        );
+      }
+    } else {
+      oldCats.replaceWith(
+        buildIconCats(categories, iconState.categoryId, onChooseCategory),
+      );
+    }
+
+    const oldBody = existingPanel.querySelector(
+      ".drawer-icon-grid, .drawer-empty",
+    );
+    const isGrid = oldBody.classList.contains("drawer-icon-grid");
+    if (isGrid) syncSelectedIcon(oldBody, selectedIconId);
+    if (icons.length && isGrid && oldBody.dataset.iconIds === iconSig) return;
+    if (!icons.length && !isGrid) {
+      oldBody.textContent = iconState.loaded ? "No icons" : "Loading icons…";
+      return;
+    }
+    oldBody.replaceWith(
+      buildIconBody(icons, iconState.loaded, onPickIcon, selectedIconId),
+    );
+    return;
+  }
 
   const wrap = setMode(container, "icon");
   const panel = el("div", { className: "drawer-icon-panel" });
@@ -290,73 +395,12 @@ function iconDrawer(container, ctx) {
   });
   search.addEventListener("input", () => onSearchIcons(search.value));
 
-  const cats = el("div", { className: "drawer-icon-cats" });
-  for (const cat of iconState.categories || []) {
-    const active = cat.id === iconState.categoryId;
-    const urls =
-      (cat.preview_thumb_urls && cat.preview_thumb_urls.length
-        ? cat.preview_thumb_urls
-        : cat.preview_thumb_url
-          ? [cat.preview_thumb_url]
-          : []
-      ).slice(0, 4);
-    const grid = el("span", { className: "drawer-icon-cat-grid" });
-    if (urls.length) {
-      for (const url of urls) {
-        grid.append(
-          el("span", { className: "drawer-icon-cat-cell" }, [
-            el("img", { src: url, alt: "" }),
-          ]),
-        );
-      }
-    } else {
-      grid.append(
-        el("span", {
-          className: "drawer-icon-cat-fallback",
-          text: cat.title?.slice(0, 2) || "?",
-        }),
-      );
-    }
-    const btn = el(
-      "button",
-      {
-        type: "button",
-        className: `drawer-icon-cat${active ? " active" : ""}`,
-        title: cat.title,
-        onclick: () => onChooseCategory(cat.id),
-      },
-      [grid],
-    );
-    cats.append(btn);
-  }
-
-  const icons = iconState.icons || [];
-  const body = icons.length
-    ? iconGrid(icons, onPickIcon)
-    : el("div", {
-        className: "drawer-empty",
-        text: iconState.loaded ? "No icons" : "Loading icons…",
-      });
-
-  panel.append(search, cats, body);
+  panel.append(
+    search,
+    buildIconCats(categories, iconState.categoryId, onChooseCategory),
+    buildIconBody(icons, iconState.loaded, onPickIcon, selectedIconId),
+  );
   wrap.append(panel);
-
-  cats.scrollLeft = prevCatsScroll;
-  if (body.classList.contains("drawer-icon-grid")) {
-    body.scrollTop = prevGridScroll;
-  }
-
-  if (searchHadFocus) {
-    search.focus({ preventScroll: true });
-    try {
-      search.setSelectionRange(
-        searchSelStart ?? search.value.length,
-        searchSelEnd ?? search.value.length,
-      );
-    } catch {
-      // some inputs disallow setSelectionRange
-    }
-  }
 }
 
 function imageDrawer(container, ctx) {

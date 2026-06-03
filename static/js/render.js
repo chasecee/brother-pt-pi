@@ -310,8 +310,9 @@ const PtRender = (() => {
     return prevKind === "icon" && kind === "icon" ? Math.max(0, gap) : 0;
   }
 
-  function canvasToDataUrl(canvas, _forPrint) {
-    return canvas.toDataURL("image/png");
+  function canvasToDataUrl(canvas, forPrint) {
+    const out = forPrint ? imageTo1BitCanvas(canvas) : canvas;
+    return out.toDataURL("image/png");
   }
 
   function textStyleForBlock(block, opts) {

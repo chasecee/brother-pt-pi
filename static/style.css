@@ -78,6 +78,9 @@ body {
   &.printing {
     background: var(--warn);
   }
+  &.checking {
+    background: rgba(255, 255, 255, 0.2);
+  }
 
   .tape-swatch {
     width: 0.8rem;
@@ -351,10 +354,11 @@ body {
 }
 
 .row-qty {
-  width: 3rem;
+  width: 2.75rem;
+  height: 2rem;
   align-self: center;
   font: inherit;
-  padding: 0.35rem 0.4rem;
+  padding: 0 0.3rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg);
@@ -368,12 +372,13 @@ body {
   }
 }
 
-.row-remove {
+.row-btn {
   align-self: center;
   width: 2rem;
   height: 2rem;
+  padding: 0;
   border: 1px solid var(--border);
-  background: transparent;
+  background: var(--bg);
   color: var(--muted);
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -385,10 +390,19 @@ body {
     border-color 0.12s,
     background 0.12s;
 
-  &:hover {
-    color: var(--danger);
-    border-color: color-mix(in srgb, var(--danger) 50%, var(--border));
+  svg {
+    display: block;
   }
+
+  &:hover {
+    color: var(--fg);
+    border-color: color-mix(in srgb, var(--fg) 40%, var(--border));
+  }
+}
+
+.row-remove:hover {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 50%, var(--border));
 }
 
 .stage-foot {
@@ -721,11 +735,16 @@ body {
   gap: 0.5rem;
 
   .btn {
-    background: color-mix(in srgb, var(--drawer-fg) 10%, transparent);
-    color: var(--drawer-fg);
+    background: #fff;
+    color: var(--drawer-bg);
     padding: 0.4rem 1.2rem;
     border-color: color-mix(in srgb, var(--drawer-fg) 25%, transparent);
-
+    width: 33%;
+    height: 3rem;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     &:hover {
       background: color-mix(in srgb, var(--drawer-fg) 20%, transparent);
     }
@@ -841,10 +860,19 @@ body {
   background: color-mix(in srgb, var(--drawer-fg) 90%, transparent);
   cursor: pointer;
   aspect-ratio: 1 / 1;
-  transition: background 0.12s;
+  transform: scale(1);
+  transition:
+    background 0.16s ease,
+    transform 0.16s ease,
+    box-shadow 0.16s ease;
 
   &:hover {
     background: color-mix(in srgb, var(--drawer-fg) 22%, transparent);
+  }
+
+  &.active {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 4px #22c55e;
   }
 
   img {

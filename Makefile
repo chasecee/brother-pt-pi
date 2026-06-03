@@ -13,8 +13,18 @@ mac-print:
 build:
 	cargo build --release -p ptlabel-server
 
+RUST_SRC := server chain-print Cargo.toml Cargo.lock
+DEPLOY_STAMP := .cache/ptlabel-server/.last-deployed
+
 deploy:
-	./deploy.sh
+	@mkdir -p $(dir $(DEPLOY_STAMP))
+	@if [ -f $(DEPLOY_STAMP) ] && [ -z "$$(find $(RUST_SRC) -newer $(DEPLOY_STAMP) -print -quit 2>/dev/null)" ]; then \
+	  echo "[deploy] no rust changes since last deploy -> static-only"; \
+	  ./deploy.sh --static-only; \
+	else \
+	  echo "[deploy] rust changes since last deploy -> full deploy"; \
+	  ./deploy.sh && touch $(DEPLOY_STAMP); \
+	fi
 
 br-rust:
 	./scripts/br-build-flash.sh --rust-only
