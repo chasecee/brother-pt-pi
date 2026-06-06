@@ -51,16 +51,16 @@ if [[ ! -f "${ROOT}/icons/category-sprite.png" ]]; then
   exit 1
 fi
 
-echo "==> building static-dist (minify + precompress)"
-( cd "$ROOT" && npm --silent run build:static )
+echo "==> building static bundle (astro + precompress)"
+( cd "$ROOT" && bun run build )
 
-DIST="${ROOT}/.cache/static-dist"
+DIST="${ROOT}/static"
 if [[ ! -d "$DIST" ]]; then
   echo "build did not produce $DIST" >&2
   exit 1
 fi
 
-echo "==> pushing static-dist/ to ${HOST}"
+echo "==> pushing static/ to ${HOST}"
 sshpass -p "$PASS" scp -O -r "${SSH_OPTS[@]}" "$DIST" "${HOST}:/opt/ptlabel/static.new"
 
 echo "==> pushing icon catalog + sprite to ${HOST}"

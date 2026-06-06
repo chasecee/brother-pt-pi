@@ -1,0 +1,23 @@
+---
+import "../styles/global.css";
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Label Buddy</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <script src="/vendor/opentype.min.js" is:inline></script>
+    <script>
+      import "../scripts/render.ts";
+    </script>
+    <script>
+      import "../scripts/app.ts";
+    </script>
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>

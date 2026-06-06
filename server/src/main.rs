@@ -56,7 +56,6 @@ struct AppState {
     store: Arc<StateStore>,
     printer: Arc<PrinterService>,
     asset_version: String,
-    dev: bool,
 }
 
 #[derive(Deserialize)]
@@ -108,6 +107,16 @@ fn find_root() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("."))
 }
 
+fn deployed_at_from_static_index(root: &Path) -> String {
+    let index_path = root.join("static").join("index.html");
+    std::fs::metadata(index_path)
+        .ok()
+        .and_then(|m| m.modified().ok())
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_secs().to_string())
+        .unwrap_or_else(|| "0".to_string())
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
@@ -145,11 +154,7 @@ async fn main() -> anyhow::Result<()> {
         limits,
         store,
         printer,
-        dev: args.dev,
-        asset_version: std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_secs().to_string())
-            .unwrap_or_else(|_| "0".to_string()),
+        asset_version: deployed_at_from_static_index(&root),
     };
 
     let cache_policy = SetResponseHeaderLayer::if_not_present(
@@ -290,14 +295,6 @@ async fn redirect_to_https(State(https_port): State<u16>, req: Request) -> Respo
 }
 
 async fn index(State(state): State<AppState>) -> Response {
-    let version = if state.dev {
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_millis().to_string())
-            .unwrap_or_else(|_| "0".to_string())
-    } else {
-        state.asset_version.clone()
-    };
     match tokio::fs::read_to_string(state.root.join("static").join("index.html")).await {
         Ok(html) => (
             StatusCode::OK,
@@ -305,7 +302,7 @@ async fn index(State(state): State<AppState>) -> Response {
                 (header::CONTENT_TYPE, "text/html; charset=utf-8"),
                 (header::CACHE_CONTROL, "no-cache"),
             ],
-            html.replace("__V__", &version),
+            html,
         )
             .into_response(),
         Err(_) => (StatusCode::NOT_FOUND, "index.html not found").into_response(),

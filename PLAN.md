@@ -7,7 +7,7 @@ Rust `ptlabel-server` + browser Canvas/opentype.js rendering + chain-print over 
 
 ## Stack
 
-- **Render:** browser Canvas + opentype.js (`static/js/render.js`); Brother fonts from `/fonts/`
+- **Render:** browser Canvas + opentype.js (`src/scripts/render.ts`); Brother fonts from `/fonts/`
 - **Server:** Rust `ptlabel-server` (axum) — state, static assets, USB print/media
 - **Print:** `chain-print` library (vendored `ptouch` crate) over USB with chain cuts
 - **UI:** static `index.html`; shared state on Pi (`data/state.json`)

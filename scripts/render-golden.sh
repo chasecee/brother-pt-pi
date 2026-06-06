@@ -16,7 +16,7 @@ if command -v node >/dev/null && [[ -f node_modules/canvas/package.json ]]; then
   node scripts/render-golden.mjs
   python3 scripts/compare-golden.py
 else
-  echo "skip js golden (npm install canvas opentype.js)"
+  echo "skip js golden (bun install)"
   exit 0
 fi
 

@@ -16,7 +16,7 @@ PTLABEL_SERVER_DEPENDENCIES = libusb
 PTLABEL_SERVER_INSTALL_ROOT = /opt/ptlabel
 PTLABEL_SERVER_SOURCE_ROOT = $(BR2_EXTERNAL_PTLABEL_PATH)/..
 PTLABEL_SERVER_LOCAL_BINARY = $(PTLABEL_SERVER_SOURCE_ROOT)/.cache/ptlabel-server/bin/ptlabel-server
-PTLABEL_SERVER_LOCAL_STATIC = $(PTLABEL_SERVER_SOURCE_ROOT)/.cache/static-dist
+PTLABEL_SERVER_LOCAL_STATIC = $(PTLABEL_SERVER_SOURCE_ROOT)/static
 
 define PTLABEL_SERVER_BUILD_CMDS
 	test -f "$(PTLABEL_SERVER_LOCAL_BINARY)" || ( \
@@ -25,7 +25,7 @@ define PTLABEL_SERVER_BUILD_CMDS
 	  exit 1 )
 	test -d "$(PTLABEL_SERVER_LOCAL_STATIC)" || ( \
 	  echo "ERROR: $(PTLABEL_SERVER_LOCAL_STATIC) missing" >&2; \
-	  echo "run: npm run build:static" >&2; \
+	  echo "run: bun run build" >&2; \
 	  exit 1 )
 	cp "$(PTLABEL_SERVER_LOCAL_BINARY)" "$(@D)/ptlabel-server"
 endef

@@ -5,13 +5,21 @@ import { pipeline } from "node:stream/promises";
 import { createGzip, createBrotliCompress, constants as zc } from "node:zlib";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import * as esbuild from "esbuild";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const SRC = path.join(ROOT, "static");
-const DIST = path.join(ROOT, ".cache", "static-dist");
+const DIST = path.join(ROOT, "static");
 
-const COMPRESSIBLE = new Set([".html", ".css", ".js", ".mjs", ".svg", ".json", ".map"]);
+const COMPRESSIBLE = new Set([
+  ".html",
+  ".css",
+  ".js",
+  ".mjs",
+  ".svg",
+  ".json",
+  ".map",
+  ".txt",
+  ".xml",
+]);
 
 async function walk(dir) {
   const out = [];
@@ -24,7 +32,7 @@ async function walk(dir) {
 }
 
 async function precompress(file) {
-  const ext = path.extname(file);
+  const ext = path.extname(file).toLowerCase();
   if (!COMPRESSIBLE.has(ext)) return;
   const stat = await fs.stat(file);
   if (stat.size < 1024) return;
@@ -42,39 +50,15 @@ async function precompress(file) {
   );
 }
 
-async function build() {
-  await fs.rm(DIST, { recursive: true, force: true });
-  await fs.mkdir(DIST, { recursive: true });
-
-  const files = await walk(SRC);
-  for (const src of files) {
-    const rel = path.relative(SRC, src);
-    const dst = path.join(DIST, rel);
-    await fs.mkdir(path.dirname(dst), { recursive: true });
-    const ext = path.extname(src);
-    const base = path.basename(src);
-    if (ext === ".js" && !base.endsWith(".min.js")) {
-      const code = await fs.readFile(src, "utf8");
-      const result = await esbuild.transform(code, {
-        minify: true,
-        target: ["es2020"],
-        loader: "js",
-        legalComments: "none",
-      });
-      await fs.writeFile(dst, result.code);
-    } else if (ext === ".css") {
-      const code = await fs.readFile(src, "utf8");
-      const result = await esbuild.transform(code, {
-        minify: true,
-        loader: "css",
-      });
-      await fs.writeFile(dst, result.code);
-    } else {
-      await fs.copyFile(src, dst);
-    }
+async function main() {
+  const distStat = await fs.stat(DIST).catch(() => null);
+  if (!distStat?.isDirectory()) {
+    throw new Error(`missing static build output at ${DIST}`);
   }
 
-  for (const file of await walk(DIST)) await precompress(file);
+  for (const file of await walk(DIST)) {
+    await precompress(file);
+  }
 
   for (const extra of [
     path.join(ROOT, "icons", "catalog.json"),
@@ -91,11 +75,11 @@ async function build() {
     else if (!f.endsWith(".gz")) total += s.size;
   }
   console.log(
-    `built ${DIST} | raw ${(total / 1024).toFixed(0)}KB | brotli ${(totalBr / 1024).toFixed(0)}KB`,
+    `compressed ${DIST} | raw ${(total / 1024).toFixed(0)}KB | brotli ${(totalBr / 1024).toFixed(0)}KB`,
   );
 }
 
-build().catch((e) => {
+main().catch((e) => {
   console.error(e);
   process.exit(1);
 });

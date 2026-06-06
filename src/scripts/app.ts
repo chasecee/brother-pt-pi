@@ -3,14 +3,14 @@ import {
   listFonts,
   resolveStageFamily,
   fontMetrics,
-} from "./fonts.js";
-import { createStageController } from "./stage.js";
+} from "./fonts";
+import { createStageController } from "./stage";
 import {
   loadServerState,
   pushServerState,
   scheduleStateSave,
   flushStateSave,
-} from "./state.js";
+} from "./state";
 
 const $ = (id) => document.getElementById(id);
 let DEFAULT_PREFS = {};

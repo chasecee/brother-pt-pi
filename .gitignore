@@ -13,3 +13,5 @@ data/
 /.cache/
 buildroot-external/board/ptlabel-pi0/wpa_supplicant.conf
 .DS_Store
+/static/
+/.astro/

@@ -3,11 +3,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build:static": "node scripts/build-static.mjs"
+    "dev": "astro dev --port 4321",
+    "build": "astro build && node scripts/precompress.mjs"
   },
   "devDependencies": {
+    "astro": "^6.4.4",
     "canvas": "^3.2.3",
-    "esbuild": "^0.24.2",
-    "opentype.js": "^2.0.0"
+    "opentype.js": "^2.0.0",
+    "typescript": "^6.0.3"
   }
 }

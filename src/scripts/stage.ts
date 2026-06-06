@@ -1,5 +1,5 @@
-import { renderDrawer } from "./drawer.js";
-import { openCropDialog } from "./crop-dialog.js";
+import { renderDrawer } from "./drawer";
+import { openCropDialog } from "./crop-dialog";
 import {
   iconThumbUrl,
   isCustomIcon,
@@ -7,7 +7,7 @@ import {
   loadCategoryIcons,
   searchIcons,
   uploadCustomIcon,
-} from "./icons.js";
+} from "./icons";
 
 function clone(v) {
   return JSON.parse(JSON.stringify(v));

@@ -58,7 +58,7 @@ const sandbox = {
 sandbox.globalThis = sandbox;
 
 const context = vm.createContext(sandbox);
-vm.runInContext(fs.readFileSync(path.join(ROOT, "static/js/render.js"), "utf8"), context);
+vm.runInContext(fs.readFileSync(path.join(ROOT, "src/scripts/render.ts"), "utf8"), context);
 
 const PtRender = context.PtRender;
 const families = Object.entries(fontCatalog).map(([name, variants]) => ({
