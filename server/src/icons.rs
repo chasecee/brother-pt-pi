@@ -4,8 +4,9 @@ use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 use serde_json::{json, Value};
+use strsim::damerau_levenshtein;
 
-pub const DEFAULT_ICON_CATEGORY: &str = "dp-emoji";
+pub const CATEGORY_SPRITE_CELL_PX: u32 = 64;
 
 static CATALOG: OnceLock<Value> = OnceLock::new();
 
@@ -32,7 +33,7 @@ pub fn catalog(root: &Path) -> &'static Value {
     CATALOG.get_or_init(|| load_catalog(root))
 }
 
-pub fn list_categories(root: &Path) -> Vec<Value> {
+pub fn list_categories(root: &Path) -> Value {
     let cat = catalog(root);
     let mut cats: Vec<Value> = cat
         .get("categories")
@@ -40,70 +41,17 @@ pub fn list_categories(root: &Path) -> Vec<Value> {
         .cloned()
         .unwrap_or_default();
     cats.sort_by(|a, b| {
-        let a_id = a.get("id").and_then(|v| v.as_str()).unwrap_or("");
-        let b_id = b.get("id").and_then(|v| v.as_str()).unwrap_or("");
-        let a_pri = if a_id == DEFAULT_ICON_CATEGORY { 0 } else { 1 };
-        let b_pri = if b_id == DEFAULT_ICON_CATEGORY { 0 } else { 1 };
-        a_pri
-            .cmp(&b_pri)
-            .then_with(|| {
-                a.get("order")
-                    .and_then(|v| v.as_i64())
-                    .unwrap_or(0)
-                    .cmp(&b.get("order").and_then(|v| v.as_i64()).unwrap_or(0))
-            })
-            .then_with(|| {
-                a.get("title")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .cmp(b.get("title").and_then(|v| v.as_str()).unwrap_or(""))
-            })
+        let a_idx = a.get("sprite_index").and_then(|v| v.as_i64()).unwrap_or(0);
+        let b_idx = b.get("sprite_index").and_then(|v| v.as_i64()).unwrap_or(0);
+        a_idx.cmp(&b_idx)
     });
-    let mut by_category: HashMap<String, Vec<(String, String)>> = HashMap::new();
-    if let Some(icons) = cat.get("icons").and_then(|v| v.as_object()) {
-        for (icon_id, meta) in icons {
-            let cat_id = meta
-                .get("category")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
-            if cat_id.is_empty() {
-                continue;
-            }
-            let thumb = meta
-                .get("thumb")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
-            if thumb.is_empty() {
-                continue;
-            }
-            by_category
-                .entry(cat_id)
-                .or_default()
-                .push((icon_id.clone(), thumb));
-        }
-        for list in by_category.values_mut() {
-            list.sort_by(|a, b| a.0.cmp(&b.0));
-        }
-    }
-    for entry in &mut cats {
-        if let Some(thumb) = entry.get("preview_thumb").and_then(|v| v.as_str()) {
-            entry["preview_thumb_url"] = json!(format!("/icons/thumbs/{thumb}"));
-        }
-        let id = entry.get("id").and_then(|v| v.as_str()).unwrap_or("");
-        let thumbs: Vec<Value> = by_category
-            .get(id)
-            .map(|list| {
-                list.iter()
-                    .take(4)
-                    .map(|(_, t)| json!(format!("/icons/thumbs/{t}")))
-                    .collect()
-            })
-            .unwrap_or_default();
-        entry["preview_thumb_urls"] = json!(thumbs);
-    }
-    cats
+    json!({
+        "categories": cats,
+        "sprite": {
+            "url": "/icons/category-sprite.png",
+            "cell": CATEGORY_SPRITE_CELL_PX,
+        },
+    })
 }
 
 pub fn icons_in_category(root: &Path, category_id: &str) -> Vec<Value> {
@@ -125,21 +73,78 @@ pub fn icons_in_category(root: &Path, category_id: &str) -> Vec<Value> {
     out
 }
 
+fn tokenize_query(value: &str) -> Vec<String> {
+    value
+        .split(|c: char| !c.is_ascii_alphanumeric())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_lowercase())
+        .collect()
+}
+
+fn category_aliases(category_id: &str) -> &'static [&'static str] {
+    match category_id {
+        "dp-animals" | "np-animals" => {
+            &["animal", "pet", "dog", "cat", "bird", "fish", "wildlife"]
+        }
+        "dp-foods" | "np-foods" | "dp-kitchen" | "np-kitchen" => {
+            &["food", "drink", "meal", "pizza", "coffee", "kitchen"]
+        }
+        "dp-music" | "np-music" => &["music", "note", "guitar", "instrument"],
+        "dp-vehicle" | "np-vehicles" => &["vehicle", "car", "travel", "transport"],
+        "np-arrows" | "dp-shape" | "np-shapes" => {
+            &["arrow", "left", "right", "up", "down", "direction"]
+        }
+        "dp-signs" | "np-signs" => &["sign", "symbol", "currency", "warning"],
+        "np-e-symbols" | "np-e-appliances" => &["electric", "lightning", "power", "bolt"],
+        "dp-sports" | "np-sports" => &["sports", "soccer", "football", "ball", "game"],
+        "dp-seasons" | "np-nature" | "dp-astrology" | "np-astrology" => {
+            &["weather", "sun", "moon", "rain", "snow", "season"]
+        }
+        "dp-emoji" | "np-emoji" => &["emoji", "smile", "face", "emotion"],
+        _ => &[],
+    }
+}
+
+struct CatInfo {
+    title: String,
+    title_norm: String,
+    sprite_index: i64,
+}
+
+struct ScoredIcon {
+    score: i64,
+    sprite_index: i64,
+    codepoint: i64,
+    id: String,
+    item: Value,
+}
+
 pub fn search_icons(root: &Path, query: &str, limit: usize) -> Vec<Value> {
-    let q = query.trim().to_lowercase();
-    if q.is_empty() {
+    let tokens = tokenize_query(query);
+    if tokens.is_empty() {
         return vec![];
     }
-    let tokens: Vec<&str> = q.split_whitespace().collect();
     let cat = catalog(root);
-    let cats: HashMap<String, Value> = cat
+    let cats: HashMap<String, CatInfo> = cat
         .get("categories")
         .and_then(|v| v.as_array())
         .map(|arr| {
             arr.iter()
                 .filter_map(|c| {
                     let id = c.get("id")?.as_str()?.to_string();
-                    Some((id, c.clone()))
+                    let title = c
+                        .get("title")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    Some((
+                        id,
+                        CatInfo {
+                            title_norm: title.replace('_', " ").to_lowercase(),
+                            title,
+                            sprite_index: c.get("sprite_index").and_then(|v| v.as_i64()).unwrap_or(0),
+                        },
+                    ))
                 })
                 .collect()
         })
@@ -148,43 +153,97 @@ pub fn search_icons(root: &Path, query: &str, limit: usize) -> Vec<Value> {
     let Some(icons) = icons else {
         return vec![];
     };
-    let mut out = Vec::new();
+    let mut scored = Vec::new();
     for (icon_id, meta) in icons {
         let cat_id = meta.get("category").and_then(|v| v.as_str()).unwrap_or("");
         let cat_entry = cats.get(cat_id);
-        let title = cat_entry
-            .and_then(|c| c.get("title"))
+        let cat_title = cat_entry.map(|c| c.title_norm.as_str()).unwrap_or("");
+        let cat_title_raw = cat_entry.map(|c| c.title.as_str()).unwrap_or("");
+        let icon_id_lc = icon_id.to_lowercase();
+        let caption = meta
+            .get("caption")
             .and_then(|v| v.as_str())
             .unwrap_or("")
-            .replace('_', " ")
             .to_lowercase();
-        let haystack = [
-            icon_id.as_str(),
-            cat_id,
-            title.as_str(),
-            meta.get("family").and_then(|v| v.as_str()).unwrap_or(""),
-            meta.get("label").and_then(|v| v.as_str()).unwrap_or(""),
-        ]
-        .join(" ")
-        .to_lowercase();
-        if tokens.iter().all(|t| haystack.contains(t)) {
-            let thumb = meta.get("thumb").and_then(|v| v.as_str()).unwrap_or("");
-            let mut item = json!({
-                "id": icon_id,
-                "thumb": thumb,
-                "category": cat_id,
-                "category_title": cat_entry.and_then(|c| c.get("title")).and_then(|v| v.as_str()).unwrap_or(""),
-            });
-            if !thumb.is_empty() {
-                item["thumb_url"] = json!(format!("/icons/thumbs/{thumb}"));
+        let mut tags: Vec<String> = meta
+            .get("tags")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str())
+                    .map(|s| s.to_lowercase())
+                    .collect()
+            })
+            .unwrap_or_default();
+        let aliases = category_aliases(cat_id);
+        tags.retain(|tag| !aliases.iter().any(|alias| *alias == tag));
+
+        let mut total_score = 0i64;
+        let mut all_tokens_matched = true;
+        for token in &tokens {
+            let mut token_score = 0i64;
+            for tag in &tags {
+                if tag == token {
+                    token_score = token_score.max(10);
+                } else if tag.starts_with(token) {
+                    token_score = token_score.max(6);
+                } else if tag.contains(token) {
+                    token_score = token_score.max(3);
+                } else if token.len() >= 4
+                    && tag.len() >= 4
+                    && token.len().abs_diff(tag.len()) <= 2
+                    && damerau_levenshtein(token, tag) <= 2
+                {
+                    token_score = token_score.max(1);
+                }
             }
-            out.push(item);
-            if out.len() >= limit {
+            if aliases.iter().any(|alias| *alias == token) {
+                token_score = token_score.max(2);
+            }
+            if caption.contains(token) {
+                token_score = token_score.max(4);
+            }
+            if cat_title.contains(token) {
+                token_score = token_score.max(1);
+            }
+            if icon_id_lc.contains(token) {
+                token_score = token_score.max(1);
+            }
+            if token_score == 0 {
+                all_tokens_matched = false;
                 break;
             }
+            total_score += token_score;
         }
+        if !all_tokens_matched {
+            continue;
+        }
+        let thumb = meta.get("thumb").and_then(|v| v.as_str()).unwrap_or("");
+        let mut item = json!({
+            "id": icon_id,
+            "thumb": thumb,
+            "category": cat_id,
+            "category_title": cat_title_raw,
+        });
+        if !thumb.is_empty() {
+            item["thumb_url"] = json!(format!("/icons/thumbs/{thumb}"));
+        }
+        scored.push(ScoredIcon {
+            score: total_score,
+            sprite_index: cat_entry.map(|c| c.sprite_index).unwrap_or(i64::MAX),
+            codepoint: meta.get("codepoint").and_then(|v| v.as_i64()).unwrap_or(i64::MAX),
+            id: icon_id.clone(),
+            item,
+        });
     }
-    out
+    scored.sort_by(|a, b| {
+        b.score
+            .cmp(&a.score)
+            .then_with(|| a.sprite_index.cmp(&b.sprite_index))
+            .then_with(|| a.codepoint.cmp(&b.codepoint))
+            .then_with(|| a.id.cmp(&b.id))
+    });
+    scored.into_iter().take(limit).map(|s| s.item).collect()
 }
 
 pub fn custom_icon_path(data_dir: &Path, icon_id: &str) -> Option<PathBuf> {

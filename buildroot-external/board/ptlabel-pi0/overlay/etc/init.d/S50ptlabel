@@ -12,6 +12,7 @@ DATA_DIR="${PTLABEL_DATA_DIR:-$ROOT/data}"
 PORT="${PTLABEL_PORT:-5000}"
 EXTRA_ARGS="${PTLABEL_EXTRA_ARGS:-}"
 BIN="$ROOT/bin/ptlabel-server"
+GEN_TLS="$ROOT/bin/gen-tls-cert.sh"
 
 start() {
   [ -x "$BIN" ] || return 1
@@ -19,6 +20,7 @@ start() {
   if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
     return 0
   fi
+  [ -x "$GEN_TLS" ] && "$GEN_TLS" "$DATA_DIR" >>/var/log/ptlabel/server.log 2>&1
   cd "$ROOT"
   PTLABEL_ROOT="$ROOT" PTLABEL_DATA_DIR="$DATA_DIR" "$BIN" --port "$PORT" $EXTRA_ARGS >>/var/log/ptlabel/server.log 2>&1 &
   echo $! >"$PIDFILE"

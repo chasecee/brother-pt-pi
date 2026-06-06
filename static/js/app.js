@@ -306,8 +306,10 @@ function renderRecent() {
     ? `${recent.length} label${recent.length === 1 ? "" : "s"}`
     : "";
   recent.forEach((item) => {
-    const row = document.createElement("div");
+    const row = document.createElement("button");
+    row.type = "button";
     row.className = "recent-row";
+    row.title = "Add to queue";
     const img = document.createElement("img");
     img.src = item.png || "";
     img.alt = "";
@@ -315,6 +317,10 @@ function renderRecent() {
     qty.className = "recent-qty";
     qty.textContent = item.qty || 1;
     row.append(img, qty);
+    row.addEventListener("click", () => {
+      const { png, printed_at, ...rowData } = item;
+      stage.appendRow(rowData);
+    });
     container.append(row);
   });
 }

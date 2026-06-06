@@ -30,7 +30,7 @@ if ! command -v sshpass >/dev/null; then
   exit 1
 fi
 
-SSH_OPTS=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null)
+SSH_OPTS=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR)
 
 if [[ $STATIC_ONLY -eq 0 ]]; then
   "${ROOT}/scripts/br-build-flash.sh" --rust-only
@@ -46,8 +46,30 @@ if [[ $STATIC_ONLY -eq 0 ]]; then
   sshpass -p "$PASS" scp -O "${SSH_OPTS[@]}" "$BIN" "${HOST}:/opt/ptlabel/bin/ptlabel-server.new"
 fi
 
-echo "==> pushing static/ to ${HOST}"
-sshpass -p "$PASS" scp -O -r "${SSH_OPTS[@]}" "${ROOT}/static" "${HOST}:/opt/ptlabel/static.new"
+if [[ ! -f "${ROOT}/icons/category-sprite.png" ]]; then
+  echo "icons/category-sprite.png missing; run: python3 scripts/build-icon-catalog.py" >&2
+  exit 1
+fi
+
+echo "==> building static-dist (minify + precompress)"
+( cd "$ROOT" && npm --silent run build:static )
+
+DIST="${ROOT}/.cache/static-dist"
+if [[ ! -d "$DIST" ]]; then
+  echo "build did not produce $DIST" >&2
+  exit 1
+fi
+
+echo "==> pushing static-dist/ to ${HOST}"
+sshpass -p "$PASS" scp -O -r "${SSH_OPTS[@]}" "$DIST" "${HOST}:/opt/ptlabel/static.new"
+
+echo "==> pushing icon catalog + sprite to ${HOST}"
+sshpass -p "$PASS" scp -O "${SSH_OPTS[@]}" \
+  "${ROOT}/icons/catalog.json" \
+  "${ROOT}/icons/catalog.json.br" \
+  "${ROOT}/icons/catalog.json.gz" \
+  "${ROOT}/icons/category-sprite.png" \
+  "${HOST}:/opt/ptlabel/icons/"
 
 sshpass -p "$PASS" ssh "${SSH_OPTS[@]}" "$HOST" \
   STATIC_ONLY="$STATIC_ONLY" bash -s <<'EOS'
@@ -65,7 +87,7 @@ sleep 3
 echo "--- ps ---"
 ps w | grep ptlabel-server | grep -v grep || echo "ptlabel-server not running"
 echo "--- /api/status ---"
-curl -fsS --max-time 3 127.0.0.1:5000/api/status; echo
+curl -fskS --max-time 3 https://127.0.0.1:5000/api/status; echo
 echo "--- server log ---"
 tail -n 8 /var/log/ptlabel/server.log 2>/dev/null || echo "(empty log)"
 EOS

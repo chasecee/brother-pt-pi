@@ -18,5 +18,7 @@ else
   echo "warning: PT-P710BT not seen on USB (plug in, wake printer, quit Brother apps)"
 fi
 
-echo "http://127.0.0.1:5001"
+"${ROOT}/scripts/gen-tls-cert.sh" "${ROOT}/data"
+
+echo "https://127.0.0.1:5001"
 exec target/release/ptlabel-server --port 5001 --dev

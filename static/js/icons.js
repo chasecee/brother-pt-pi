@@ -17,6 +17,7 @@ export async function loadIconCategories() {
   const preferred = categories.find((c) => c.id === DEFAULT_ICON_CATEGORY);
   return {
     categories,
+    sprite: data.sprite || null,
     defaultCategoryId: preferred ? preferred.id : categories[0]?.id || "",
   };
 }

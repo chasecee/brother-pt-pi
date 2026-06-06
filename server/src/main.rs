@@ -5,23 +5,26 @@ mod icons;
 mod printer;
 mod state;
 mod sysinfo;
+mod tls;
 
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use axum::body::Bytes;
-use axum::extract::{Multipart, Query, State};
+use axum::extract::{Multipart, Query, Request, State};
 use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{get, post};
+use axum::routing::{any, get, post};
 use axum::{Json, Router};
 use base64::Engine;
 use clap::Parser;
 use serde::Deserialize;
 use serde_json::{json, Value};
-use tower_http::services::ServeDir;
+use tower_http::compression::CompressionLayer;
+use tower_http::services::{ServeDir, ServeFile};
 use tower_http::set_header::SetResponseHeaderLayer;
+use tower_http::CompressionLevel;
 use tracing_subscriber::EnvFilter;
 
 use crate::config::{tape_height_mm, LabelDefaults, Limits, CUSTOM_ICON_MAX_UPLOAD_BYTES};
@@ -121,6 +124,11 @@ async fn main() -> anyhow::Result<()> {
             .unwrap_or_else(find_root)
     });
     let data_dir = args.data_dir.unwrap_or_else(|| root.join("data"));
+
+    rustls_rustcrypto::provider()
+        .install_default()
+        .map_err(|_| anyhow::anyhow!("rustls provider already installed"))?;
+    let tls_config = tls::load(&data_dir).await?;
     let defaults = LabelDefaults::from_env();
     let limits = Limits::new();
     let store = Arc::new(StateStore::new(
@@ -153,18 +161,40 @@ async fn main() -> anyhow::Result<()> {
         },
     );
 
+    let serve_dir = |path: PathBuf| {
+        ServeDir::new(path)
+            .precompressed_br()
+            .precompressed_gzip()
+    };
+
     let static_assets = Router::new()
-        .nest_service("/", ServeDir::new(root.join("static")))
+        .nest_service("/", serve_dir(root.join("static")))
         .layer(cache_policy.clone());
 
     let font_previews = Router::new()
-        .nest_service("/", ServeDir::new(root.join("fonts").join("previews")))
+        .nest_service("/", serve_dir(root.join("fonts").join("previews")))
         .layer(cache_policy.clone());
     let fonts_static = Router::new()
-        .nest_service("/", ServeDir::new(root.join("fonts")))
+        .nest_service("/", serve_dir(root.join("fonts")))
         .layer(cache_policy.clone());
     let icon_thumbs = Router::new()
-        .nest_service("/", ServeDir::new(root.join("icons").join("thumbs")))
+        .nest_service("/", serve_dir(root.join("icons").join("thumbs")))
+        .layer(cache_policy.clone());
+
+    let icons_root = root.join("icons");
+    let icon_catalog_file = Router::new()
+        .route_service(
+            "/",
+            ServeFile::new(icons_root.join("catalog.json"))
+                .precompressed_br()
+                .precompressed_gzip(),
+        )
+        .layer(cache_policy.clone());
+    let icon_sprite_file = Router::new()
+        .route_service(
+            "/",
+            ServeFile::new(icons_root.join("category-sprite.png")),
+        )
         .layer(cache_policy.clone());
 
     let app = Router::new()
@@ -180,21 +210,83 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/icons", get(api_icons))
         .route("/api/icons/custom", post(api_icon_custom))
         .route("/icons/custom/:uuid", get(icon_custom_file))
-        .route("/icons/catalog.json", get(icon_catalog_json))
+        .nest_service("/icons/catalog.json", icon_catalog_file)
+        .nest_service("/icons/category-sprite.png", icon_sprite_file)
         .nest("/static", static_assets)
         .nest("/font-previews", font_previews)
         .nest("/fonts", fonts_static)
         .nest("/icons/thumbs", icon_thumbs)
+        .layer(
+            CompressionLayer::new()
+                .br(true)
+                .gzip(true)
+                .quality(CompressionLevel::Fastest),
+        )
         .with_state(state);
 
     let addr: SocketAddr = format!("{}:{}", args.host, args.port).parse()?;
     tracing::info!(
-        "ptlabel-server listening on http://{addr} (dev={})",
+        "ptlabel-server listening on https://{addr} (dev={})",
         args.dev
     );
-    let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app).await?;
+
+    spawn_http_redirect(args.host.clone(), args.port);
+
+    axum_server::bind_rustls(addr, tls_config)
+        .serve(app.into_make_service())
+        .await?;
     Ok(())
+}
+
+fn spawn_http_redirect(host: String, https_port: u16) {
+    let addr: SocketAddr = match format!("{host}:80").parse() {
+        Ok(a) => a,
+        Err(e) => {
+            tracing::warn!("http redirect: bad bind addr {host}:80: {e}");
+            return;
+        }
+    };
+    let app = Router::new()
+        .fallback(any(redirect_to_https))
+        .with_state(https_port);
+    tokio::spawn(async move {
+        match tokio::net::TcpListener::bind(addr).await {
+            Ok(listener) => {
+                tracing::info!("http->https redirect listening on http://{addr}");
+                if let Err(e) = axum::serve(listener, app).await {
+                    tracing::warn!("http redirect listener exited: {e}");
+                }
+            }
+            Err(e) => tracing::warn!("http redirect listener on :80 not started: {e}"),
+        }
+    });
+}
+
+async fn redirect_to_https(State(https_port): State<u16>, req: Request) -> Response {
+    let host = req
+        .headers()
+        .get(header::HOST)
+        .and_then(|h| h.to_str().ok())
+        .map(|h| h.split(':').next().unwrap_or(h))
+        .filter(|h| !h.is_empty());
+    let Some(host) = host else {
+        return (StatusCode::BAD_REQUEST, "missing Host header").into_response();
+    };
+    let pq = req
+        .uri()
+        .path_and_query()
+        .map(|p| p.as_str())
+        .unwrap_or("/");
+    let location = if https_port == 443 {
+        format!("https://{host}{pq}")
+    } else {
+        format!("https://{host}:{https_port}{pq}")
+    };
+    (
+        StatusCode::PERMANENT_REDIRECT,
+        [(header::LOCATION, location)],
+    )
+        .into_response()
 }
 
 async fn index(State(state): State<AppState>) -> Response {
@@ -337,7 +429,7 @@ async fn api_fonts(State(state): State<AppState>) -> Json<Value> {
 }
 
 async fn api_icon_categories(State(state): State<AppState>) -> Json<Value> {
-    Json(json!({ "categories": icons::list_categories(&state.root) }))
+    Json(icons::list_categories(&state.root))
 }
 
 async fn api_icons(
@@ -407,10 +499,6 @@ async fn api_icon_custom(
             Json(json!({ "ok": false, "err": e.to_string() })),
         )),
     }
-}
-
-async fn icon_catalog_json(State(state): State<AppState>) -> Json<Value> {
-    Json(icons::catalog(&state.root).clone())
 }
 
 async fn icon_custom_file(

@@ -2,7 +2,7 @@
 set -u
 
 TTY=/dev/tty1
-URL=http://127.0.0.1:5000/api/status
+URL=https://127.0.0.1:5000/api/status
 SERVER_LOG=/var/log/ptlabel/server.log
 WIFI_LOG=/var/log/wifi.log
 
@@ -20,7 +20,7 @@ while :; do
   now="$(date '+%Y-%m-%d %H:%M:%S')"
   uptime_s="$(awk '{print int($1)}' /proc/uptime 2>/dev/null)"
 
-  if status="$(curl -fsS --max-time 2 "$URL" 2>/dev/null)"; then
+  if status="$(curl -fskS --max-time 2 "$URL" 2>/dev/null)"; then
     ok="$(printf '%s' "$status" | jq -r '.ok // false')"
     printing="$(printf '%s' "$status" | jq -r '.printing // false')"
     temp="$(printf '%s' "$status" | jq -r '.temp_c // "n/a"')"

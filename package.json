@@ -2,8 +2,12 @@
   "name": "ptlabel-golden",
   "private": true,
   "type": "module",
+  "scripts": {
+    "build:static": "node scripts/build-static.mjs"
+  },
   "devDependencies": {
     "canvas": "^3.2.3",
+    "esbuild": "^0.24.2",
     "opentype.js": "^2.0.0"
   }
 }

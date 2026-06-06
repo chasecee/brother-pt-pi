@@ -43,11 +43,21 @@
             <input id="prefVAlign" type="number" min="-32" max="32" step="1" />
           </label>
         </div>
-        <div class="stat-row"><span>Memory</span><span id="statMem">—</span></div>
-        <div class="stat-row"><span>Wi-Fi</span><span id="statWifi">—</span></div>
-        <div class="stat-row"><span>CPU temp</span><span id="statTemp">—</span></div>
-        <div class="stat-row"><span>Uptime</span><span id="statUptime">—</span></div>
-        <div class="stat-row"><span>Deployed</span><span id="statDeployed">—</span></div>
+        <div class="stat-row">
+          <span>Memory</span><span id="statMem">—</span>
+        </div>
+        <div class="stat-row">
+          <span>Wi-Fi</span><span id="statWifi">—</span>
+        </div>
+        <div class="stat-row">
+          <span>CPU temp</span><span id="statTemp">—</span>
+        </div>
+        <div class="stat-row">
+          <span>Uptime</span><span id="statUptime">—</span>
+        </div>
+        <div class="stat-row">
+          <span>Deployed</span><span id="statDeployed">—</span>
+        </div>
         <div class="stat-row">
           <a
             href="https://github.com/chasecee/brother-pt-pi/actions"
@@ -72,8 +82,12 @@
       ></section>
 
       <div class="stage-foot">
-        <button id="rowAdd" type="button" class="row-add">+ label line</button>
-        <button id="printBtn" type="button" class="btn btn-primary">Print</button>
+        <button id="rowAdd" type="button" class="row-add">
+          <span>+</span>
+        </button>
+        <button id="printBtn" type="button" class="btn btn-primary">
+          Print
+        </button>
       </div>
     </main>
 

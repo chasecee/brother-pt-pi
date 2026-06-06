@@ -142,6 +142,7 @@ export function createStageController({
       categoryId: "",
       icons: [],
       searchQuery: "",
+      sprite: null,
     },
   };
 
@@ -208,14 +209,23 @@ export function createStageController({
     );
   }
 
+  let iconStatePromise = null;
   function ensureIconStateLoaded() {
     if (state.iconState.loaded) return Promise.resolve();
-    return loadIconCategories().then(async ({ categories, defaultCategoryId }) => {
-      state.iconState.loaded = true;
-      state.iconState.categories = categories;
-      state.iconState.categoryId = defaultCategoryId;
-      state.iconState.icons = await loadCategoryIcons(defaultCategoryId);
-    });
+    if (iconStatePromise) return iconStatePromise;
+    iconStatePromise = loadIconCategories()
+      .then(async ({ categories, defaultCategoryId, sprite }) => {
+        state.iconState.categories = categories;
+        state.iconState.categoryId = defaultCategoryId;
+        state.iconState.sprite = sprite;
+        state.iconState.icons = await loadCategoryIcons(defaultCategoryId);
+        state.iconState.loaded = true;
+        applyActiveState();
+      })
+      .finally(() => {
+        iconStatePromise = null;
+      });
+    return iconStatePromise;
   }
 
   async function setIconCategory(categoryId) {
@@ -402,7 +412,6 @@ export function createStageController({
       return;
     }
     if (type === "icon") {
-      await ensureIconStateLoaded();
       setActive({ mode: "icon" });
       return;
     }
@@ -451,6 +460,15 @@ export function createStageController({
     const block = row.blocks[segIndex];
     const selectedIconId =
       block && block.type === "icon" && !isCustomIcon(block.id) ? block.id : "";
+    if (mode === "icon") {
+      if (!state.iconState.loaded) ensureIconStateLoaded();
+      else if (selectedIconId) {
+        const targetCat = selectedIconId.split(":")[0];
+        if (targetCat && targetCat !== state.iconState.categoryId) {
+          setIconCategory(targetCat);
+        }
+      }
+    }
     renderDrawer(drawerEl, {
       mode,
       segment:
@@ -537,9 +555,9 @@ export function createStageController({
     btn.dataset.insert = String(insertIndex);
     btn.setAttribute("aria-label", "Add content");
     btn.setAttribute("aria-expanded", "false");
-    btn.onclick = async (e) => {
+    btn.onclick = (e) => {
       e.stopPropagation();
-      await ensureIconStateLoaded();
+      ensureIconStateLoaded();
       setActive({ mode: "picker", rowIndex, segIndex: -1, insertIndex });
     };
     return btn;
@@ -601,8 +619,17 @@ export function createStageController({
           seg.style.setProperty("--seg-width", String(clampImageWidth(block.width, 1)));
         }
         const img = document.createElement("img");
-        img.src = custom ? "" : iconThumbUrl(block.id);
         img.alt = "";
+        if (!custom) {
+          img.width = 48;
+          img.height = 48;
+          img.src = iconThumbUrl(block.id);
+        }
+        seg.classList.add("is-loading");
+        const clearLoading = () => seg.classList.remove("is-loading");
+        img.addEventListener("load", clearLoading);
+        img.addEventListener("error", clearLoading, { once: true });
+        if (!custom && img.complete && img.naturalWidth > 0) clearLoading();
         seg.append(img);
         seg.onclick = (e) => {
           e.stopPropagation();
@@ -856,6 +883,20 @@ export function createStageController({
     },
     addRowEnd() {
       addRow(state.rows.length);
+    },
+    appendRow(row) {
+      const blocks = (row.blocks || []).map((b) =>
+        b.type === "text" ? normalizeTextBlock(b, row) : normalizeIconBlock(b),
+      );
+      state.rows.push({ ...row, blocks });
+      ensureNonEmpty();
+      const idx = state.rows.length - 1;
+      rebuildRows();
+      signalChange();
+      setActive(
+        { mode: "font", rowIndex: idx, segIndex: 0, insertIndex: -1 },
+        { rebuild: false },
+      );
     },
     async printAll() {
       await onPrint(clone(state.rows));

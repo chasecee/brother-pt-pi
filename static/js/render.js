@@ -11,15 +11,25 @@ const PtRender = (() => {
     }
   }
 
+  let iconCatalogPromise = null;
+
   async function setIconCatalog(catalog) {
     iconCatalog = catalog;
   }
 
-  async function loadIconCatalog() {
-    if (iconCatalog) return iconCatalog;
-    const r = await fetch("/icons/catalog.json");
-    iconCatalog = await r.json();
-    return iconCatalog;
+  function loadIconCatalog() {
+    if (iconCatalog) return Promise.resolve(iconCatalog);
+    if (iconCatalogPromise) return iconCatalogPromise;
+    iconCatalogPromise = fetch("/icons/catalog.json")
+      .then((r) => r.json())
+      .then((data) => {
+        iconCatalog = data;
+        return data;
+      })
+      .finally(() => {
+        iconCatalogPromise = null;
+      });
+    return iconCatalogPromise;
   }
 
   function resolveFontUrl(family, bold, italic) {
