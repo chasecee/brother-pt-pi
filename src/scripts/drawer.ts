@@ -227,7 +227,7 @@ function fontDrawer(container, ctx) {
   const valignWrap = el("label", {}, [document.createTextNode("V align"), valign]);
 
   wrapper.append(
-    el("div", { className: "drawer-row drawer-font-top" }, [
+    el("div", { className: "drawer-row" }, [
       trigger,
       boldWrap,
       italicWrap,
