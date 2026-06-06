@@ -4,7 +4,7 @@
   --bg: Canvas;
   --fg: CanvasText;
   --muted: color-mix(in srgb, CanvasText 55%, Canvas);
-  --border: color-mix(in srgb, CanvasText 22%, Canvas);
+  --border: color-mix(in srgb, CanvasText 32%, Canvas);
   --surface: color-mix(in srgb, CanvasText 5%, Canvas);
   --surface-2: color-mix(in srgb, CanvasText 9%, Canvas);
   --accent: #2a6cf0;
@@ -18,7 +18,7 @@
   --tape-display-mm: 18;
   --tape-bg: #ffffff;
   --tape-ink: #1a1a1a;
-  --pointer-size: 19px;
+  --pointer-size: 14px;
   --row-line-h: 2.2rem;
 }
 
@@ -253,7 +253,7 @@ body {
 }
 
 @media (min-width: 768px) {
-  .row-menu-toggle {
+  .row-tail .row-menu-toggle {
     display: none;
   }
   .row-menu-items-wrap {
@@ -610,7 +610,7 @@ body {
 
 .drawer-pointer {
   position: absolute;
-  top: calc(var(--pointer-size) * -1);
+  top: calc(var(--pointer-size) * -0.9);
   left: var(--pointer-x, 50%);
   width: calc(var(--pointer-size) * 2);
   height: calc(var(--pointer-size) + 2px);
@@ -619,6 +619,7 @@ body {
   overflow: visible;
   transition: left 0.14s ease;
   z-index: 100;
+  filter: drop-shadow(4px 0px 6px var(--surface));
 }
 
 .drawer[data-mode="empty"] .drawer-pointer {

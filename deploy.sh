@@ -71,6 +71,29 @@ sshpass -p "$PASS" scp -O "${SSH_OPTS[@]}" \
   "${ROOT}/icons/category-sprite.png" \
   "${HOST}:/opt/ptlabel/icons/"
 
+echo "==> pushing init/diag overlay files to ${HOST}"
+OVERLAY="${ROOT}/buildroot-external/board/ptlabel-pi0/overlay"
+sshpass -p "$PASS" scp -O "${SSH_OPTS[@]}" \
+  "${OVERLAY}/etc/init.d/S50ptlabel" \
+  "${HOST}:/etc/init.d/S50ptlabel"
+sshpass -p "$PASS" scp -O "${SSH_OPTS[@]}" \
+  "${OVERLAY}/etc/default/ptlabel" \
+  "${HOST}:/etc/default/ptlabel"
+sshpass -p "$PASS" scp -O "${SSH_OPTS[@]}" \
+  "${OVERLAY}/usr/bin/ptlabel-diagnostics" \
+  "${HOST}:/usr/bin/ptlabel-diagnostics"
+
+echo "==> generating + pushing TLS cert"
+HOST_IP="${HOST##*@}"
+TLS_CACHE="${ROOT}/.cache/tls/${HOST_IP}"
+mkdir -p "$TLS_CACHE"
+PTLABEL_MDNS_NAME=label PTLABEL_HOSTNAME=ptlabel-pi0 \
+  "${ROOT}/scripts/gen-tls-cert.sh" "$TLS_CACHE" "$HOST_IP"
+sshpass -p "$PASS" ssh "${SSH_OPTS[@]}" "$HOST" 'mkdir -p /opt/ptlabel/data/tls && chmod 700 /opt/ptlabel/data/tls'
+sshpass -p "$PASS" scp -O "${SSH_OPTS[@]}" \
+  "$TLS_CACHE/leaf.pem" "$TLS_CACHE/leaf.key.pem" \
+  "${HOST}:/opt/ptlabel/data/tls/"
+
 sshpass -p "$PASS" ssh "${SSH_OPTS[@]}" "$HOST" \
   STATIC_ONLY="$STATIC_ONLY" bash -s <<'EOS'
 set -e
@@ -78,6 +101,9 @@ if [ "$STATIC_ONLY" = "0" ]; then
   chmod +x /opt/ptlabel/bin/ptlabel-server.new
   mv /opt/ptlabel/bin/ptlabel-server.new /opt/ptlabel/bin/ptlabel-server
 fi
+chmod +x /etc/init.d/S50ptlabel /usr/bin/ptlabel-diagnostics
+chmod 600 /opt/ptlabel/data/tls/leaf.key.pem
+chmod 644 /opt/ptlabel/data/tls/leaf.pem
 rm -rf /opt/ptlabel/static.old
 [ -d /opt/ptlabel/static ] && mv /opt/ptlabel/static /opt/ptlabel/static.old
 mv /opt/ptlabel/static.new /opt/ptlabel/static
@@ -86,8 +112,12 @@ rm -rf /opt/ptlabel/static.old
 sleep 3
 echo "--- ps ---"
 ps w | grep ptlabel-server | grep -v grep || echo "ptlabel-server not running"
+echo "--- listening ports ---"
+ss -lnt 2>/dev/null | awk 'NR==1 || /:(80|443)\b/' || netstat -lnt 2>/dev/null | awk 'NR<3 || /:(80|443)\b/'
 echo "--- /api/status (via :80 redirect) ---"
-curl -fsS --max-time 3 -o /dev/null -w 'http=%{http_code} -> %{redirect_url}\n' http://127.0.0.1/api/status
+curl -fsS --max-time 3 -o /dev/null -w 'http=%{http_code} -> %{redirect_url}\n' http://127.0.0.1/api/status || echo "redirect probe failed"
+echo "--- mdns advertisement ---"
+grep -i mdns /var/log/ptlabel/server.log | tail -3 || true
 echo "--- server log ---"
 tail -n 8 /var/log/ptlabel/server.log 2>/dev/null || echo "(empty log)"
 EOS

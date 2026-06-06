@@ -37,7 +37,7 @@ use crate::state::StateStore;
 struct Args {
     #[arg(long, default_value = "0.0.0.0")]
     host: String,
-    #[arg(long, default_value_t = 5000)]
+    #[arg(long, default_value_t = 443)]
     port: u16,
     #[arg(long, env = "PTLABEL_ROOT")]
     root: Option<PathBuf>,
@@ -45,6 +45,9 @@ struct Args {
     data_dir: Option<PathBuf>,
     #[arg(long, env = "PTLABEL_DEV", default_value_t = false)]
     dev: bool,
+    /// Hostname to advertise via mDNS. Empty disables mDNS.
+    #[arg(long, env = "PTLABEL_MDNS_NAME", default_value = "label")]
+    mdns_name: String,
 }
 
 #[derive(Clone)]
@@ -172,8 +175,8 @@ async fn main() -> anyhow::Result<()> {
             .precompressed_gzip()
     };
 
-    let static_assets = Router::new()
-        .nest_service("/", serve_dir(root.join("static")))
+    let static_fallback = Router::new()
+        .fallback_service(serve_dir(root.join("static")))
         .layer(cache_policy.clone());
 
     let font_previews = Router::new()
@@ -217,10 +220,10 @@ async fn main() -> anyhow::Result<()> {
         .route("/icons/custom/:uuid", get(icon_custom_file))
         .nest_service("/icons/catalog.json", icon_catalog_file)
         .nest_service("/icons/category-sprite.png", icon_sprite_file)
-        .nest("/static", static_assets)
         .nest("/font-previews", font_previews)
         .nest("/fonts", fonts_static)
         .nest("/icons/thumbs", icon_thumbs)
+        .fallback_service(static_fallback)
         .layer(
             CompressionLayer::new()
                 .br(true)
@@ -236,11 +239,51 @@ async fn main() -> anyhow::Result<()> {
     );
 
     spawn_http_redirect(args.host.clone(), args.port);
+    advertise_mdns(&args.mdns_name, args.port);
 
     axum_server::bind_rustls(addr, tls_config)
         .serve(app.into_make_service())
         .await?;
     Ok(())
+}
+
+fn advertise_mdns(name: &str, https_port: u16) {
+    let name = name.trim().trim_end_matches('.').trim_end_matches(".local");
+    if name.is_empty() {
+        tracing::info!("mdns: disabled (empty name)");
+        return;
+    }
+    let daemon = match mdns_sd::ServiceDaemon::new() {
+        Ok(d) => d,
+        Err(e) => {
+            tracing::warn!("mdns: daemon init failed: {e}");
+            return;
+        }
+    };
+    let host_name = format!("{name}.local.");
+    let info = match mdns_sd::ServiceInfo::new(
+        "_https._tcp.local.",
+        "PTLabel",
+        &host_name,
+        "",
+        https_port,
+        &[("path", "/")][..],
+    ) {
+        Ok(i) => i.enable_addr_auto(),
+        Err(e) => {
+            tracing::warn!("mdns: invalid service info: {e}");
+            return;
+        }
+    };
+    match daemon.register(info) {
+        Ok(()) => tracing::info!("mdns: advertising {host_name} _https._tcp port {https_port}"),
+        Err(e) => {
+            tracing::warn!("mdns: register failed: {e}");
+            return;
+        }
+    }
+    static MDNS: std::sync::OnceLock<mdns_sd::ServiceDaemon> = std::sync::OnceLock::new();
+    let _ = MDNS.set(daemon);
 }
 
 fn spawn_http_redirect(host: String, https_port: u16) {

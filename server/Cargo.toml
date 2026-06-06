@@ -15,6 +15,7 @@ base64 = "0.22"
 chain-print = { path = "../chain-print" }
 clap = { version = "4", features = ["derive", "env"] }
 image = { version = "0.25", default-features = false, features = ["png"] }
+mdns-sd = "0.20"
 parking_lot = "0.12"
 rustls = { version = "0.23", default-features = false, features = ["std", "tls12", "logging"] }
 rustls-rustcrypto = "=0.0.2-alpha"

@@ -2,7 +2,7 @@
 set -u
 
 TTY=/dev/tty1
-URL=https://127.0.0.1:5000/api/status
+URL=https://127.0.0.1/api/status
 SERVER_LOG=/var/log/ptlabel/server.log
 WIFI_LOG=/var/log/wifi.log
 
