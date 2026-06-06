@@ -86,8 +86,8 @@ rm -rf /opt/ptlabel/static.old
 sleep 3
 echo "--- ps ---"
 ps w | grep ptlabel-server | grep -v grep || echo "ptlabel-server not running"
-echo "--- /api/status ---"
-curl -fskS --max-time 3 https://127.0.0.1:5000/api/status; echo
+echo "--- /api/status (via :80 redirect) ---"
+curl -fsS --max-time 3 -o /dev/null -w 'http=%{http_code} -> %{redirect_url}\n' http://127.0.0.1/api/status
 echo "--- server log ---"
 tail -n 8 /var/log/ptlabel/server.log 2>/dev/null || echo "(empty log)"
 EOS

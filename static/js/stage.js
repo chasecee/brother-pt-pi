@@ -209,6 +209,7 @@ export function createStageController({
     );
   }
 
+  let lastSyncedIconSeg = null;
   let iconStatePromise = null;
   function ensureIconStateLoaded() {
     if (state.iconState.loaded) return Promise.resolve();
@@ -460,12 +461,19 @@ export function createStageController({
     const block = row.blocks[segIndex];
     const selectedIconId =
       block && block.type === "icon" && !isCustomIcon(block.id) ? block.id : "";
+    if (mode !== "icon") lastSyncedIconSeg = null;
     if (mode === "icon") {
       if (!state.iconState.loaded) ensureIconStateLoaded();
-      else if (selectedIconId) {
-        const targetCat = selectedIconId.split(":")[0];
-        if (targetCat && targetCat !== state.iconState.categoryId) {
-          setIconCategory(targetCat);
+      else {
+        const segKey = `${rowIndex}:${segIndex}`;
+        if (lastSyncedIconSeg !== segKey) {
+          lastSyncedIconSeg = segKey;
+          if (selectedIconId) {
+            const targetCat = selectedIconId.split(":")[0];
+            if (targetCat && targetCat !== state.iconState.categoryId) {
+              setIconCategory(targetCat);
+            }
+          }
         }
       }
     }
