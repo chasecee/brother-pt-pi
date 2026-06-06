@@ -13,14 +13,13 @@
   --danger-fg: #fff;
   --ok: #1c7c3c;
   --warn: #9a6700;
-  --drawer-bg: #283593;
-  --drawer-fg: #ffffff;
   --radius: 10px;
   --radius-sm: 6px;
   --tape-display-mm: 18;
   --tape-bg: #ffffff;
   --tape-ink: #1a1a1a;
   --pointer-size: 19px;
+  --row-line-h: 2.2rem;
 }
 
 * {
@@ -192,6 +191,9 @@ body {
 .stage {
   display: grid;
   gap: 0.5rem;
+  width: 100%;
+  overflow-x: auto;
+  padding-bottom: 2rem;
 }
 
 .rows {
@@ -205,33 +207,60 @@ body {
 .stage-row {
   display: flex;
   align-items: stretch;
-  gap: 0.4rem;
 
   .row-track {
     flex: 0 1 auto;
     min-width: 8rem;
     max-width: 100%;
+    margin-right: 0.4rem;
   }
 }
 
 .row-tail {
   position: sticky;
   right: 0;
-  padding-right: 1rem;
   z-index: 1;
   margin-left: auto;
   align-self: stretch;
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  padding-left: 2rem;
-  background: linear-gradient(
-    to right,
-    transparent 0,
-    color-mix(in srgb, var(--bg) 50%, transparent) 50%,
-    color-mix(in srgb, var(--bg) 90%, transparent) 100%
-  );
+  gap: 0.2rem;
+  padding: 0 0.3rem 0 0.6rem;
   pointer-events: auto;
+  background: linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.5) 50%);
+}
+
+.row-menu-items-wrap {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  width: 0;
+  overflow: hidden;
+  transition: width 0.22s ease;
+}
+
+.row-tail.open .row-menu-items-wrap {
+  width: var(--menu-w, 0px);
+}
+
+.row-menu-items {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding-right: 0.4rem;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+@media (min-width: 768px) {
+  .row-menu-toggle {
+    display: none;
+  }
+  .row-menu-items-wrap {
+    width: auto;
+    overflow: visible;
+    transition: none;
+  }
 }
 
 .row-track {
@@ -396,10 +425,10 @@ body {
 
 .row-qty {
   width: 2.75rem;
-  height: 2rem;
+  height: var(--row-line-h);
   align-self: center;
   font: inherit;
-  padding: 0 0.3rem;
+  padding: 0.33rem 0.66rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg);
@@ -415,17 +444,19 @@ body {
 
 .row-btn {
   align-self: center;
-  width: 2rem;
-  height: 2rem;
-  padding: 0;
+  height: var(--row-line-h);
+  padding: 0.33rem 0.66rem;
+  gap: 0.35rem;
   border: 1px solid var(--border);
   background: var(--bg);
-  color: var(--muted);
+  color: var(--fg);
   border-radius: var(--radius-sm);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  font: inherit;
+  white-space: nowrap;
   transition:
     color 0.12s,
     border-color 0.12s,
@@ -436,14 +467,23 @@ body {
   }
 
   &:hover {
-    color: var(--fg);
-    border-color: color-mix(in srgb, var(--fg) 40%, var(--border));
+    border-color: color-mix(in srgb, currentColor 40%, var(--border));
   }
 }
 
-.row-remove:hover {
+.row-menu-toggle {
+  width: 2.66rem;
+  padding: 0.33rem 0;
+  color: var(--muted);
+  height: var(--row-line-h);
+}
+
+.row-menu-toggle:hover {
+  color: var(--fg);
+}
+
+.row-remove {
   color: var(--danger);
-  border-color: color-mix(in srgb, var(--danger) 50%, var(--border));
 }
 
 .stage-foot {
@@ -453,18 +493,28 @@ body {
   gap: 0.5rem;
   margin-top: 0.6rem;
   max-width: calc(100vw - 2rem);
+  height: 3rem;
+  .btn-primary {
+    height: 100%;
+  }
 }
 
 .row-add {
+  height: 100%;
   font: inherit;
   font-size: 0.85rem;
-  padding: 0.3rem 0.6rem;
+  padding: 0.3rem 1rem;
   border: 1px dashed var(--border);
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  svg {
+    opacity: 0.7;
+  }
   &:hover {
     color: var(--fg);
     border-color: var(--fg);
@@ -515,59 +565,70 @@ body {
 .drawer {
   position: relative;
 
-  &::before {
-    content: "";
-    position: absolute;
-    top: calc(var(--pointer-size) * -1);
-    left: var(--pointer-x, 50%);
-    transform: translateX(-50%);
-    width: 0;
-    height: 0;
-    border-left: var(--pointer-size) solid transparent;
-    border-right: var(--pointer-size) solid transparent;
-    border-bottom: var(--pointer-size) solid var(--drawer-bg);
-    pointer-events: none;
-    transition: left 0.14s ease;
-    opacity: 1;
-  }
-
-  &[data-mode="empty"]::before {
-    display: none;
-  }
-
   input[type="search"] {
     width: 100%;
     padding: 0.3rem 0.45rem;
     border-radius: 6px;
-    border: 1px solid color-mix(in srgb, var(--drawer-fg) 22%, transparent);
-    background: color-mix(in srgb, var(--drawer-fg) 10%, transparent);
-    color: var(--drawer-fg);
+    border: 1px solid color-mix(in srgb, var(--fg) 22%, transparent);
+    background: color-mix(in srgb, var(--fg) 10%, transparent);
+    color: var(--fg);
     font: inherit;
 
     &::placeholder {
-      color: color-mix(in srgb, var(--drawer-fg) 55%, transparent);
+      color: color-mix(in srgb, var(--fg) 55%, transparent);
     }
   }
 }
 
 .drawer-body {
   overflow: hidden;
-  background: var(--drawer-bg);
-  color: var(--drawer-fg);
-  border-radius: 0;
+  background: var(--surface);
+  color: var(--fg);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
   padding: 0.8rem 0.9rem;
   display: flex;
   gap: 0.55rem;
   max-width: calc(100vw - 2rem);
   position: sticky;
-  left: 1rem;
+  left: 0;
+  right: 0;
   width: 100%;
 }
 
 .drawer[data-mode="empty"] .drawer-body {
   height: 0;
-  padding-top: 0;
-  padding-bottom: 0;
+  padding: 0;
+  border: 0;
+}
+
+.drawer-pointer {
+  position: absolute;
+  top: calc(var(--pointer-size) * -1);
+  left: var(--pointer-x, 50%);
+  width: calc(var(--pointer-size) * 2);
+  height: calc(var(--pointer-size) + 2px);
+  transform: translateX(-50%);
+  pointer-events: none;
+  overflow: visible;
+  transition: left 0.14s ease;
+  z-index: 100;
+}
+
+.drawer[data-mode="empty"] .drawer-pointer {
+  display: none;
+}
+
+.drawer-pointer-fill {
+  fill: var(--surface);
+}
+
+.drawer-pointer-stroke {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 2;
+  stroke-linejoin: miter;
+  vector-effect: non-scaling-stroke;
 }
 
 ::view-transition-old(root),
@@ -592,10 +653,10 @@ body {
   input[type="number"] {
     width: 3.6rem;
     padding: 0.25rem 0.4rem;
-    border: 1px solid color-mix(in srgb, var(--drawer-fg) 25%, transparent);
+    border: 1px solid color-mix(in srgb, var(--fg) 25%, transparent);
     border-radius: 4px;
-    background: color-mix(in srgb, var(--drawer-fg) 10%, transparent);
-    color: var(--drawer-fg);
+    background: color-mix(in srgb, var(--fg) 10%, transparent);
+    color: var(--fg);
     font: inherit;
   }
 }
@@ -621,7 +682,7 @@ body {
 
 .drawer-segmented {
   gap: 0;
-  border: 1px solid color-mix(in srgb, var(--drawer-fg) 25%, transparent);
+  border: 1px solid color-mix(in srgb, var(--fg) 25%, transparent);
   border-radius: 999px;
   overflow: hidden;
 
@@ -629,17 +690,17 @@ body {
     border: 0;
     border-radius: 0;
     background: transparent;
-    color: color-mix(in srgb, var(--drawer-fg) 75%, transparent);
+    color: color-mix(in srgb, var(--fg) 75%, transparent);
     min-width: 5.4rem;
 
     &.active {
-      background: color-mix(in srgb, var(--drawer-fg) 24%, transparent);
-      color: var(--drawer-fg);
+      background: color-mix(in srgb, var(--fg) 24%, transparent);
+      color: var(--fg);
     }
 
     &:hover {
-      background: color-mix(in srgb, var(--drawer-fg) 18%, transparent);
-      color: var(--drawer-fg);
+      background: color-mix(in srgb, var(--fg) 18%, transparent);
+      color: var(--fg);
     }
   }
 }
@@ -650,7 +711,7 @@ body {
 }
 
 .drawer-font-top {
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
 }
 
 .drawer-font-current {
@@ -659,9 +720,9 @@ body {
   text-align: left;
   padding: 0.4rem 0.6rem;
   border-radius: 6px;
-  border: 1px solid color-mix(in srgb, var(--drawer-fg) 25%, transparent);
-  background: color-mix(in srgb, var(--drawer-fg) 10%, transparent);
-  color: var(--drawer-fg);
+  border: 1px solid color-mix(in srgb, var(--fg) 25%, transparent);
+  background: color-mix(in srgb, var(--fg) 10%, transparent);
+  color: var(--fg);
   font: inherit;
   cursor: pointer;
   display: flex;
@@ -687,7 +748,7 @@ body {
   }
 
   &:hover {
-    background: color-mix(in srgb, var(--drawer-fg) 18%, transparent);
+    background: color-mix(in srgb, var(--fg) 18%, transparent);
   }
 }
 
@@ -700,8 +761,8 @@ body {
 
 .drawer-font-panel {
   max-height: 250px;
-  background: color-mix(in srgb, var(--drawer-fg) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--drawer-fg) 18%, transparent);
+  background: color-mix(in srgb, var(--fg) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--fg) 18%, transparent);
   border-radius: 8px;
   padding: 0.35rem;
   display: flex;
@@ -719,13 +780,13 @@ body {
   flex: 0 0 auto;
   padding: 0.3rem 0.5rem;
   border-radius: 5px;
-  border: 1px solid color-mix(in srgb, var(--drawer-fg) 22%, transparent);
-  background: color-mix(in srgb, var(--drawer-fg) 8%, transparent);
-  color: var(--drawer-fg);
+  border: 1px solid color-mix(in srgb, var(--fg) 22%, transparent);
+  background: color-mix(in srgb, var(--fg) 8%, transparent);
+  color: var(--fg);
   font: inherit;
 
   &::placeholder {
-    color: color-mix(in srgb, var(--drawer-fg) 50%, transparent);
+    color: color-mix(in srgb, var(--fg) 50%, transparent);
   }
 }
 
@@ -751,18 +812,18 @@ body {
   padding: 0.35rem 0.55rem;
   border: 0;
   background: transparent;
-  color: var(--drawer-fg);
+  color: var(--fg);
   cursor: pointer;
   font-size: 1.15rem;
   line-height: 1.25;
   border-radius: 4px;
 
   &:hover {
-    background: color-mix(in srgb, var(--drawer-fg) 14%, transparent);
+    background: color-mix(in srgb, var(--fg) 14%, transparent);
   }
 
   &.active {
-    background: color-mix(in srgb, var(--drawer-fg) 22%, transparent);
+    background: color-mix(in srgb, var(--fg) 22%, transparent);
   }
 
   &[hidden] {
@@ -776,19 +837,13 @@ body {
   gap: 0.5rem;
 
   .btn {
-    background: #fff;
-    color: var(--drawer-bg);
     padding: 0.4rem 1.2rem;
-    border-color: color-mix(in srgb, var(--drawer-fg) 25%, transparent);
     width: 33%;
     height: 3rem;
     text-align: center;
     display: flex;
     align-items: center;
     justify-content: center;
-    &:hover {
-      background: color-mix(in srgb, var(--drawer-fg) 20%, transparent);
-    }
   }
 }
 
@@ -836,9 +891,9 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 0;
-  background: color-mix(in srgb, var(--drawer-fg) 50%, transparent);
-  color: var(--drawer-fg);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
   border-radius: 8px;
   padding: 0;
   font-size: 0.78rem;
@@ -850,13 +905,13 @@ body {
   overflow: hidden;
 
   &:hover {
-    background: color-mix(in srgb, var(--drawer-fg) 18%, transparent);
+    background: var(--surface);
   }
 
   &.active {
-    background: color-mix(in srgb, var(--drawer-fg) 100%, transparent);
-    outline: 3px solid #22c55e;
-    outline-offset: -3px;
+    background: var(--bg);
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
   }
 }
 
@@ -875,7 +930,7 @@ body {
   align-items: center;
   justify-content: center;
   font-size: 0.9rem;
-  color: var(--drawer-fg);
+  color: var(--fg);
 }
 
 .drawer-icon-grid {
@@ -890,11 +945,11 @@ body {
 }
 
 .drawer-icon-pick {
-  border-radius: 0;
+  border-radius: 4px;
   padding: 0.15rem;
   line-height: 0;
-  border: 0;
-  background: color-mix(in srgb, var(--drawer-fg) 90%, transparent);
+  border: 1px solid var(--border);
+  background: var(--bg);
   cursor: pointer;
   aspect-ratio: 1 / 1;
   transform: scale(1);
@@ -904,12 +959,12 @@ body {
     box-shadow 0.16s ease;
 
   &:hover {
-    background: color-mix(in srgb, var(--drawer-fg) 22%, transparent);
+    background: var(--surface);
   }
 
   &.active {
-    outline: 3px solid #22c55e;
-    outline-offset: -3px;
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
   }
 
   img {
@@ -921,7 +976,7 @@ body {
 
 .drawer-empty {
   font-size: 0.85rem;
-  color: color-mix(in srgb, var(--drawer-fg) 65%, transparent);
+  color: color-mix(in srgb, var(--fg) 65%, transparent);
   padding: 0.5rem 0.2rem;
   flex: 1 1 auto;
   min-height: 0;

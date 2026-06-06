@@ -8,11 +8,33 @@
     class="drawer"
     data-mode="empty"
     aria-live="polite"
-  ></section>
+  >
+    <svg
+      class="drawer-pointer"
+      viewBox="0 0 38 21"
+      preserveAspectRatio="none"
+      aria-hidden="true"
+    >
+      <path class="drawer-pointer-fill" d="M0 19 L19 0 L38 19 L38 21 L0 21 Z" />
+      <polyline
+        class="drawer-pointer-stroke"
+        points="0,19 19,0 38,19"
+      />
+    </svg>
+  </section>
 
   <div class="stage-foot">
     <button id="rowAdd" type="button" class="row-add">
-      <span>+</span>
+      <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+        <path
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          d="M12 5v14M5 12h14"
+        />
+      </svg>
+      <span>New</span>
     </button>
     <button id="printBtn" type="button" class="btn btn-primary">
       Print

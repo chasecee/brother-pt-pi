@@ -23,10 +23,10 @@ function el(tag, attrs = {}, children = []) {
 
 function setMode(container, mode, bodyClass = "") {
   container.dataset.mode = mode;
-  let body = container.firstElementChild;
-  if (!body || !body.classList.contains("drawer-body")) {
+  let body = container.querySelector(":scope > .drawer-body");
+  if (!body) {
     body = document.createElement("div");
-    container.replaceChildren(body);
+    container.appendChild(body);
   }
   body.className = bodyClass ? `drawer-body ${bodyClass}` : "drawer-body";
   body.replaceChildren();
@@ -296,7 +296,17 @@ function buildIconCats(categories, activeId, sprite, onChooseCategory) {
   for (const cat of categories) {
     cats.append(buildCatButton(cat, cat.id === activeId, onChooseCategory));
   }
+  centerActiveCat(cats);
   return cats;
+}
+
+function centerActiveCat(cats) {
+  const active = cats.querySelector(".drawer-icon-cat.active");
+  if (!active) return;
+  requestAnimationFrame(() => {
+    const left = active.offsetLeft - (cats.clientWidth - active.offsetWidth) / 2;
+    cats.scrollLeft = Math.max(0, left);
+  });
 }
 
 function syncSelectedIcon(grid, selectedIconId) {
@@ -381,6 +391,7 @@ function iconDrawer(container, ctx) {
           btn.dataset.catId === iconState.categoryId,
         );
       }
+      centerActiveCat(oldCats);
     } else {
       oldCats.replaceWith(
         buildIconCats(

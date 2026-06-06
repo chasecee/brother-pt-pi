@@ -119,6 +119,19 @@ async function imageAspectFromFile(file) {
   });
 }
 
+if (typeof document !== "undefined") {
+  document.addEventListener("pointerdown", (e) => {
+    const target = e.target as Node;
+    for (const tail of document.querySelectorAll(".row-tail.open")) {
+      if (!tail.contains(target)) {
+        tail.classList.remove("open");
+        const t = tail.querySelector(".row-menu-toggle");
+        if (t) t.setAttribute("aria-expanded", "false");
+      }
+    }
+  });
+}
+
 export function createStageController({
   rowsEl,
   drawerEl,
@@ -717,7 +730,7 @@ export function createStageController({
       duplicate.setAttribute("aria-label", "Duplicate label line");
       duplicate.title = "Duplicate label line";
       duplicate.innerHTML =
-        '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M9 3a2 2 0 0 0-2 2v1H5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1h2a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H9zm0 2h10v12h-2V8a2 2 0 0 0-2-2H9V5zM5 8h10v11H5V8z"/></svg>';
+        '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M9 3a2 2 0 0 0-2 2v1H5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1h2a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H9zm0 2h10v12h-2V8a2 2 0 0 0-2-2H9V5zM5 8h10v11H5V8z"/></svg><span>Duplicate</span>';
       duplicate.onclick = () => {
         const copy = clone(row);
         const idx = rowIndex + 1;
@@ -750,7 +763,7 @@ export function createStageController({
       remove.setAttribute("aria-label", "Remove label line");
       remove.title = "Remove label line";
       remove.innerHTML =
-        '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M6.4 5L5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4 17.6 5 12 10.6z"/></svg>';
+        '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M6.4 5L5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4 17.6 5 12 10.6z"/></svg><span>Delete</span>';
       remove.onclick = () => {
         state.rows.splice(rowIndex, 1);
         ensureNonEmpty();
@@ -761,9 +774,37 @@ export function createStageController({
         );
       };
 
+      const items = document.createElement("div");
+      items.className = "row-menu-items";
+      items.append(duplicate, qty, remove);
+
+      const itemsWrap = document.createElement("div");
+      itemsWrap.className = "row-menu-items-wrap";
+      itemsWrap.append(items);
+
+      const toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.className = "row-btn row-menu-toggle";
+      toggle.setAttribute("aria-label", "Row actions");
+      toggle.title = "Row actions";
+      toggle.setAttribute("aria-expanded", "false");
+      toggle.innerHTML =
+        '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="5" cy="12" r="1.8" fill="currentColor"/><circle cx="12" cy="12" r="1.8" fill="currentColor"/><circle cx="19" cy="12" r="1.8" fill="currentColor"/></svg>';
+
       const tail = document.createElement("div");
       tail.className = "row-tail";
-      tail.append(duplicate, qty, remove);
+      tail.append(itemsWrap, toggle);
+
+      toggle.onclick = (e) => {
+        e.stopPropagation();
+        const opening = !tail.classList.contains("open");
+        if (opening) {
+          tail.style.setProperty("--menu-w", `${items.scrollWidth}px`);
+        }
+        tail.classList.toggle("open", opening);
+        toggle.setAttribute("aria-expanded", opening ? "true" : "false");
+      };
+
       li.append(rowTrack(row, rowIndex), tail);
       rowsEl.append(li);
       applyRowMetricsForIndex(rowIndex);
