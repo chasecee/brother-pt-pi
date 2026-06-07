@@ -391,17 +391,21 @@ body {
   align-items: center;
   justify-content: center;
   border-radius: 4px;
+  height: calc(var(--row-line-h, 28px) * var(--icon-scale, 1));
+  aspect-ratio: 1;
 
   img {
     display: block;
     height: 100%;
-    width: auto;
+    width: 100%;
     object-fit: contain;
   }
 }
 
 .seg-image {
-  width: calc(var(--row-line-h) * var(--seg-width, 1));
+  height: var(--row-line-h, 28px);
+  width: calc(var(--row-line-h, 28px) * var(--seg-width, 1));
+  aspect-ratio: auto;
 
   img {
     width: 100%;
@@ -619,7 +623,9 @@ body {
   overflow: visible;
   transition: left 0.14s ease;
   z-index: 100;
-  filter: drop-shadow(4px 0px 6px var(--surface));
+  filter: drop-shadow(
+    4px 0px 6px color-mix(in srgb, var(--border) 50%, transparent)
+  );
 }
 
 .drawer[data-mode="empty"] .drawer-pointer {

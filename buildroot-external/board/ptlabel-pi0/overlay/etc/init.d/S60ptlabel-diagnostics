@@ -4,10 +4,21 @@ set -eu
 NAME=ptlabel-diagnostics
 PIDFILE=/var/run/ptlabel-diagnostics.pid
 BIN=/usr/bin/ptlabel-diagnostics
+BOOT_LOG=/var/log/ptlabel/boot.log
+ENVFILE=/etc/default/ptlabel
+
+[ -r "$ENVFILE" ] && . "$ENVFILE"
+PTLABEL_DIAGNOSTICS="${PTLABEL_DIAGNOSTICS:-0}"
+
+boot_uptime() {
+  awk '{print $1}' /proc/uptime 2>/dev/null || echo "n/a"
+}
 
 start() {
+  [ "$PTLABEL_DIAGNOSTICS" = "1" ] || return 0
   [ -x "$BIN" ] || return 1
-  mkdir -p /var/run
+  mkdir -p /var/run /var/log/ptlabel
+  printf '[init] S60ptlabel-diagnostics start uptime=%ss\n' "$(boot_uptime)" >>"$BOOT_LOG"
   if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
     return 0
   fi

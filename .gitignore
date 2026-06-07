@@ -2,9 +2,6 @@
 chain-print/target/
 /target/
 /node_modules/
-/.venv-golden/
-/tests/golden/python/
-/tests/golden/js/
 .rebuild.lock
 __pycache__/
 *.pyc
@@ -14,3 +11,4 @@ data/
 buildroot-external/board/ptlabel-pi0/wpa_supplicant.conf
 .DS_Store
 /.astro/
+*.env

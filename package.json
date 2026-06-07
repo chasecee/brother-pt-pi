@@ -1,5 +1,5 @@
 {
-  "name": "ptlabel-golden",
+  "name": "ptlabel",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,7 +8,6 @@
   },
   "devDependencies": {
     "astro": "^6.4.4",
-    "canvas": "^3.2.3",
     "opentype.js": "^2.0.0",
     "typescript": "^6.0.3"
   }

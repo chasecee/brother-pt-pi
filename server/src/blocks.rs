@@ -152,56 +152,21 @@ pub fn normalize_blocks(raw: &Value, limits: &Limits) -> Vec<Value> {
     out
 }
 
-pub fn blocks_from_text(text: &str) -> Vec<Value> {
-    if text.trim().is_empty() {
-        return vec![];
-    }
-    vec![json!({ "type": "text", "value": text })]
+pub fn extract_label_blocks(raw: &Value, limits: &Limits) -> Option<Vec<Value>> {
+    let blocks = normalize_blocks(raw.get("blocks")?, limits);
+    blocks_have_content(&json!(blocks)).then_some(blocks)
 }
 
-pub fn migrate_label_dict(raw: &Value, limits: &Limits) -> Option<Vec<Value>> {
-    let Some(obj) = raw.as_object() else {
-        return None;
-    };
-    if obj.contains_key("blocks") {
-        let blocks = normalize_blocks(&obj["blocks"], limits);
-        return if blocks_have_content(&json!(blocks)) {
-            Some(blocks)
-        } else {
-            None
-        };
-    }
-    if let Some(text) = obj.get("text").and_then(|v| v.as_str()) {
-        let t = text.trim();
-        if !t.is_empty() {
-            return Some(blocks_from_text(t));
-        }
-    }
-    None
-}
-
-pub fn migrate_draft(raw: &Value, limits: &Limits) -> Value {
-    if let Some(lines) = raw.get("lines").and_then(|v| v.as_array()) {
-        let mut out = Vec::new();
-        for line in lines {
-            let blocks = normalize_blocks(line, limits);
-            if blocks_have_content(&json!(blocks)) {
-                out.push(blocks);
-            }
-        }
-        return json!({ "lines": out });
-    }
-    if let Some(text) = raw.as_str() {
-        if !text.trim().is_empty() {
-            let mut lines = Vec::new();
-            for line in text.lines() {
-                let t = line.trim();
-                if !t.is_empty() {
-                    lines.push(blocks_from_text(t));
-                }
-            }
-            return json!({ "lines": lines });
-        }
-    }
-    json!({ "lines": [] })
+pub fn normalize_draft(raw: &Value, limits: &Limits) -> Value {
+    let lines = raw
+        .get("lines")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .map(|line| normalize_blocks(line, limits))
+                .filter(|blocks| blocks_have_content(&json!(blocks)))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    json!({ "lines": lines })
 }

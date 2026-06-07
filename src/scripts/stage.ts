@@ -138,6 +138,7 @@ export function createStageController({
   fonts,
   resolveStageFamily,
   fontMetrics,
+  fontMetricsSync,
   limits,
   defaultPrefs,
   getDisplayScale = () => 1,
@@ -668,6 +669,37 @@ export function createStageController({
     return track;
   }
 
+  function computeRowLineH(row) {
+    const k = getDisplayScale();
+    let maxAscent = 0;
+    let maxDescent = 0;
+    let allCached = true;
+    for (const block of row.blocks) {
+      if (block.type !== "text") continue;
+      const seg = normalizeTextBlock(block, row);
+      const m = fontMetricsSync(
+        seg.font_family,
+        seg.bold,
+        seg.italic,
+        seg.font_size,
+      );
+      if (!m) {
+        allCached = false;
+        continue;
+      }
+      if (m.ascent > maxAscent) maxAscent = m.ascent;
+      if (m.descent > maxDescent) maxDescent = m.descent;
+    }
+    if (maxAscent <= 0 || maxDescent <= 0) {
+      maxAscent = row.font_size * 1.0;
+      maxDescent = row.font_size * 0.25;
+    }
+    return {
+      lineH: Math.max(8, Math.round((maxAscent + maxDescent) * k)),
+      allCached,
+    };
+  }
+
   async function applyRowMetricsForIndex(rowIndex) {
     const rowNode = rowsEl.querySelector(
       `.stage-row[data-row="${rowIndex}"]`,
@@ -675,42 +707,40 @@ export function createStageController({
     if (!rowNode) return;
     const row = state.rows[rowIndex];
     if (!row) return;
-    let maxAscent = 0;
-    let maxDescent = 0;
-    for (const block of row.blocks) {
-      if (block.type !== "text") continue;
-      const seg = normalizeTextBlock(block, row);
-      try {
-        const m = await fontMetrics(
-          seg.font_family,
-          seg.bold,
-          seg.italic,
-          seg.font_size,
-        );
-        if (m.ascent > maxAscent) maxAscent = m.ascent;
-        if (m.descent > maxDescent) maxDescent = m.descent;
-      } catch {
-        // ignore
+    const iconScale = parseFloat(row.icon_size) || 1;
+    rowNode.style.setProperty("--icon-scale", String(iconScale));
+    const sync = computeRowLineH(row);
+    rowNode.style.setProperty("--row-line-h", `${sync.lineH}px`);
+    const paintCustoms = (lineH) => {
+      for (const icon of rowNode.querySelectorAll(".seg-icon")) {
+        const segIndex = parseInt(icon.dataset.seg || "-1", 10);
+        const block = row.blocks[segIndex];
+        if (block && block.type === "icon" && isCustomIcon(block.id)) {
+          paintCustomPreview(rowIndex, segIndex, lineH);
+        }
       }
+    };
+    if (sync.allCached) {
+      paintCustoms(sync.lineH);
+      return;
     }
-    if (maxAscent <= 0 || maxDescent <= 0) {
-      maxAscent = row.font_size * 0.8;
-      maxDescent = row.font_size * 0.2;
-    }
-    const k = getDisplayScale();
-    const lineH = Math.max(8, Math.round((maxAscent + maxDescent) * k));
-    rowNode.style.setProperty("--row-line-h", `${lineH}px`);
-    for (const icon of rowNode.querySelectorAll(".seg-icon")) {
-      const segIndex = parseInt(icon.dataset.seg || "-1", 10);
-      const block = row.blocks[segIndex];
-      if (block && block.type === "icon" && isCustomIcon(block.id)) {
-        icon.style.height = `${lineH}px`;
-        paintCustomPreview(rowIndex, segIndex, lineH);
-      } else {
-        const scale = parseFloat(row.icon_size) || 1;
-        icon.style.height = `${Math.max(8, Math.round(lineH * scale))}px`;
-      }
-    }
+    await Promise.all(
+      row.blocks
+        .filter((b) => b.type === "text")
+        .map((block) => {
+          const seg = normalizeTextBlock(block, row);
+          return fontMetrics(
+            seg.font_family,
+            seg.bold,
+            seg.italic,
+            seg.font_size,
+          ).catch(() => null);
+        }),
+    );
+    if (!rowNode.isConnected) return;
+    const refined = computeRowLineH(row);
+    rowNode.style.setProperty("--row-line-h", `${refined.lineH}px`);
+    paintCustoms(refined.lineH);
   }
 
   function rebuildRows() {

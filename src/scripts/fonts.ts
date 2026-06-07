@@ -1,6 +1,11 @@
 const fontCatalog = new Map();
 const fontFaceCache = new Set();
 const fontParseCache = new Map();
+const fontUnitsCache = new Map();
+
+function unitsKey(name, bold, italic) {
+  return `${name}|${bold ? 1 : 0}|${italic ? 1 : 0}`;
+}
 
 function cssFamilyName(name) {
   return `ptp-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
@@ -51,6 +56,17 @@ export async function loadFonts() {
       slug: fam.slug || null,
       cssFamily: cssFamilyName(fam.name),
     });
+    const metrics = fam.metrics || {};
+    for (const [variant, m] of Object.entries(metrics)) {
+      if (!m || typeof m !== "object") continue;
+      const bold = variant === "bold" || variant === "boldItalic";
+      const italic = variant === "italic" || variant === "boldItalic";
+      fontUnitsCache.set(unitsKey(fam.name, bold, italic), {
+        ascender: m.ascender,
+        descender: m.descender,
+        unitsPerEm: m.unitsPerEm,
+      });
+    }
   }
   const css = [];
   for (const fam of fontCatalog.values()) {
@@ -117,8 +133,23 @@ async function loadVariantFont(name, bold, italic) {
 
 export async function fontMetrics(name, bold, italic, fontSize) {
   const font = await loadVariantFont(name, bold, italic);
+  fontUnitsCache.set(unitsKey(name, bold, italic), {
+    ascender: font.ascender,
+    descender: font.descender,
+    unitsPerEm: font.unitsPerEm,
+  });
+  return fontMetricsFromUnits(font, fontSize);
+}
+
+function fontMetricsFromUnits(units, fontSize) {
   const size = Math.max(1, Number(fontSize) || 1);
-  const ascent = font.ascender * (size / font.unitsPerEm);
-  const descent = Math.abs(font.descender * (size / font.unitsPerEm));
+  const ascent = units.ascender * (size / units.unitsPerEm);
+  const descent = Math.abs(units.descender * (size / units.unitsPerEm));
   return { ascent, descent };
+}
+
+export function fontMetricsSync(name, bold, italic, fontSize) {
+  const units = fontUnitsCache.get(unitsKey(name, bold, italic));
+  if (!units) return null;
+  return fontMetricsFromUnits(units, fontSize);
 }

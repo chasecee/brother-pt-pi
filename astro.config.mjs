@@ -1,6 +1,6 @@
 import { defineConfig } from "astro/config";
 
-const proxyTarget = "https://127.0.0.1:5001";
+const proxyTarget = "http://127.0.0.1:5001";
 const proxyPaths = ["/api", "/icons", "/fonts", "/font-previews"];
 
 export default defineConfig({

@@ -1,1 +1,1 @@
-console=tty1 console=serial0,115200 root=/dev/mmcblk0p2 rootwait quiet loglevel=4 vt.global_cursor_default=0
+console=serial0,115200 root=/dev/mmcblk0p2 rootwait rootfstype=ext4 fastboot noatime quiet loglevel=3 printk.time=1 vt.global_cursor_default=0

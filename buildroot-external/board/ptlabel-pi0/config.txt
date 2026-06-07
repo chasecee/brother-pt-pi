@@ -3,12 +3,15 @@ fixup_file=fixup.dat
 kernel=zImage
 
 disable_overscan=1
-hdmi_force_hotplug=1
+disable_splash=1
+boot_delay=0
+hdmi_blanking=2
 dtparam=audio=off
 enable_uart=1
+force_turbo=1
+initial_turbo=30
 
-gpu_mem_256=100
-gpu_mem_512=100
-gpu_mem_1024=100
+gpu_mem=16
 
-dtoverlay=miniuart-bt
+dtoverlay=disable-bt
+dtoverlay=disable-bt-pcm

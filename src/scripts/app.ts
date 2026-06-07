@@ -3,6 +3,7 @@ import {
   listFonts,
   resolveStageFamily,
   fontMetrics,
+  fontMetricsSync,
 } from "./fonts";
 import { createStageController } from "./stage";
 import {
@@ -431,6 +432,7 @@ async function init() {
     fonts: listFonts(),
     resolveStageFamily,
     fontMetrics,
+    fontMetricsSync,
     limits: LIMITS,
     defaultPrefs: defaultsForNewRows,
     getDisplayScale: currentDisplayScale,

@@ -12,9 +12,7 @@ if ! cargo watch --version >/dev/null 2>&1; then
   exit 1
 fi
 
-"${ROOT}/scripts/gen-tls-cert.sh" "${ROOT}/data"
-
-echo "https://127.0.0.1:5001 (rust api)"
+echo "http://127.0.0.1:5001 (rust api)"
 echo "http://127.0.0.1:4321 (astro ui)"
 
 cargo watch \

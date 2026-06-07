@@ -20,6 +20,7 @@ with mode `0600` and fails the build if it is missing.
 
 ```bash
 ./scripts/br-build-flash.sh --disk /dev/diskN
+./scripts/br-build-flash.sh --device label --disk /dev/diskN
 ```
 
 The command:
@@ -63,6 +64,7 @@ to the running Pi over Wi-Fi:
 
 ```bash
 ./deploy.sh                       # defaults to root@192.168.4.58 / ptlabel
+./deploy.sh --device label        # load devices/label.env
 ./deploy.sh root@192.168.1.42     # different host
 ```
 

@@ -24,19 +24,35 @@ DOCKER_CARGO_VOLUME="${DOCKER_CARGO_VOLUME:-ptlabel-cargo-cache}"
 RUST_DOCKER_IMAGE="${RUST_DOCKER_IMAGE:-rust:latest}"
 CONTAINER_OUT="/br-out"
 RUST_OUT_DIR="${ROOT}/.cache/ptlabel-server"
+MAX_FLASH_BYTES=$((65 * 1000 * 1000 * 1000))
 DISK=""
 DO_BUILD=1
 RUST_ONLY=0
+DEVICE=""
+
+load_device() {
+  local device_name="$1"
+  local device_file="${ROOT}/devices/${device_name}.env"
+  if [[ ! -f "$device_file" ]]; then
+    echo "device profile not found: $device_file" >&2
+    exit 1
+  fi
+  set -a
+  # shellcheck source=/dev/null
+  . "$device_file"
+  set +a
+}
 
 usage() {
   cat <<EOF
 usage: $0 [--disk /dev/diskN] [--flash-only] [--rust-only]
-       $0 [--buildroot-dir PATH] [--out-dir PATH] [--defconfig NAME]
+       $0 [--buildroot-dir PATH] [--out-dir PATH] [--defconfig NAME] [--device NAME]
 
   --rust-only   build only the Rust binary into .cache/ptlabel-server/bin/
                 (used by ./deploy.sh for the fast Pi dev loop)
   --flash-only  skip building, just flash the existing image
   --disk        required unless --rust-only is set
+  --device      load profile from devices/<name>.env
 EOF
 }
 
@@ -46,12 +62,28 @@ while [[ $# -gt 0 ]]; do
     --buildroot-dir) BUILDROOT_DIR="${2:-}"; shift 2 ;;
     --out-dir) HOST_OUT_DIR="${2:-}"; shift 2 ;;
     --defconfig) DEFCONFIG="${2:-}"; shift 2 ;;
+    --device)
+      DEVICE="${2:-}"
+      if [[ -z "$DEVICE" ]]; then
+        echo "--device requires a value" >&2
+        exit 1
+      fi
+      shift 2
+      ;;
+    --device=*) DEVICE="${1#--device=}"; shift ;;
     --flash-only|--no-build) DO_BUILD=0; shift ;;
     --rust-only) RUST_ONLY=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "unknown arg: $1" >&2; usage; exit 1 ;;
   esac
 done
+
+if [[ -n "$DEVICE" ]]; then
+  load_device "$DEVICE"
+fi
+PTLABEL_MDNS_NAME="${PTLABEL_MDNS_NAME:-label}"
+PTLABEL_HOSTNAME="${PTLABEL_HOSTNAME:-ptlabel-pi0}"
+PTLABEL_PORT="${PTLABEL_PORT:-80}"
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
   echo "this script supports macOS host only" >&2
@@ -72,9 +104,18 @@ if [[ $RUST_ONLY -eq 0 ]]; then
     echo "disk not found: $DISK" >&2
     exit 1
   fi
-  if [[ "$(diskutil info "$DISK" | awk -F': *' '/Internal/ {print $2}')" == "Yes" ]] \
-    && [[ "$(diskutil info "$DISK" | awk -F': *' '/Removable Media/ {print $2}')" != "Removable" ]]; then
-    echo "refusing to flash internal non-removable disk: $DISK" >&2
+  DISK_INFO="$(diskutil info "$DISK")"
+  if [[ "$(printf '%s\n' "$DISK_INFO" | awk -F': *' '/Internal/ {print $2}')" == "Yes" ]]; then
+    echo "refusing to flash internal disk: $DISK" >&2
+    exit 1
+  fi
+  DISK_BYTES="$(printf '%s\n' "$DISK_INFO" | awk -F'[()]' '/Disk Size/ {print $2}' | awk '{print $1}')"
+  if [[ -z "${DISK_BYTES}" ]] || [[ ! "${DISK_BYTES}" =~ ^[0-9]+$ ]]; then
+    echo "unable to parse disk size for $DISK" >&2
+    exit 1
+  fi
+  if (( DISK_BYTES > MAX_FLASH_BYTES )); then
+    echo "refusing to flash disk larger than 65GB: $DISK (${DISK_BYTES} bytes)" >&2
     exit 1
   fi
 fi
@@ -124,6 +165,9 @@ build_buildroot_toolchain() {
     -v "${ROOT}:/work" \
     -v "${DOCKER_OUT_VOLUME}:${CONTAINER_OUT}" \
     -v "${DOCKER_DL_VOLUME}:/work/.cache/buildroot/dl" \
+    -e PTLABEL_MDNS_NAME="${PTLABEL_MDNS_NAME}" \
+    -e PTLABEL_HOSTNAME="${PTLABEL_HOSTNAME}" \
+    -e PTLABEL_PORT="${PTLABEL_PORT}" \
     -w /work \
     "$DOCKER_IMAGE" \
     bash -lc "
@@ -203,6 +247,9 @@ build_buildroot_image() {
     -v "${ROOT}:/work" \
     -v "${DOCKER_OUT_VOLUME}:${CONTAINER_OUT}" \
     -v "${DOCKER_DL_VOLUME}:/work/.cache/buildroot/dl" \
+    -e PTLABEL_MDNS_NAME="${PTLABEL_MDNS_NAME}" \
+    -e PTLABEL_HOSTNAME="${PTLABEL_HOSTNAME}" \
+    -e PTLABEL_PORT="${PTLABEL_PORT}" \
     -w /work \
     "$DOCKER_IMAGE" \
     bash -lc "
@@ -261,6 +308,11 @@ if [[ ! -f "$IMG" ]]; then
 fi
 
 echo "about to flash ${IMG} to ${DISK}"
+DISK_SIZE="$(diskutil info "$DISK" | awk -F': *' '/Disk Size/ {split($2, a, " \\("); print a[1]; exit}')"
+echo "type /dev/diskX to confirm"
+if [[ -n "${DISK_SIZE}" ]]; then
+  echo "target size: ${DISK_SIZE}"
+fi
 echo "type ${DISK} to continue:"
 read -r confirm
 if [[ "$confirm" != "$DISK" ]]; then

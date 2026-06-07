@@ -97,8 +97,29 @@ def write_subset(src: Path, family: str, dest: Path) -> str:
     return text
 
 
+def read_metrics(path: Path) -> dict | None:
+    try:
+        font = TTFont(str(path), lazy=True)
+    except Exception as e:
+        print(f"skip metrics {path.name}: {e}", file=sys.stderr)
+        return None
+    try:
+        units = int(font["head"].unitsPerEm)
+        hhea = font["hhea"]
+        return {
+            "ascender": int(hhea.ascent),
+            "descender": int(hhea.descent),
+            "unitsPerEm": units,
+        }
+    except Exception as e:
+        print(f"skip metrics {path.name}: {e}", file=sys.stderr)
+        return None
+    finally:
+        font.close()
+
+
 def build_catalog() -> dict:
-    catalog: dict[str, dict[str, str]] = {}
+    catalog: dict[str, dict] = {}
     paths = sorted(p for p in FONTS_DIR.rglob("*") if p.suffix.lower() in {".ttf", ".otf"})
     for path in paths:
         if path.is_relative_to(PREVIEWS_DIR):
@@ -111,9 +132,13 @@ def build_catalog() -> dict:
             continue
         family = family.strip() or path.stem
         variant = variant_from_name(path.name, style)
-        entry = catalog.setdefault(family, {})
-        if variant not in entry:
-            entry[variant] = path.relative_to(FONTS_DIR).as_posix()
+        entry = catalog.setdefault(family, {"variants": {}, "metrics": {}})
+        if variant in entry["variants"]:
+            continue
+        entry["variants"][variant] = path.relative_to(FONTS_DIR).as_posix()
+        metrics = read_metrics(path)
+        if metrics:
+            entry["metrics"][variant] = metrics
     return dict(sorted(catalog.items()))
 
 
@@ -123,7 +148,8 @@ def build_previews(catalog: dict) -> dict:
     used_slugs: set[str] = set()
     expected_files: set[str] = set()
 
-    for family, variants in catalog.items():
+    for family, entry in catalog.items():
+        variants = entry["variants"]
         variant = pick_variant(variants)
         if not variant:
             continue

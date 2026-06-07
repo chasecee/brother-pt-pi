@@ -2,9 +2,10 @@
 set -u
 
 TTY=/dev/tty1
-URL=https://127.0.0.1/api/status
+URL=http://127.0.0.1/api/status
 SERVER_LOG=/var/log/ptlabel/server.log
 WIFI_LOG=/var/log/wifi.log
+BOOT_LOG=/var/log/ptlabel/boot.log
 
 iface_ip() {
   ip -4 -o addr show dev "$1" 2>/dev/null | awk '{split($4,a,"/"); print a[1]}'
@@ -51,6 +52,10 @@ while :; do
     if [ -f "$SERVER_LOG" ]; then
       printf '\n--- server.log ---\n'
       tail -n 6 "$SERVER_LOG"
+    fi
+    if [ -f "$BOOT_LOG" ]; then
+      printf '\n--- boot.log ---\n'
+      tail -n 6 "$BOOT_LOG"
     fi
   } >"$TTY" 2>/dev/null
 

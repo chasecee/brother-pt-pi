@@ -5,17 +5,16 @@ mod icons;
 mod printer;
 mod state;
 mod sysinfo;
-mod tls;
 
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use axum::body::Bytes;
-use axum::extract::{Multipart, Query, Request, State};
+use axum::extract::{Multipart, Query, State};
 use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{any, get, post};
+use axum::routing::{get, post};
 use axum::{Json, Router};
 use base64::Engine;
 use clap::Parser;
@@ -37,7 +36,7 @@ use crate::state::StateStore;
 struct Args {
     #[arg(long, default_value = "0.0.0.0")]
     host: String,
-    #[arg(long, default_value_t = 443)]
+    #[arg(long, default_value_t = 80)]
     port: u16,
     #[arg(long, env = "PTLABEL_ROOT")]
     root: Option<PathBuf>,
@@ -120,6 +119,13 @@ fn deployed_at_from_static_index(root: &Path) -> String {
         .unwrap_or_else(|| "0".to_string())
 }
 
+fn boot_uptime_secs() -> Option<f64> {
+    std::fs::read_to_string("/proc/uptime")
+        .ok()
+        .and_then(|s| s.split_whitespace().next().map(str::to_owned))
+        .and_then(|v| v.parse::<f64>().ok())
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
@@ -137,10 +143,6 @@ async fn main() -> anyhow::Result<()> {
     });
     let data_dir = args.data_dir.unwrap_or_else(|| root.join("data"));
 
-    rustls_rustcrypto::provider()
-        .install_default()
-        .map_err(|_| anyhow::anyhow!("rustls provider already installed"))?;
-    let tls_config = tls::load(&data_dir).await?;
     let defaults = LabelDefaults::from_env();
     let limits = Limits::new();
     let store = Arc::new(StateStore::new(
@@ -233,21 +235,26 @@ async fn main() -> anyhow::Result<()> {
         .with_state(state);
 
     let addr: SocketAddr = format!("{}:{}", args.host, args.port).parse()?;
+    if let Some(boot_s) = boot_uptime_secs() {
+        tracing::info!(
+            "ptlabel-server bind-start uptime={boot_s:.3}s host={} port={}",
+            args.host,
+            args.port
+        );
+    }
     tracing::info!(
-        "ptlabel-server listening on https://{addr} (dev={})",
+        "ptlabel-server listening on http://{addr} (dev={})",
         args.dev
     );
 
-    spawn_http_redirect(args.host.clone(), args.port);
     advertise_mdns(&args.mdns_name, args.port);
 
-    axum_server::bind_rustls(addr, tls_config)
-        .serve(app.into_make_service())
-        .await?;
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    axum::serve(listener, app.into_make_service()).await?;
     Ok(())
 }
 
-fn advertise_mdns(name: &str, https_port: u16) {
+fn advertise_mdns(name: &str, port: u16) {
     let name = name.trim().trim_end_matches('.').trim_end_matches(".local");
     if name.is_empty() {
         tracing::info!("mdns: disabled (empty name)");
@@ -262,11 +269,11 @@ fn advertise_mdns(name: &str, https_port: u16) {
     };
     let host_name = format!("{name}.local.");
     let info = match mdns_sd::ServiceInfo::new(
-        "_https._tcp.local.",
+        "_http._tcp.local.",
         "PTLabel",
         &host_name,
         "",
-        https_port,
+        port,
         &[("path", "/")][..],
     ) {
         Ok(i) => i.enable_addr_auto(),
@@ -276,7 +283,7 @@ fn advertise_mdns(name: &str, https_port: u16) {
         }
     };
     match daemon.register(info) {
-        Ok(()) => tracing::info!("mdns: advertising {host_name} _https._tcp port {https_port}"),
+        Ok(()) => tracing::info!("mdns: advertising {host_name} _http._tcp port {port}"),
         Err(e) => {
             tracing::warn!("mdns: register failed: {e}");
             return;
@@ -284,57 +291,6 @@ fn advertise_mdns(name: &str, https_port: u16) {
     }
     static MDNS: std::sync::OnceLock<mdns_sd::ServiceDaemon> = std::sync::OnceLock::new();
     let _ = MDNS.set(daemon);
-}
-
-fn spawn_http_redirect(host: String, https_port: u16) {
-    let addr: SocketAddr = match format!("{host}:80").parse() {
-        Ok(a) => a,
-        Err(e) => {
-            tracing::warn!("http redirect: bad bind addr {host}:80: {e}");
-            return;
-        }
-    };
-    let app = Router::new()
-        .fallback(any(redirect_to_https))
-        .with_state(https_port);
-    tokio::spawn(async move {
-        match tokio::net::TcpListener::bind(addr).await {
-            Ok(listener) => {
-                tracing::info!("http->https redirect listening on http://{addr}");
-                if let Err(e) = axum::serve(listener, app).await {
-                    tracing::warn!("http redirect listener exited: {e}");
-                }
-            }
-            Err(e) => tracing::warn!("http redirect listener on :80 not started: {e}"),
-        }
-    });
-}
-
-async fn redirect_to_https(State(https_port): State<u16>, req: Request) -> Response {
-    let host = req
-        .headers()
-        .get(header::HOST)
-        .and_then(|h| h.to_str().ok())
-        .map(|h| h.split(':').next().unwrap_or(h))
-        .filter(|h| !h.is_empty());
-    let Some(host) = host else {
-        return (StatusCode::BAD_REQUEST, "missing Host header").into_response();
-    };
-    let pq = req
-        .uri()
-        .path_and_query()
-        .map(|p| p.as_str())
-        .unwrap_or("/");
-    let location = if https_port == 443 {
-        format!("https://{host}{pq}")
-    } else {
-        format!("https://{host}:{https_port}{pq}")
-    };
-    (
-        StatusCode::PERMANENT_REDIRECT,
-        [(header::LOCATION, location)],
-    )
-        .into_response()
 }
 
 async fn index(State(state): State<AppState>) -> Response {

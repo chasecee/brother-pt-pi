@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use parking_lot::Mutex;
 use serde_json::{json, Value};
 
-use crate::blocks::{migrate_draft, migrate_label_dict};
+use crate::blocks::{extract_label_blocks, normalize_draft};
 use crate::config::{self, LabelDefaults, Limits, QUEUE_MAX, RECENT_MAX};
 
 pub struct StateStore {
@@ -90,10 +90,10 @@ impl StateStore {
     }
 
     fn normalize_label(&self, raw: &Value) -> Option<Value> {
-        let blocks = migrate_label_dict(raw, &self.limits)?;
         if !raw.is_object() {
             return None;
         }
+        let blocks = extract_label_blocks(raw, &self.limits)?;
         let d = &self.defaults;
         let lim = &self.limits;
         let family = raw
@@ -115,10 +115,6 @@ impl StateStore {
             "icon_gap": config::clamp_int(&raw["icon_gap"], d.icon_gap, lim.icon_gap[0], lim.icon_gap[1]),
             "icon_size": config::coerce_float(&raw["icon_size"], d.icon_size).clamp(lim.icon_size[0], lim.icon_size[1]),
         }))
-    }
-
-    fn normalize_label_from_meta(&self, meta: &Value) -> Option<Value> {
-        self.normalize_label(meta)
     }
 
     fn normalize_queue(&self, raw: &Value) -> Vec<Value> {
@@ -158,7 +154,7 @@ impl StateStore {
             return state;
         }
         state["prefs"] = self.normalize_prefs(&raw["prefs"]);
-        state["draft"] = migrate_draft(&raw["draft"], &self.limits);
+        state["draft"] = normalize_draft(&raw["draft"], &self.limits);
         state["queue"] = json!(self.normalize_queue(&raw["queue"]));
         state["recent"] = json!(self.normalize_recent(&raw["recent"]));
         state
@@ -223,7 +219,7 @@ impl StateStore {
             state["prefs"] = self.normalize_prefs(&p);
         }
         if let Some(d) = draft {
-            state["draft"] = migrate_draft(&d, &self.limits);
+            state["draft"] = normalize_draft(&d, &self.limits);
         }
         if let Some(q) = queue {
             state["queue"] = json!(self.normalize_queue(&q));
@@ -238,13 +234,8 @@ impl StateStore {
         let mut recent = state["recent"].as_array().cloned().unwrap_or_default();
         let now = chrono_now();
 
-        for raw in items.iter().rev() {
-            let meta = if raw.get("meta").is_some() {
-                raw.get("meta").unwrap()
-            } else {
-                raw
-            };
-            let Some(mut label) = self.normalize_label_from_meta(meta) else {
+        for meta in items.iter().rev() {
+            let Some(mut label) = self.normalize_label(meta) else {
                 continue;
             };
             label["printed_at"] = json!(now);

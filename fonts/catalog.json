@@ -1,228 +1,986 @@
 {
   "AR TianNiuGB BD": {
-    "bold": "artianniugb_bd.otf"
+    "variants": {
+      "bold": "artianniugb_bd.otf"
+    },
+    "metrics": {
+      "bold": {
+        "ascender": 880,
+        "descender": -120,
+        "unitsPerEm": 1000
+      }
+    }
   },
   "AR UDJingXiHeiGB BD": {
-    "bold": "arudjingxiheie1g30_bd.otf"
+    "variants": {
+      "bold": "arudjingxiheie1g30_bd.otf"
+    },
+    "metrics": {
+      "bold": {
+        "ascender": 948,
+        "descender": -241,
+        "unitsPerEm": 1000
+      }
+    }
   },
   "AXIS Basic ProN": {
-    "bold": "AxisBrotherBasicProN-B.otf"
+    "variants": {
+      "bold": "AxisBrotherBasicProN-B.otf"
+    },
+    "metrics": {
+      "bold": {
+        "ascender": 880,
+        "descender": -120,
+        "unitsPerEm": 1000
+      }
+    }
   },
   "AXIS Cond ProN": {
-    "regular": "AxisBrotherCondProN-R.otf"
+    "variants": {
+      "regular": "AxisBrotherCondProN-R.otf"
+    },
+    "metrics": {
+      "regular": {
+        "ascender": 880,
+        "descender": -120,
+        "unitsPerEm": 1000
+      }
+    }
   },
   "Atlanta": {
-    "bold": "BRATLBS0.TTF",
-    "italic": "BRATLIS0.TTF",
-    "regular": "BRATLRS0.TTF",
-    "boldItalic": "BRATLVS0.TTF"
+    "variants": {
+      "bold": "BRATLBS0.TTF",
+      "italic": "BRATLIS0.TTF",
+      "regular": "BRATLRS0.TTF",
+      "boldItalic": "BRATLVS0.TTF"
+    },
+    "metrics": {
+      "bold": {
+        "ascender": 2212,
+        "descender": -512,
+        "unitsPerEm": 2048
+      },
+      "italic": {
+        "ascender": 2202,
+        "descender": -533,
+        "unitsPerEm": 2048
+      },
+      "regular": {
+        "ascender": 2202,
+        "descender": -533,
+        "unitsPerEm": 2048
+      },
+      "boldItalic": {
+        "ascender": 2212,
+        "descender": -512,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "BR Face J1": {
-    "regular": "BRFACEJ1.TTF"
+    "variants": {
+      "regular": "BRFACEJ1.TTF"
+    },
+    "metrics": {
+      "regular": {
+        "ascender": 2048,
+        "descender": -1,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "BR Face J2": {
-    "regular": "BRFACEJ2.TTF"
+    "variants": {
+      "regular": "BRFACEJ2.TTF"
+    },
+    "metrics": {
+      "regular": {
+        "ascender": 2049,
+        "descender": 0,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "BR Face J3": {
-    "regular": "BRFACEJ3.TTF"
+    "variants": {
+      "regular": "BRFACEJ3.TTF"
+    },
+    "metrics": {
+      "regular": {
+        "ascender": 2048,
+        "descender": -1,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "BR Face J4": {
-    "regular": "BRFACEJ4.TTF"
+    "variants": {
+      "regular": "BRFACEJ4.TTF"
+    },
+    "metrics": {
+      "regular": {
+        "ascender": 2048,
+        "descender": 0,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "BR-OCRB": {
-    "regular": "BROCBRT0.TTF"
+    "variants": {
+      "regular": "BROCBRT0.TTF"
+    },
+    "metrics": {
+      "regular": {
+        "ascender": 1810,
+        "descender": -821,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "Belgium": {
-    "regular": "BRBELRT0.TTF"
+    "variants": {
+      "regular": "BRBELRT0.TTF"
+    },
+    "metrics": {
+      "regular": {
+        "ascender": 2160,
+        "descender": -385,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "Berlin": {
-    "regular": "BRBLIBS0.TTF"
+    "variants": {
+      "regular": "BRBLIBS0.TTF"
+    },
+    "metrics": {
+      "regular": {
+        "ascender": 1861,
+        "descender": -496,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "Bermuda Script": {
-    "regular": "BRBERRT0.TTF"
+    "variants": {
+      "regular": "BRBERRT0.TTF"
+    },
+    "metrics": {
+      "regular": {
+        "ascender": 1885,
+        "descender": -543,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "Brougham": {
-    "bold": "BRBROBS0.TTF",
-    "italic": "BRBROIS0.TTF",
-    "regular": "BRBRORS0.TTF",
-    "boldItalic": "BRBROVS0.TTF"
+    "variants": {
+      "bold": "BRBROBS0.TTF",
+      "italic": "BRBROIS0.TTF",
+      "regular": "BRBRORS0.TTF",
+      "boldItalic": "BRBROVS0.TTF"
+    },
+    "metrics": {
+      "bold": {
+        "ascender": 1884,
+        "descender": -461,
+        "unitsPerEm": 2048
+      },
+      "italic": {
+        "ascender": 1884,
+        "descender": -461,
+        "unitsPerEm": 2048
+      },
+      "regular": {
+        "ascender": 1884,
+        "descender": -461,
+        "unitsPerEm": 2048
+      },
+      "boldItalic": {
+        "ascender": 1884,
+        "descender": -461,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "Brunei": {
-    "bold": "BRBRNBS0.TTF",
-    "regular": "BRBRNRS0.TTF"
+    "variants": {
+      "bold": "BRBRNBS0.TTF",
+      "regular": "BRBRNRS0.TTF"
+    },
+    "metrics": {
+      "bold": {
+        "ascender": 2026,
+        "descender": -328,
+        "unitsPerEm": 2048
+      },
+      "regular": {
+        "ascender": 2030,
+        "descender": -328,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "Brussels": {
-    "bold": "BRBRUBS0.TTF",
-    "italic": "BRBRUIS0.TTF",
-    "regular": "BRBRURS0.TTF",
-    "boldItalic": "BRBRUVS0.TTF"
+    "variants": {
+      "bold": "BRBRUBS0.TTF",
+      "italic": "BRBRUIS0.TTF",
+      "regular": "BRBRURS0.TTF",
+      "boldItalic": "BRBRUVS0.TTF"
+    },
+    "metrics": {
+      "bold": {
+        "ascender": 2028,
+        "descender": -492,
+        "unitsPerEm": 2048
+      },
+      "italic": {
+        "ascender": 1966,
+        "descender": -492,
+        "unitsPerEm": 2048
+      },
+      "regular": {
+        "ascender": 1966,
+        "descender": -492,
+        "unitsPerEm": 2048
+      },
+      "boldItalic": {
+        "ascender": 2028,
+        "descender": -492,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "Brussels Condensed": {
-    "bold": "brbrcbt0.ttf",
-    "italic": "brbrcit0.ttf",
-    "regular": "brbrcrt0.ttf",
-    "boldItalic": "brbrcvt0.ttf"
+    "variants": {
+      "bold": "brbrcbt0.ttf",
+      "italic": "brbrcit0.ttf",
+      "regular": "brbrcrt0.ttf",
+      "boldItalic": "brbrcvt0.ttf"
+    },
+    "metrics": {
+      "bold": {
+        "ascender": 2028,
+        "descender": -492,
+        "unitsPerEm": 2048
+      },
+      "italic": {
+        "ascender": 1966,
+        "descender": -492,
+        "unitsPerEm": 2048
+      },
+      "regular": {
+        "ascender": 1966,
+        "descender": -492,
+        "unitsPerEm": 2048
+      },
+      "boldItalic": {
+        "ascender": 2028,
+        "descender": -492,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "Calgary": {
-    "boldItalic": "BRCALIS0.TTF"
+    "variants": {
+      "boldItalic": "BRCALIS0.TTF"
+    },
+    "metrics": {
+      "boldItalic": {
+        "ascender": 1885,
+        "descender": -548,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "Connecticut": {
-    "italic": "BRCONRC0.TTF"
+    "variants": {
+      "italic": "BRCONRC0.TTF"
+    },
+    "metrics": {
+      "italic": {
+        "ascender": 1999,
+        "descender": -1086,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "Copenhagen": {
-    "bold": "BRCOPBS0.TTF",
-    "italic": "BRCOPIS0.TTF",
-    "regular": "BRCOPRS0.TTF",
-    "boldItalic": "BRCOPVS0.TTF"
+    "variants": {
+      "bold": "BRCOPBS0.TTF",
+      "italic": "BRCOPIS0.TTF",
+      "regular": "BRCOPRS0.TTF",
+      "boldItalic": "BRCOPVS0.TTF"
+    },
+    "metrics": {
+      "bold": {
+        "ascender": 2109,
+        "descender": -532,
+        "unitsPerEm": 2048
+      },
+      "italic": {
+        "ascender": 2081,
+        "descender": -532,
+        "unitsPerEm": 2048
+      },
+      "regular": {
+        "ascender": 2087,
+        "descender": -532,
+        "unitsPerEm": 2048
+      },
+      "boldItalic": {
+        "ascender": 2109,
+        "descender": -535,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "CopperplateTMed": {
-    "regular": "c041014t2_2.ttf"
+    "variants": {
+      "regular": "c041014t2_2.ttf"
+    },
+    "metrics": {
+      "regular": {
+        "ascender": 1992,
+        "descender": -465,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "Coronet IB": {
-    "regular": "c093000ib_4.ttf"
+    "variants": {
+      "regular": "c093000ib_4.ttf"
+    },
+    "metrics": {
+      "regular": {
+        "ascender": 1948,
+        "descender": -510,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "DomCasualD": {
-    "regular": "d013013d.ttf"
+    "variants": {
+      "regular": "d013013d.ttf"
+    },
+    "metrics": {
+      "regular": {
+        "ascender": 1789,
+        "descender": -669,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "FetteMitD": {
-    "regular": "f005000d_2.ttf"
+    "variants": {
+      "regular": "f005000d_2.ttf"
+    },
+    "metrics": {
+      "regular": {
+        "ascender": 2042,
+        "descender": -416,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "FuturaT": {
-    "regular": "f011003t_2.ttf"
+    "variants": {
+      "regular": "f011003t_2.ttf"
+    },
+    "metrics": {
+      "regular": {
+        "ascender": 1939,
+        "descender": -519,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "Germany": {
-    "regular": "BRGERRT0.TTF"
+    "variants": {
+      "regular": "BRGERRT0.TTF"
+    },
+    "metrics": {
+      "regular": {
+        "ascender": 1884,
+        "descender": -553,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "Guatemala": {
-    "bold": "BRGUABC0.TTF",
-    "italic": "BRGUAIC0.TTF",
-    "regular": "BRGUARC0.TTF",
-    "boldItalic": "BRGUAVC0.TTF"
+    "variants": {
+      "bold": "BRGUABC0.TTF",
+      "italic": "BRGUAIC0.TTF",
+      "regular": "BRGUARC0.TTF",
+      "boldItalic": "BRGUAVC0.TTF"
+    },
+    "metrics": {
+      "bold": {
+        "ascender": 2217,
+        "descender": -771,
+        "unitsPerEm": 2048
+      },
+      "italic": {
+        "ascender": 2228,
+        "descender": -794,
+        "unitsPerEm": 2048
+      },
+      "regular": {
+        "ascender": 2228,
+        "descender": -794,
+        "unitsPerEm": 2048
+      },
+      "boldItalic": {
+        "ascender": 2267,
+        "descender": -775,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "Helsinki": {
-    "bold": "BRHELBS0.TTF",
-    "italic": "BRHELIS0.TTF",
-    "regular": "BRHELRS0.TTF",
-    "boldItalic": "BRHELVS0.TTF"
+    "variants": {
+      "bold": "BRHELBS0.TTF",
+      "italic": "BRHELIS0.TTF",
+      "regular": "BRHELRS0.TTF",
+      "boldItalic": "BRHELVS0.TTF"
+    },
+    "metrics": {
+      "bold": {
+        "ascender": 2140,
+        "descender": -492,
+        "unitsPerEm": 2048
+      },
+      "italic": {
+        "ascender": 2120,
+        "descender": -522,
+        "unitsPerEm": 2048
+      },
+      "regular": {
+        "ascender": 2120,
+        "descender": -522,
+        "unitsPerEm": 2048
+      },
+      "boldItalic": {
+        "ascender": 2140,
+        "descender": -492,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "Helsinki Narrow": {
-    "bold": "BRHENBS0.TTF",
-    "italic": "BRHENIS0.TTF",
-    "regular": "BRHENRS0.TTF",
-    "boldItalic": "BRHENVS0.TTF"
+    "variants": {
+      "bold": "BRHENBS0.TTF",
+      "italic": "BRHENIS0.TTF",
+      "regular": "BRHENRS0.TTF",
+      "boldItalic": "BRHENVS0.TTF"
+    },
+    "metrics": {
+      "bold": {
+        "ascender": 2140,
+        "descender": -492,
+        "unitsPerEm": 2048
+      },
+      "italic": {
+        "ascender": 2120,
+        "descender": -522,
+        "unitsPerEm": 2048
+      },
+      "regular": {
+        "ascender": 2120,
+        "descender": -522,
+        "unitsPerEm": 2048
+      },
+      "boldItalic": {
+        "ascender": 2140,
+        "descender": -492,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "ImpactURW": {
-    "regular": "i014003t_2.ttf"
+    "variants": {
+      "regular": "i014003t_2.ttf"
+    },
+    "metrics": {
+      "regular": {
+        "ascender": 1946,
+        "descender": -512,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "Istanbul": {
-    "regular": "BRISTRT0.TTF"
+    "variants": {
+      "regular": "BRISTRT0.TTF"
+    },
+    "metrics": {
+      "regular": {
+        "ascender": 2251,
+        "descender": -464,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "Koubai Kyokasho": {
-    "regular": "BRKOUMW0.TTF"
+    "variants": {
+      "regular": "BRKOUMW0.TTF"
+    },
+    "metrics": {
+      "regular": {
+        "ascender": 994,
+        "descender": -220,
+        "unitsPerEm": 1000
+      }
+    }
   },
   "Letter Gothic": {
-    "bold": "BRLGOBC0.TTF",
-    "italic": "BRLGOIC0.TTF",
-    "regular": "BRLGORC0.TTF"
+    "variants": {
+      "bold": "BRLGOBC0.TTF",
+      "italic": "BRLGOIC0.TTF",
+      "regular": "BRLGORC0.TTF"
+    },
+    "metrics": {
+      "bold": {
+        "ascender": 2048,
+        "descender": -512,
+        "unitsPerEm": 2048
+      },
+      "italic": {
+        "ascender": 1987,
+        "descender": -545,
+        "unitsPerEm": 2048
+      },
+      "regular": {
+        "ascender": 1987,
+        "descender": -545,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "Misugi Gothic-B": {
-    "regular": "BRMISBW0.TTF"
+    "variants": {
+      "regular": "BRMISBW0.TTF"
+    },
+    "metrics": {
+      "regular": {
+        "ascender": 990,
+        "descender": -220,
+        "unitsPerEm": 1000
+      }
+    }
   },
   "Misugi Gothic-L": {
-    "regular": "BRMISLW0.TTF"
+    "variants": {
+      "regular": "BRMISLW0.TTF"
+    },
+    "metrics": {
+      "regular": {
+        "ascender": 990,
+        "descender": -220,
+        "unitsPerEm": 1000
+      }
+    }
   },
   "Misugi Gothic-M": {
-    "regular": "BRMISMW0.TTF"
+    "variants": {
+      "regular": "BRMISMW0.TTF"
+    },
+    "metrics": {
+      "regular": {
+        "ascender": 990,
+        "descender": -220,
+        "unitsPerEm": 1000
+      }
+    }
   },
   "Oklahoma": {
-    "bold": "BROKLBC0.TTF",
-    "italic": "BROKLIC0.TTF",
-    "regular": "BROKLRC0.TTF",
-    "boldItalic": "BROKLVC0.TTF"
+    "variants": {
+      "bold": "BROKLBC0.TTF",
+      "italic": "BROKLIC0.TTF",
+      "regular": "BROKLRC0.TTF",
+      "boldItalic": "BROKLVC0.TTF"
+    },
+    "metrics": {
+      "bold": {
+        "ascender": 2108,
+        "descender": -748,
+        "unitsPerEm": 2048
+      },
+      "italic": {
+        "ascender": 2138,
+        "descender": -750,
+        "unitsPerEm": 2048
+      },
+      "regular": {
+        "ascender": 2138,
+        "descender": -750,
+        "unitsPerEm": 2048
+      },
+      "boldItalic": {
+        "ascender": 2108,
+        "descender": -748,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "PT Dingbats 1": {
-    "regular": "BRDB1RT0.TTF"
+    "variants": {
+      "regular": "BRDB1RT0.TTF"
+    },
+    "metrics": {
+      "regular": {
+        "ascender": 1759,
+        "descender": -410,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "PT Dingbats 2": {
-    "regular": "BRDB2RT0.TTF"
+    "variants": {
+      "regular": "BRDB2RT0.TTF"
+    },
+    "metrics": {
+      "regular": {
+        "ascender": 1931,
+        "descender": -399,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "PT Dingbats 3": {
-    "regular": "BRDB3RT0.TTF"
+    "variants": {
+      "regular": "BRDB3RT0.TTF"
+    },
+    "metrics": {
+      "regular": {
+        "ascender": 1720,
+        "descender": -328,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "PT Dingbats 4": {
-    "regular": "BRDB4RT0.TTF"
+    "variants": {
+      "regular": "BRDB4RT0.TTF"
+    },
+    "metrics": {
+      "regular": {
+        "ascender": 1720,
+        "descender": -328,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "PT Symbol 1": {
-    "regular": "brsy1rt0.ttf"
+    "variants": {
+      "regular": "brsy1rt0.ttf"
+    },
+    "metrics": {
+      "regular": {
+        "ascender": 1884,
+        "descender": -687,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "PT Symbol 2": {
-    "regular": "brsy2rt0.ttf"
+    "variants": {
+      "regular": "brsy2rt0.ttf"
+    },
+    "metrics": {
+      "regular": {
+        "ascender": 1889,
+        "descender": -643,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "PT Utah Condensed": {
-    "bold": "BRUTCBT0.TTF",
-    "italic": "BRUTCIT0.TTF",
-    "regular": "BRUTCRT0.TTF",
-    "boldItalic": "BRUTCVT0.TTF"
+    "variants": {
+      "bold": "BRUTCBT0.TTF",
+      "italic": "BRUTCIT0.TTF",
+      "regular": "BRUTCRT0.TTF",
+      "boldItalic": "BRUTCVT0.TTF"
+    },
+    "metrics": {
+      "bold": {
+        "ascender": 1909,
+        "descender": -512,
+        "unitsPerEm": 2048
+      },
+      "italic": {
+        "ascender": 1884,
+        "descender": -512,
+        "unitsPerEm": 2048
+      },
+      "regular": {
+        "ascender": 1884,
+        "descender": -512,
+        "unitsPerEm": 2048
+      },
+      "boldItalic": {
+        "ascender": 1909,
+        "descender": -512,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "PT??": {
-    "regular": "PTRK-MM.otf"
+    "variants": {
+      "regular": "PTRK-MM.otf"
+    },
+    "metrics": {
+      "regular": {
+        "ascender": 880,
+        "descender": -120,
+        "unitsPerEm": 1000
+      }
+    }
   },
   "PTC Dingbats2": {
-    "regular": "PtcDingbats2.otf"
+    "variants": {
+      "regular": "PtcDingbats2.otf"
+    },
+    "metrics": {
+      "regular": {
+        "ascender": 1661,
+        "descender": -387,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "PTC Dingbats3": {
-    "regular": "PtcDingbats3.otf"
+    "variants": {
+      "regular": "PtcDingbats3.otf"
+    },
+    "metrics": {
+      "regular": {
+        "ascender": 1661,
+        "descender": -387,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "PTRoundToday": {
-    "bold": "PTRoundToday-B.otf"
+    "variants": {
+      "bold": "PTRoundToday-B.otf"
+    },
+    "metrics": {
+      "bold": {
+        "ascender": 1131,
+        "descender": -149,
+        "unitsPerEm": 1000
+      }
+    }
   },
   "Portugal": {
-    "bold": "BRPORBS0.TTF",
-    "italic": "BRPORIS0.TTF",
-    "regular": "BRPORRS0.TTF",
-    "boldItalic": "BRPORVS0.TTF"
+    "variants": {
+      "bold": "BRPORBS0.TTF",
+      "italic": "BRPORIS0.TTF",
+      "regular": "BRPORRS0.TTF",
+      "boldItalic": "BRPORVS0.TTF"
+    },
+    "metrics": {
+      "bold": {
+        "ascender": 1966,
+        "descender": -532,
+        "unitsPerEm": 2048
+      },
+      "italic": {
+        "ascender": 1966,
+        "descender": -532,
+        "unitsPerEm": 2048
+      },
+      "regular": {
+        "ascender": 1966,
+        "descender": -532,
+        "unitsPerEm": 2048
+      },
+      "boldItalic": {
+        "ascender": 1966,
+        "descender": -532,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "Renka Gyosho": {
-    "regular": "BRRENMW0.TTF"
+    "variants": {
+      "regular": "BRRENMW0.TTF"
+    },
+    "metrics": {
+      "regular": {
+        "ascender": 994,
+        "descender": -220,
+        "unitsPerEm": 1000
+      }
+    }
   },
   "Ryuga Pensho": {
-    "regular": "BRRYUMW0.TTF"
+    "variants": {
+      "regular": "BRRYUMW0.TTF"
+    },
+    "metrics": {
+      "regular": {
+        "ascender": 994,
+        "descender": -220,
+        "unitsPerEm": 1000
+      }
+    }
   },
   "San Diego": {
-    "regular": "BRSANRT0.TTF"
+    "variants": {
+      "regular": "BRSANRT0.TTF"
+    },
+    "metrics": {
+      "regular": {
+        "ascender": 1946,
+        "descender": -410,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "TBPGothic": {
-    "regular": "TBGoStd-SuperLight.otf"
+    "variants": {
+      "regular": "TBGoStd-SuperLight.otf"
+    },
+    "metrics": {
+      "regular": {
+        "ascender": 880,
+        "descender": -120,
+        "unitsPerEm": 1000
+      }
+    }
   },
   "TBPGothicPro": {
-    "bold": "TBGoPro-Bold.otf",
-    "regular": "TBGoPro-Regular.otf"
+    "variants": {
+      "bold": "TBGoPro-Bold.otf",
+      "regular": "TBGoPro-Regular.otf"
+    },
+    "metrics": {
+      "bold": {
+        "ascender": 880,
+        "descender": -120,
+        "unitsPerEm": 1000
+      },
+      "regular": {
+        "ascender": 880,
+        "descender": -120,
+        "unitsPerEm": 1000
+      }
+    }
   },
   "TBPRGothicPro": {
-    "regular": "TBRGoPro-SuperLight.otf"
+    "variants": {
+      "regular": "TBRGoPro-SuperLight.otf"
+    },
+    "metrics": {
+      "regular": {
+        "ascender": 880,
+        "descender": -120,
+        "unitsPerEm": 1000
+      }
+    }
   },
   "TBPYokobutoMincho": {
-    "bold": "TBYMinStd-Heavy.otf"
+    "variants": {
+      "bold": "TBYMinStd-Heavy.otf"
+    },
+    "metrics": {
+      "bold": {
+        "ascender": 880,
+        "descender": -120,
+        "unitsPerEm": 1000
+      }
+    }
   },
   "TBShinKai": {
-    "bold": "TRoShinKaiStd-Md.otf"
+    "variants": {
+      "bold": "TRoShinKaiStd-Md.otf"
+    },
+    "metrics": {
+      "bold": {
+        "ascender": 880,
+        "descender": -120,
+        "unitsPerEm": 1000
+      }
+    }
   },
   "Touka Maru Gothic-L": {
-    "regular": "BRTOULW0.TTF"
+    "variants": {
+      "regular": "BRTOULW0.TTF"
+    },
+    "metrics": {
+      "regular": {
+        "ascender": 1002,
+        "descender": -233,
+        "unitsPerEm": 1000
+      }
+    }
   },
   "US": {
-    "regular": "BRUS_RT0.TTF"
+    "variants": {
+      "regular": "BRUS_RT0.TTF"
+    },
+    "metrics": {
+      "regular": {
+        "ascender": 1929,
+        "descender": -328,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "Utah": {
-    "bold": "BRUTABC0.TTF",
-    "italic": "BRUTAIC0.TTF",
-    "regular": "BRUTARC0.TTF",
-    "boldItalic": "BRUTAVC0.TTF"
+    "variants": {
+      "bold": "BRUTABC0.TTF",
+      "italic": "BRUTAIC0.TTF",
+      "regular": "BRUTARC0.TTF",
+      "boldItalic": "BRUTAVC0.TTF"
+    },
+    "metrics": {
+      "bold": {
+        "ascender": 1944,
+        "descender": -512,
+        "unitsPerEm": 2048
+      },
+      "italic": {
+        "ascender": 1944,
+        "descender": -512,
+        "unitsPerEm": 2048
+      },
+      "regular": {
+        "ascender": 1944,
+        "descender": -512,
+        "unitsPerEm": 2048
+      },
+      "boldItalic": {
+        "ascender": 1944,
+        "descender": -512,
+        "unitsPerEm": 2048
+      }
+    }
   },
   "Wazakura Mincho-B": {
-    "regular": "BRWAZBW0.TTF"
+    "variants": {
+      "regular": "BRWAZBW0.TTF"
+    },
+    "metrics": {
+      "regular": {
+        "ascender": 998,
+        "descender": -226,
+        "unitsPerEm": 1000
+      }
+    }
   },
   "Wazakura Mincho-M": {
-    "regular": "BRWAZMW0.TTF"
+    "variants": {
+      "regular": "BRWAZMW0.TTF"
+    },
+    "metrics": {
+      "regular": {
+        "ascender": 994,
+        "descender": -220,
+        "unitsPerEm": 1000
+      }
+    }
   }
 }

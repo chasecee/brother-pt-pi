@@ -34,13 +34,6 @@ define PTLABEL_SERVER_INSTALL_TARGET_CMDS
 	mkdir -p "$(TARGET_DIR)$(PTLABEL_SERVER_INSTALL_ROOT)/bin"
 	install -D -m 0755 "$(@D)/ptlabel-server" "$(TARGET_DIR)$(PTLABEL_SERVER_INSTALL_ROOT)/bin/ptlabel-server"
 
-	mkdir -p "$(TARGET_DIR)$(PTLABEL_SERVER_INSTALL_ROOT)/data/tls"
-	if command -v openssl >/dev/null 2>&1; then \
-	  PTLABEL_MDNS_NAME=label PTLABEL_HOSTNAME=ptlabel-pi0 \
-	    "$(PTLABEL_SERVER_SOURCE_ROOT)/scripts/gen-tls-cert.sh" \
-	    "$(TARGET_DIR)$(PTLABEL_SERVER_INSTALL_ROOT)/data/tls"; \
-	fi
-
 	mkdir -p "$(TARGET_DIR)$(PTLABEL_SERVER_INSTALL_ROOT)/static"
 	cp -a "$(PTLABEL_SERVER_LOCAL_STATIC)/." "$(TARGET_DIR)$(PTLABEL_SERVER_INSTALL_ROOT)/static/"
 
