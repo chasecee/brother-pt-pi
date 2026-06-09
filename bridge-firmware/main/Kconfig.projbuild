@@ -1,0 +1,28 @@
+menu "PTLabel Bridge"
+
+config BRIDGE_WIFI_SSID
+    string "WiFi SSID"
+    default "changeme"
+
+config BRIDGE_WIFI_PASSWORD
+    string "WiFi password"
+    default "changeme"
+
+config BRIDGE_LED_GPIO
+    int "LED GPIO"
+    default 48
+    range 0 48
+
+config BRIDGE_LOG_UDP_PORT
+    int "UDP log broadcast port"
+    default 5514
+
+config BRIDGE_USB_AUTOSTART
+    bool "Start USB host at boot (else require POST /usb/enable)"
+    default n
+    help
+        When disabled, the native USB-C port remains a USB-Serial-JTAG console
+        until POST /usb/enable is called. Keep disabled for development so the
+        serial console survives across reboots.
+
+endmenu

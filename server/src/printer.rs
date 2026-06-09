@@ -1,11 +1,10 @@
 use std::fs;
 use std::path::PathBuf;
-use std::process::Command;
 use std::thread;
 use std::time::Duration;
 
 use anyhow::{anyhow, Context, Result};
-use chain_print::{print_files, query_status, StatusJson};
+use chain_print::{print_files_via_tcp, query_status_via_tcp, StatusJson};
 use parking_lot::Mutex;
 use serde_json::{json, Value};
 use tempfile::TempDir;
@@ -15,6 +14,8 @@ use crate::config::{preset_for_width, LabelDefaults, Limits};
 
 pub struct PrinterService {
     print_lock: Mutex<()>,
+    bridge_addr: String,
+    bridge_timeout: Duration,
     chain_print_pad: usize,
     chain_print_retries: u32,
     chain_print_retry_delay: f64,
@@ -22,6 +23,12 @@ pub struct PrinterService {
 
 impl PrinterService {
     pub fn from_env() -> Self {
+        let bridge_addr =
+            std::env::var("PTLABEL_BRIDGE_ADDR").unwrap_or_else(|_| "127.0.0.1:9100".to_string());
+        let bridge_timeout_ms = std::env::var("PTLABEL_BRIDGE_TIMEOUT_MS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(2000);
         let pad = std::env::var("CHAIN_PRINT_PAD")
             .ok()
             .and_then(|s| s.parse().ok())
@@ -37,6 +44,8 @@ impl PrinterService {
             .unwrap_or(1.5);
         Self {
             print_lock: Mutex::new(()),
+            bridge_addr,
+            bridge_timeout: Duration::from_millis(bridge_timeout_ms),
             chain_print_pad: pad,
             chain_print_retries: retries,
             chain_print_retry_delay: delay,
@@ -48,23 +57,7 @@ impl PrinterService {
     }
 
     pub fn usb_ready(&self) -> bool {
-        if cfg!(target_os = "macos") {
-            Command::new("ioreg")
-                .args(["-p", "IOUSB", "-l"])
-                .output()
-                .ok()
-                .is_some_and(|r| r.status.success() && String::from_utf8_lossy(&r.stdout).contains("PT-P710BT"))
-        } else {
-            Command::new("lsusb")
-                .output()
-                .ok()
-                .is_some_and(|r| {
-                    r.status.success()
-                        && String::from_utf8_lossy(&r.stdout)
-                            .to_ascii_lowercase()
-                            .contains("04f9:20af")
-                })
-        }
+        query_status_via_tcp(&self.bridge_addr, self.bridge_timeout).is_ok()
     }
 
     fn status_to_media(status: &StatusJson) -> Value {
@@ -88,7 +81,7 @@ impl PrinterService {
     }
 
     pub fn query_media(&self) -> Value {
-        match query_status() {
+        match query_status_via_tcp(&self.bridge_addr, self.bridge_timeout) {
             Ok(status) => Self::status_to_media(&status),
             Err(e) => json!({
                 "ok": false,
@@ -124,7 +117,12 @@ impl PrinterService {
                     self.chain_print_retry_delay * attempt as f64,
                 ));
             }
-            match print_files(self.chain_print_pad, png_paths) {
+            match print_files_via_tcp(
+                &self.bridge_addr,
+                self.chain_print_pad,
+                png_paths,
+                self.bridge_timeout,
+            ) {
                 Ok(()) => {
                     info!("print: ok count={} attempt={}", png_paths.len(), attempt + 1);
                     thread::sleep(Duration::from_millis(500));

@@ -12,3 +12,6 @@ buildroot-external/board/ptlabel-pi0/wpa_supplicant.conf
 .DS_Store
 /.astro/
 *.env
+bridge-firmware/sdkconfig
+bridge-firmware/sdkconfig.old
+bridge-firmware/sdkconfig.defaults.local

@@ -1,4 +1,6 @@
 use std::path::Path;
+use std::io::{Read, Write};
+use std::net::TcpStream;
 use std::thread;
 use std::time::Duration;
 
@@ -193,4 +195,218 @@ pub fn print_files(pad: usize, files: &[impl AsRef<Path>]) -> Result<()> {
     }
 
     Ok(())
+}
+
+pub trait Transport {
+    fn write_all(&mut self, data: &[u8]) -> Result<()>;
+    fn read_exact_timeout(&mut self, len: usize, timeout: Duration) -> Result<Vec<u8>>;
+}
+
+pub struct TcpTransport {
+    stream: TcpStream,
+}
+
+impl TcpTransport {
+    pub fn connect(addr: &str) -> Result<Self> {
+        let stream = TcpStream::connect(addr).with_context(|| format!("connect bridge {addr}"))?;
+        stream
+            .set_nodelay(true)
+            .context("set_nodelay bridge socket")?;
+        Ok(Self { stream })
+    }
+}
+
+impl Transport for TcpTransport {
+    fn write_all(&mut self, data: &[u8]) -> Result<()> {
+        self.stream
+            .write_all(data)
+            .with_context(|| format!("bridge write {} bytes", data.len()))
+    }
+
+    fn read_exact_timeout(&mut self, len: usize, timeout: Duration) -> Result<Vec<u8>> {
+        self.stream
+            .set_read_timeout(Some(timeout))
+            .context("set bridge read timeout")?;
+        let mut out = vec![0u8; len];
+        self.stream
+            .read_exact(&mut out)
+            .with_context(|| format!("bridge read {} bytes", len))?;
+        Ok(out)
+    }
+}
+
+fn cmd_set_compression_tiff<T: Transport>(transport: &mut T) -> Result<()> {
+    transport.write_all(&[0x4D, 0x02])
+}
+
+fn cmd_select_graphics_raster<T: Transport>(transport: &mut T) -> Result<()> {
+    transport.write_all(&[0x1b, 0x69, 0x52, 0x01])
+}
+
+fn cmd_set_various_mode_auto_cut<T: Transport>(transport: &mut T) -> Result<()> {
+    transport.write_all(&[0x1b, 0x69, 0x4d, 0x40])
+}
+
+fn cmd_status_req<T: Transport>(transport: &mut T) -> Result<()> {
+    transport.write_all(&[0x1b, 0x69, 0x53])
+}
+
+fn cmd_print<T: Transport>(transport: &mut T) -> Result<()> {
+    transport.write_all(&[0x0c])
+}
+
+fn cmd_print_and_feed<T: Transport>(transport: &mut T) -> Result<()> {
+    transport.write_all(&[0x1a])
+}
+
+fn cmd_raster_transfer_packbits<T: Transport>(transport: &mut T, data: &[u8]) -> Result<()> {
+    let len = data.len();
+    let mut buff = vec![0u8; len + 4];
+    buff[0] = 0x47;
+    buff[1] = (len + 1) as u8;
+    buff[2] = 0;
+    buff[3] = (len - 1) as u8;
+    buff[4..4 + len].copy_from_slice(data);
+    transport.write_all(&buff)
+}
+
+fn read_status<T: Transport>(transport: &mut T, timeout: Duration) -> Result<Status> {
+    let raw = transport.read_exact_timeout(32, timeout)?;
+    let status: [u8; 32] = raw
+        .try_into()
+        .map_err(|_| anyhow::anyhow!("invalid status size"))?;
+    Ok(Status::from(status))
+}
+
+fn wait_p710_complete<T: Transport>(
+    transport: &mut T,
+    lines: usize,
+    chain: bool,
+    timeout: Duration,
+) -> Result<()> {
+    let ms = (lines as u64).saturating_mul(12) + if chain { 400 } else { 2800 };
+    let wait = Duration::from_millis(ms.clamp(600, 15000));
+    thread::sleep(wait);
+    cmd_status_req(transport)?;
+    let status = read_status(transport, timeout)?;
+    if !status.error1.is_empty() || !status.error2.is_empty() {
+        anyhow::bail!("printer error {:?} {:?}", status.error1, status.error2);
+    }
+    Ok(())
+}
+
+pub fn query_status_via_transport<T: Transport>(transport: &mut T, timeout: Duration) -> Result<StatusJson> {
+    cmd_status_req(transport)?;
+    let status = read_status(transport, timeout)?;
+    let media = Media::from((status.media_kind, status.media_width));
+    Ok(status_json(&status, &media))
+}
+
+pub fn query_status_via_tcp(addr: &str, timeout: Duration) -> Result<StatusJson> {
+    let mut transport = TcpTransport::connect(addr)?;
+    query_status_via_transport(&mut transport, timeout)
+}
+
+pub fn print_files_via_transport<T: Transport>(
+    transport: &mut T,
+    pad: usize,
+    files: &[impl AsRef<Path>],
+    timeout: Duration,
+) -> Result<()> {
+    if files.is_empty() {
+        anyhow::bail!("no images");
+    }
+
+    let status = {
+        cmd_status_req(transport)?;
+        read_status(transport, timeout)?
+    };
+    let media = Media::from((status.media_kind, status.media_width));
+    let rc = RenderConfig {
+        y: media.area().1 as usize,
+        ..Default::default()
+    };
+
+    cmd_set_compression_tiff(transport)?;
+    cmd_select_graphics_raster(transport)?;
+    cmd_set_various_mode_auto_cut(transport)?;
+
+    for (i, file) in files.iter().enumerate() {
+        let path = file.as_ref();
+        let path_str = path
+            .to_str()
+            .with_context(|| format!("non-utf8 path {}", path.display()))?;
+        let ops = vec![Op::pad(pad), Op::image(path_str), Op::pad(pad)];
+        let mut r = Render::new(rc.clone());
+        r.render(&ops)
+            .with_context(|| format!("render {}", path.display()))?;
+        let data = r.raster(media.area())?;
+        let lines = data.len();
+        for line in data {
+            cmd_raster_transfer_packbits(transport, &line)?;
+        }
+        let chain = i + 1 < files.len();
+        if chain {
+            cmd_print(transport)?;
+        } else {
+            cmd_print_and_feed(transport)?;
+        }
+        wait_p710_complete(transport, lines, chain, timeout)?;
+    }
+
+    Ok(())
+}
+
+pub fn print_files_via_tcp(
+    addr: &str,
+    pad: usize,
+    files: &[impl AsRef<Path>],
+    timeout: Duration,
+) -> Result<()> {
+    let mut transport = TcpTransport::connect(addr)?;
+    print_files_via_transport(&mut transport, pad, files, timeout)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct MockTransport {
+        writes: Vec<Vec<u8>>,
+        reads: Vec<Vec<u8>>,
+    }
+
+    impl MockTransport {
+        fn new(reads: Vec<Vec<u8>>) -> Self {
+            Self {
+                writes: Vec::new(),
+                reads,
+            }
+        }
+    }
+
+    impl Transport for MockTransport {
+        fn write_all(&mut self, data: &[u8]) -> Result<()> {
+            self.writes.push(data.to_vec());
+            Ok(())
+        }
+
+        fn read_exact_timeout(&mut self, len: usize, _timeout: Duration) -> Result<Vec<u8>> {
+            let data = self.reads.remove(0);
+            if data.len() != len {
+                anyhow::bail!("unexpected read len");
+            }
+            Ok(data)
+        }
+    }
+
+    #[test]
+    fn query_status_writes_status_command() {
+        let status_raw = vec![
+            0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 24, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ];
+        let mut transport = MockTransport::new(vec![status_raw]);
+        let _ = query_status_via_transport(&mut transport, Duration::from_secs(1)).unwrap();
+        assert_eq!(transport.writes[0], vec![0x1b, 0x69, 0x53]);
+    }
 }

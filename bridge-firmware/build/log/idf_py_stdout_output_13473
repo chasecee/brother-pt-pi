@@ -1,0 +1,135 @@
+[0/1] Re-running CMake...
+-- Building ESP-IDF components for target esp32s3
+-- Project sdkconfig file /Users/chase/Code/brother-pt-pi/bridge-firmware/sdkconfig
+Loading defaults file /Users/chase/Code/brother-pt-pi/bridge-firmware/sdkconfig.defaults...
+-- Compiler supported targets: xtensa-esp-elf
+-- USING O3
+-- App "ptlabel_bridge" version: rust-latest-30-g1b90576-dirty
+-- Adding linker script /Users/chase/Code/brother-pt-pi/bridge-firmware/build/esp-idf/esp_system/ld/memory.ld
+-- Adding linker script /Users/chase/Code/brother-pt-pi/bridge-firmware/build/esp-idf/esp_system/ld/sections.ld.in
+-- Adding linker script /Users/chase/esp/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.ld
+-- Adding linker script /Users/chase/esp/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.api.ld
+-- Adding linker script /Users/chase/esp/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.bt_funcs.ld
+-- Adding linker script /Users/chase/esp/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.libgcc.ld
+-- Adding linker script /Users/chase/esp/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.wdt.ld
+-- Adding linker script /Users/chase/esp/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.version.ld
+-- Adding linker script /Users/chase/esp/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.ble_master.ld
+-- Adding linker script /Users/chase/esp/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.ble_50.ld
+-- Adding linker script /Users/chase/esp/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.ble_smp.ld
+-- Adding linker script /Users/chase/esp/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.ble_dtm.ld
+-- Adding linker script /Users/chase/esp/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.ble_test.ld
+-- Adding linker script /Users/chase/esp/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.ble_scan.ld
+-- Adding linker script /Users/chase/esp/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.newlib.ld
+-- Adding linker script /Users/chase/esp/esp-idf/components/soc/esp32s3/ld/esp32s3.peripherals.ld
+-- Components: app_trace app_update bootloader bootloader_support bt cmock console cxx driver efuse esp-tls esp_adc esp_app_format esp_bootloader_format esp_coex esp_common esp_driver_ana_cmpr esp_driver_cam esp_driver_dac esp_driver_gpio esp_driver_gptimer esp_driver_i2c esp_driver_i2s esp_driver_isp esp_driver_jpeg esp_driver_ledc esp_driver_mcpwm esp_driver_parlio esp_driver_pcnt esp_driver_ppa esp_driver_rmt esp_driver_sdio esp_driver_sdm esp_driver_sdmmc esp_driver_sdspi esp_driver_spi esp_driver_touch_sens esp_driver_tsens esp_driver_uart esp_driver_usb_serial_jtag esp_eth esp_event esp_gdbstub esp_hid esp_http_client esp_http_server esp_https_ota esp_https_server esp_hw_support esp_lcd esp_local_ctrl esp_mm esp_netif esp_netif_stack esp_partition esp_phy esp_pm esp_psram esp_ringbuf esp_rom esp_security esp_system esp_timer esp_vfs_console esp_wifi espcoredump esptool_py fatfs freertos hal heap http_parser idf_test ieee802154 json log lwip main mbedtls mqtt newlib nvs_flash nvs_sec_provider openthread partition_table perfmon protobuf-c protocomm pthread rt sdmmc soc spi_flash spiffs tcp_transport touch_element ulp unity usb vfs wear_levelling wifi_provisioning wpa_supplicant xtensa
+-- Component paths: /Users/chase/esp/esp-idf/components/app_trace /Users/chase/esp/esp-idf/components/app_update /Users/chase/esp/esp-idf/components/bootloader /Users/chase/esp/esp-idf/components/bootloader_support /Users/chase/esp/esp-idf/components/bt /Users/chase/esp/esp-idf/components/cmock /Users/chase/esp/esp-idf/components/console /Users/chase/esp/esp-idf/components/cxx /Users/chase/esp/esp-idf/components/driver /Users/chase/esp/esp-idf/components/efuse /Users/chase/esp/esp-idf/components/esp-tls /Users/chase/esp/esp-idf/components/esp_adc /Users/chase/esp/esp-idf/components/esp_app_format /Users/chase/esp/esp-idf/components/esp_bootloader_format /Users/chase/esp/esp-idf/components/esp_coex /Users/chase/esp/esp-idf/components/esp_common /Users/chase/esp/esp-idf/components/esp_driver_ana_cmpr /Users/chase/esp/esp-idf/components/esp_driver_cam /Users/chase/esp/esp-idf/components/esp_driver_dac /Users/chase/esp/esp-idf/components/esp_driver_gpio /Users/chase/esp/esp-idf/components/esp_driver_gptimer /Users/chase/esp/esp-idf/components/esp_driver_i2c /Users/chase/esp/esp-idf/components/esp_driver_i2s /Users/chase/esp/esp-idf/components/esp_driver_isp /Users/chase/esp/esp-idf/components/esp_driver_jpeg /Users/chase/esp/esp-idf/components/esp_driver_ledc /Users/chase/esp/esp-idf/components/esp_driver_mcpwm /Users/chase/esp/esp-idf/components/esp_driver_parlio /Users/chase/esp/esp-idf/components/esp_driver_pcnt /Users/chase/esp/esp-idf/components/esp_driver_ppa /Users/chase/esp/esp-idf/components/esp_driver_rmt /Users/chase/esp/esp-idf/components/esp_driver_sdio /Users/chase/esp/esp-idf/components/esp_driver_sdm /Users/chase/esp/esp-idf/components/esp_driver_sdmmc /Users/chase/esp/esp-idf/components/esp_driver_sdspi /Users/chase/esp/esp-idf/components/esp_driver_spi /Users/chase/esp/esp-idf/components/esp_driver_touch_sens /Users/chase/esp/esp-idf/components/esp_driver_tsens /Users/chase/esp/esp-idf/components/esp_driver_uart /Users/chase/esp/esp-idf/components/esp_driver_usb_serial_jtag /Users/chase/esp/esp-idf/components/esp_eth /Users/chase/esp/esp-idf/components/esp_event /Users/chase/esp/esp-idf/components/esp_gdbstub /Users/chase/esp/esp-idf/components/esp_hid /Users/chase/esp/esp-idf/components/esp_http_client /Users/chase/esp/esp-idf/components/esp_http_server /Users/chase/esp/esp-idf/components/esp_https_ota /Users/chase/esp/esp-idf/components/esp_https_server /Users/chase/esp/esp-idf/components/esp_hw_support /Users/chase/esp/esp-idf/components/esp_lcd /Users/chase/esp/esp-idf/components/esp_local_ctrl /Users/chase/esp/esp-idf/components/esp_mm /Users/chase/esp/esp-idf/components/esp_netif /Users/chase/esp/esp-idf/components/esp_netif_stack /Users/chase/esp/esp-idf/components/esp_partition /Users/chase/esp/esp-idf/components/esp_phy /Users/chase/esp/esp-idf/components/esp_pm /Users/chase/esp/esp-idf/components/esp_psram /Users/chase/esp/esp-idf/components/esp_ringbuf /Users/chase/esp/esp-idf/components/esp_rom /Users/chase/esp/esp-idf/components/esp_security /Users/chase/esp/esp-idf/components/esp_system /Users/chase/esp/esp-idf/components/esp_timer /Users/chase/esp/esp-idf/components/esp_vfs_console /Users/chase/esp/esp-idf/components/esp_wifi /Users/chase/esp/esp-idf/components/espcoredump /Users/chase/esp/esp-idf/components/esptool_py /Users/chase/esp/esp-idf/components/fatfs /Users/chase/esp/esp-idf/components/freertos /Users/chase/esp/esp-idf/components/hal /Users/chase/esp/esp-idf/components/heap /Users/chase/esp/esp-idf/components/http_parser /Users/chase/esp/esp-idf/components/idf_test /Users/chase/esp/esp-idf/components/ieee802154 /Users/chase/esp/esp-idf/components/json /Users/chase/esp/esp-idf/components/log /Users/chase/esp/esp-idf/components/lwip /Users/chase/Code/brother-pt-pi/bridge-firmware/main /Users/chase/esp/esp-idf/components/mbedtls /Users/chase/esp/esp-idf/components/mqtt /Users/chase/esp/esp-idf/components/newlib /Users/chase/esp/esp-idf/components/nvs_flash /Users/chase/esp/esp-idf/components/nvs_sec_provider /Users/chase/esp/esp-idf/components/openthread /Users/chase/esp/esp-idf/components/partition_table /Users/chase/esp/esp-idf/components/perfmon /Users/chase/esp/esp-idf/components/protobuf-c /Users/chase/esp/esp-idf/components/protocomm /Users/chase/esp/esp-idf/components/pthread /Users/chase/esp/esp-idf/components/rt /Users/chase/esp/esp-idf/components/sdmmc /Users/chase/esp/esp-idf/components/soc /Users/chase/esp/esp-idf/components/spi_flash /Users/chase/esp/esp-idf/components/spiffs /Users/chase/esp/esp-idf/components/tcp_transport /Users/chase/esp/esp-idf/components/touch_element /Users/chase/esp/esp-idf/components/ulp /Users/chase/esp/esp-idf/components/unity /Users/chase/esp/esp-idf/components/usb /Users/chase/esp/esp-idf/components/vfs /Users/chase/esp/esp-idf/components/wear_levelling /Users/chase/esp/esp-idf/components/wifi_provisioning /Users/chase/esp/esp-idf/components/wpa_supplicant /Users/chase/esp/esp-idf/components/xtensa
+-- Configuring done (3.2s)
+-- Generating done (0.4s)
+-- Build files have been written to: /Users/chase/Code/brother-pt-pi/bridge-firmware/build
+[1/17] Generating ../../partition_table/partition-table.bin
+Partition table binary generated. Contents:
+*******************************************************************************
+# ESP-IDF Partition Table
+# Name, Type, SubType, Offset, Size, Flags
+nvs,data,nvs,0x9000,24K,
+otadata,data,ota,0xf000,8K,
+phy_init,data,phy,0x11000,4K,
+factory,app,factory,0x20000,2M,
+ota_0,app,ota_0,0x220000,2M,
+ota_1,app,ota_1,0x420000,2M,
+storage,data,spiffs,0x620000,8M,
+*******************************************************************************
+[2/17] Building C object esp-idf/main/CMakeFiles/__idf_main.dir/led.c.obj
+[3/17] Building C object esp-idf/main/CMakeFiles/__idf_main.dir/main.c.obj
+[4/17] Building C object esp-idf/main/CMakeFiles/__idf_main.dir/http_admin.c.obj
+[5/17] Building C object esp-idf/main/CMakeFiles/__idf_main.dir/wifi.c.obj
+[6/17] Building C object esp-idf/main/CMakeFiles/__idf_main.dir/tcp_proxy.c.obj
+[7/17] Building C object esp-idf/main/CMakeFiles/__idf_main.dir/usb_host.c.obj
+[8/17] Performing build step for 'bootloader'
+[1/1] cd /Users/chase/Code/brother-pt-pi/bridge-firmware/build/bootloader/esp-idf/esptool_py && /Users/chase/.espressif/python_env/idf5.4_py3.14_env/bin/python /Users/chase/esp/esp-idf/components/partition_table/check_sizes.py --offset 0x8000 bootloader 0x0 /Users/chase/Code/brother-pt-pi/bridge-firmware/build/bootloader/bootloader.bin
+Bootloader binary size 0x5760 bytes. 0x28a0 bytes (32%) free.
+[9/17] No install step for 'bootloader'
+[10/17] Completed 'bootloader'
+[11/17] Linking C static library esp-idf/main/libmain.a
+[12/17] Generating ld/sections.ld
+[13/17] Linking CXX executable ptlabel_bridge.elf
+[14/17] Generating binary image from built executable
+esptool.py v4.11.0
+Creating esp32s3 image...
+Merged 2 ELF sections
+Successfully created esp32s3 image.
+Generated /Users/chase/Code/brother-pt-pi/bridge-firmware/build/ptlabel_bridge.bin
+[15/17] cd /Users/chase/Code/brother-pt-pi/bridge-firmware/build/esp-idf/esptool_py && /Users/chase/.espressif/python_env/idf5.4_py3.14_env/bin/python /Users/chase/esp/esp-idf/components/partition_table/check_sizes.py --offset 0x8000 partition --type app /Users/chase/Code/brother-pt-pi/bridge-firmware/build/partition_table/partition-table.bin /Users/chase/Code/brother-pt-pi/bridge-firmware/build/ptlabel_bridge.bin
+ptlabel_bridge.bin binary size 0xd1d30 bytes. Smallest app partition is 0x200000 bytes. 0x12e2d0 bytes (59%) free.
+[15/17] cd /Users/chase/esp/esp-idf/components/esptool_py && /opt/homebrew/bin/cmake -D IDF_PATH=/Users/chase/esp/esp-idf -D "SERIAL_TOOL=/Users/chase/.espressif/python_env/idf5.4_py3.14_env/bin/python;;/Users/chase/esp/esp-idf/components/esptool_py/esptool/esptool.py;--chip;esp32s3" -D "SERIAL_TOOL_ARGS=--before=default_reset;--after=hard_reset;write_flash;@flash_args" -D WORKING_DIRECTORY=/Users/chase/Code/brother-pt-pi/bridge-firmware/build -P /Users/chase/esp/esp-idf/components/esptool_py/run_serial_tool.cmake
+esptool.py --chip esp32s3 -p /dev/cu.usbmodem832201 -b 460800 --before=default_reset --after=hard_reset write_flash --flash_mode dio --flash_freq 80m --flash_size 16MB 0x0 bootloader/bootloader.bin 0x20000 ptlabel_bridge.bin 0x8000 partition_table/partition-table.bin 0xf000 ota_data_initial.bin
+esptool.py v4.11.0
+Serial port /dev/cu.usbmodem832201
+Connecting...
+Chip is ESP32-S3 (QFN56) (revision v0.2)
+Features: WiFi, BLE, Embedded PSRAM 8MB (AP_3v3)
+Crystal is 40MHz
+USB mode: USB-Serial/JTAG
+MAC: 44:1b:f6:da:ad:5c
+Uploading stub...
+Running stub...
+Stub running...
+Changing baud rate to 460800
+Changed.
+Configuring flash size...
+Flash will be erased from 0x00000000 to 0x00005fff...
+Flash will be erased from 0x00020000 to 0x000f1fff...
+Flash will be erased from 0x00008000 to 0x00008fff...
+Flash will be erased from 0x0000f000 to 0x00010fff...
+SHA digest in image updated
+Compressed 22368 bytes to 14216...
+Writing at 0x00000000... (100 %)
+Wrote 22368 bytes (14216 compressed) at 0x00000000 in 0.1 seconds (effective 1220.6 kbit/s)...
+Hash of data verified.
+Compressed 859440 bytes to 528983...
+Writing at 0x00020000... (3 %)
+Writing at 0x0002cba1... (6 %)
+Writing at 0x00037a16... (9 %)
+Writing at 0x00040e7d... (12 %)
+Writing at 0x00046f3a... (15 %)
+Writing at 0x0004d71e... (18 %)
+Writing at 0x00053831... (21 %)
+Writing at 0x00059f30... (24 %)
+Writing at 0x0005fa22... (27 %)
+Writing at 0x00065521... (30 %)
+Writing at 0x0006b17b... (33 %)
+Writing at 0x00070e50... (36 %)
+Writing at 0x00076bd1... (39 %)
+Writing at 0x0007caf6... (42 %)
+Writing at 0x000829ff... (45 %)
+Writing at 0x00087bb1... (48 %)
+Writing at 0x0008ce43... (51 %)
+Writing at 0x000927c1... (54 %)
+Writing at 0x00097d78... (57 %)
+Writing at 0x0009d0b3... (60 %)
+Writing at 0x000a266a... (63 %)
+Writing at 0x000a8482... (66 %)
+Writing at 0x000ade74... (69 %)
+Writing at 0x000b3c91... (72 %)
+Writing at 0x000b9def... (75 %)
+Writing at 0x000bf4c8... (78 %)
+Writing at 0x000c7ca5... (81 %)
+Writing at 0x000cff6f... (84 %)
+Writing at 0x000d5fb1... (87 %)
+Writing at 0x000de46a... (90 %)
+Writing at 0x000e4620... (93 %)
+Writing at 0x000eaca7... (96 %)
+Writing at 0x000efcd5... (100 %)
+Wrote 859440 bytes (528983 compressed) at 0x00020000 in 4.3 seconds (effective 1612.4 kbit/s)...
+Hash of data verified.
+Compressed 3072 bytes to 156...
+Writing at 0x00008000... (100 %)
+Wrote 3072 bytes (156 compressed) at 0x00008000 in 0.0 seconds (effective 1857.0 kbit/s)...
+Hash of data verified.
+Compressed 8192 bytes to 31...
+Writing at 0x0000f000... (100 %)
+Wrote 8192 bytes (31 compressed) at 0x0000f000 in 0.0 seconds (effective 2700.5 kbit/s)...
+Hash of data verified.
+
+Leaving...
+Hard resetting via RTS pin...

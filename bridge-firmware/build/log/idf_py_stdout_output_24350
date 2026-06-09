@@ -1,0 +1,21 @@
+[1/13] Performing build step for 'bootloader'
+[1/1] cd /Users/chase/Code/brother-pt-pi/bridge-firmware/build/bootloader/esp-idf/esptool_py && /Users/chase/.espressif/python_env/idf5.4_py3.14_env/bin/python /Users/chase/esp/esp-idf/components/partition_table/check_sizes.py --offset 0x8000 bootloader 0x0 /Users/chase/Code/brother-pt-pi/bridge-firmware/build/bootloader/bootloader.bin
+Bootloader binary size 0x5760 bytes. 0x28a0 bytes (32%) free.
+[2/13] Building C object esp-idf/main/CMakeFiles/__idf_main.dir/led.c.obj
+[3/13] No install step for 'bootloader'
+[4/13] Building C object esp-idf/main/CMakeFiles/__idf_main.dir/main.c.obj
+[5/13] Building C object esp-idf/main/CMakeFiles/__idf_main.dir/http_admin.c.obj
+[6/13] Building C object esp-idf/main/CMakeFiles/__idf_main.dir/tcp_proxy.c.obj
+[7/13] Completed 'bootloader'
+[8/13] Building C object esp-idf/main/CMakeFiles/__idf_main.dir/usb_host.c.obj
+[9/13] Linking C static library esp-idf/main/libmain.a
+[10/13] Generating ld/sections.ld
+[11/13] Linking CXX executable ptlabel_bridge.elf
+[12/13] Generating binary image from built executable
+esptool.py v4.11.0
+Creating esp32s3 image...
+Merged 2 ELF sections
+Successfully created esp32s3 image.
+Generated /Users/chase/Code/brother-pt-pi/bridge-firmware/build/ptlabel_bridge.bin
+[13/13] cd /Users/chase/Code/brother-pt-pi/bridge-firmware/build/esp-idf/esptool_py && /Users/chase/.espressif/python_env/idf5.4_py3.14_env/bin/python /Users/chase/esp/esp-idf/components/partition_table/check_sizes.py --offset 0x8000 partition --type app /Users/chase/Code/brother-pt-pi/bridge-firmware/build/partition_table/partition-table.bin /Users/chase/Code/brother-pt-pi/bridge-firmware/build/ptlabel_bridge.bin
+ptlabel_bridge.bin binary size 0xd2150 bytes. Smallest app partition is 0x200000 bytes. 0x12deb0 bytes (59%) free.

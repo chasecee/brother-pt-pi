@@ -1,0 +1,23 @@
+idf_component_register(
+    SRCS
+        "main.c"
+        "wifi.c"
+        "usb_host.c"
+        "tcp_proxy.c"
+        "http_admin.c"
+        "log_sink.c"
+        "led.c"
+    INCLUDE_DIRS "."
+    REQUIRES
+        esp_wifi
+        nvs_flash
+        esp_event
+        esp_netif
+        esp_http_server
+        esp_timer
+        esp_driver_gpio
+        esp_app_format
+        app_update
+        lwip
+        usb
+)

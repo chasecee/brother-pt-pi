@@ -1,0 +1,21 @@
+[Unit]
+Description=PTLabel Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/ptlabel
+Environment=PTLABEL_ROOT=/opt/ptlabel
+Environment=PTLABEL_DATA_DIR=/opt/ptlabel/data
+Environment=PTLABEL_BRIDGE_ADDR=127.0.0.1:9100
+ExecStart=/opt/ptlabel/bin/ptlabel-server --host 0.0.0.0 --port 8080
+Restart=always
+RestartSec=2
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

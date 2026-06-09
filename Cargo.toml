@@ -1,5 +1,5 @@
 [workspace]
-members = ["chain-print", "server"]
+members = ["chain-print", "server", "protocol", "bridge-host"]
 resolver = "2"
 
 [profile.release]

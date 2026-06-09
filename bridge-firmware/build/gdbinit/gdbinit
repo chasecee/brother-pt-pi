@@ -1,0 +1,2 @@
+source /Users/chase/Code/brother-pt-pi/bridge-firmware/build/gdbinit/symbols
+source /Users/chase/Code/brother-pt-pi/bridge-firmware/build/gdbinit/connect

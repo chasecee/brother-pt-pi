@@ -18,6 +18,7 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use base64::Engine;
 use clap::Parser;
+use protocol::api::StatusResponse;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use tower_http::compression::CompressionLayer;
@@ -36,7 +37,7 @@ use crate::state::StateStore;
 struct Args {
     #[arg(long, default_value = "0.0.0.0")]
     host: String,
-    #[arg(long, default_value_t = 80)]
+    #[arg(long, default_value_t = 8080)]
     port: u16,
     #[arg(long, env = "PTLABEL_ROOT")]
     root: Option<PathBuf>,
@@ -44,9 +45,6 @@ struct Args {
     data_dir: Option<PathBuf>,
     #[arg(long, env = "PTLABEL_DEV", default_value_t = false)]
     dev: bool,
-    /// Hostname to advertise via mDNS. Empty disables mDNS.
-    #[arg(long, env = "PTLABEL_MDNS_NAME", default_value = "label")]
-    mdns_name: String,
 }
 
 #[derive(Clone)]
@@ -247,50 +245,9 @@ async fn main() -> anyhow::Result<()> {
         args.dev
     );
 
-    advertise_mdns(&args.mdns_name, args.port);
-
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, app.into_make_service()).await?;
     Ok(())
-}
-
-fn advertise_mdns(name: &str, port: u16) {
-    let name = name.trim().trim_end_matches('.').trim_end_matches(".local");
-    if name.is_empty() {
-        tracing::info!("mdns: disabled (empty name)");
-        return;
-    }
-    let daemon = match mdns_sd::ServiceDaemon::new() {
-        Ok(d) => d,
-        Err(e) => {
-            tracing::warn!("mdns: daemon init failed: {e}");
-            return;
-        }
-    };
-    let host_name = format!("{name}.local.");
-    let info = match mdns_sd::ServiceInfo::new(
-        "_http._tcp.local.",
-        "PTLabel",
-        &host_name,
-        "",
-        port,
-        &[("path", "/")][..],
-    ) {
-        Ok(i) => i.enable_addr_auto(),
-        Err(e) => {
-            tracing::warn!("mdns: invalid service info: {e}");
-            return;
-        }
-    };
-    match daemon.register(info) {
-        Ok(()) => tracing::info!("mdns: advertising {host_name} _http._tcp port {port}"),
-        Err(e) => {
-            tracing::warn!("mdns: register failed: {e}");
-            return;
-        }
-    }
-    static MDNS: std::sync::OnceLock<mdns_sd::ServiceDaemon> = std::sync::OnceLock::new();
-    let _ = MDNS.set(daemon);
 }
 
 async fn index(State(state): State<AppState>) -> Response {
@@ -334,13 +291,17 @@ async fn api_state_put(
 }
 
 async fn api_status(State(state): State<AppState>) -> Json<Value> {
-    let mut body = json!({
-        "ok": state.printer.usb_ready(),
-        "printing": state.printer.is_printing(),
-        "info": "",
-        "err": "",
-        "deployed_at": state.asset_version,
-    });
+    let ready = state.printer.usb_ready();
+    let mut body = serde_json::to_value(StatusResponse {
+        ok: ready,
+        printing: state.printer.is_printing(),
+        info: String::new(),
+        err: String::new(),
+        deployed_at: state.asset_version.clone(),
+        bridge_up: Some(ready),
+        bridge_printer_connected: Some(ready),
+    })
+    .unwrap_or_else(|_| json!({}));
     let map = body.as_object_mut().unwrap();
     for (k, v) in sysinfo::linux_sysinfo() {
         map.insert(k, v);

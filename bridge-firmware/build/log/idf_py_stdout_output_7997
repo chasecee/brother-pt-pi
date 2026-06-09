@@ -1,0 +1,91 @@
+[1/12] Performing build step for 'bootloader'
+[1/1] cd /Users/chase/Code/brother-pt-pi/bridge-firmware/build/bootloader/esp-idf/esptool_py && /Users/chase/.espressif/python_env/idf5.4_py3.14_env/bin/python /Users/chase/esp/esp-idf/components/partition_table/check_sizes.py --offset 0x8000 bootloader 0x0 /Users/chase/Code/brother-pt-pi/bridge-firmware/build/bootloader/bootloader.bin
+Bootloader binary size 0x5760 bytes. 0x28a0 bytes (32%) free.
+[2/12] No install step for 'bootloader'
+[3/12] Building C object esp-idf/main/CMakeFiles/__idf_main.dir/http_admin.c.obj
+[4/12] Building C object esp-idf/main/CMakeFiles/__idf_main.dir/tcp_proxy.c.obj
+[5/12] Building C object esp-idf/main/CMakeFiles/__idf_main.dir/usb_host.c.obj
+[6/12] Completed 'bootloader'
+[7/12] Linking C static library esp-idf/main/libmain.a
+[8/12] Generating ld/sections.ld
+[9/12] Linking CXX executable ptlabel_bridge.elf
+[10/12] Generating binary image from built executable
+esptool.py v4.11.0
+Creating esp32s3 image...
+Merged 2 ELF sections
+Successfully created esp32s3 image.
+Generated /Users/chase/Code/brother-pt-pi/bridge-firmware/build/ptlabel_bridge.bin
+[11/12] cd /Users/chase/Code/brother-pt-pi/bridge-firmware/build/esp-idf/esptool_py && /Users/chase/.espressif/python_env/idf5.4_py3.14_env/bin/python /Users/chase/esp/esp-idf/components/partition_table/check_sizes.py --offset 0x8000 partition --type app /Users/chase/Code/brother-pt-pi/bridge-firmware/build/partition_table/partition-table.bin /Users/chase/Code/brother-pt-pi/bridge-firmware/build/ptlabel_bridge.bin
+ptlabel_bridge.bin binary size 0xd4340 bytes. Smallest app partition is 0x200000 bytes. 0x12bcc0 bytes (59%) free.
+[11/12] cd /Users/chase/esp/esp-idf/components/esptool_py && /opt/homebrew/bin/cmake -D IDF_PATH=/Users/chase/esp/esp-idf -D "SERIAL_TOOL=/Users/chase/.espressif/python_env/idf5.4_py3.14_env/bin/python;;/Users/chase/esp/esp-idf/components/esptool_py/esptool/esptool.py;--chip;esp32s3" -D "SERIAL_TOOL_ARGS=--before=default_reset;--after=hard_reset;write_flash;@flash_args" -D WORKING_DIRECTORY=/Users/chase/Code/brother-pt-pi/bridge-firmware/build -P /Users/chase/esp/esp-idf/components/esptool_py/run_serial_tool.cmake
+esptool.py --chip esp32s3 -p /dev/cu.usbmodem832201 -b 460800 --before=default_reset --after=hard_reset write_flash --flash_mode dio --flash_freq 80m --flash_size 16MB 0x0 bootloader/bootloader.bin 0x20000 ptlabel_bridge.bin 0x8000 partition_table/partition-table.bin 0xf000 ota_data_initial.bin
+esptool.py v4.11.0
+Serial port /dev/cu.usbmodem832201
+Connecting...
+Chip is ESP32-S3 (QFN56) (revision v0.2)
+Features: WiFi, BLE, Embedded PSRAM 8MB (AP_3v3)
+Crystal is 40MHz
+USB mode: USB-Serial/JTAG
+MAC: 44:1b:f6:da:ad:5c
+Uploading stub...
+Running stub...
+Stub running...
+Changing baud rate to 460800
+Changed.
+Configuring flash size...
+Flash will be erased from 0x00000000 to 0x00005fff...
+Flash will be erased from 0x00020000 to 0x000f4fff...
+Flash will be erased from 0x00008000 to 0x00008fff...
+Flash will be erased from 0x0000f000 to 0x00010fff...
+SHA digest in image updated
+Compressed 22368 bytes to 14216...
+Writing at 0x00000000... (100 %)
+Wrote 22368 bytes (14216 compressed) at 0x00000000 in 0.2 seconds (effective 778.4 kbit/s)...
+Hash of data verified.
+Compressed 869184 bytes to 534414...
+Writing at 0x00020000... (3 %)
+Writing at 0x0002cb20... (6 %)
+Writing at 0x00038165... (9 %)
+Writing at 0x00041005... (12 %)
+Writing at 0x00047040... (15 %)
+Writing at 0x0004d8b9... (18 %)
+Writing at 0x000539a6... (21 %)
+Writing at 0x00059cbf... (24 %)
+Writing at 0x0005fc22... (27 %)
+Writing at 0x000655fc... (30 %)
+Writing at 0x0006b287... (33 %)
+Writing at 0x0007102b... (36 %)
+Writing at 0x00076c60... (39 %)
+Writing at 0x0007cd60... (42 %)
+Writing at 0x000827a1... (45 %)
+Writing at 0x000880a4... (48 %)
+Writing at 0x0008d06c... (51 %)
+Writing at 0x00092853... (54 %)
+Writing at 0x00097f8e... (57 %)
+Writing at 0x0009d4de... (60 %)
+Writing at 0x000a294d... (63 %)
+Writing at 0x000a867a... (66 %)
+Writing at 0x000adfd9... (69 %)
+Writing at 0x000b3d55... (72 %)
+Writing at 0x000ba07a... (75 %)
+Writing at 0x000bf79d... (78 %)
+Writing at 0x000c5381... (81 %)
+Writing at 0x000cfb9c... (84 %)
+Writing at 0x000d5d58... (87 %)
+Writing at 0x000decc1... (90 %)
+Writing at 0x000e4b09... (93 %)
+Writing at 0x000eafd2... (96 %)
+Writing at 0x000f0830... (100 %)
+Wrote 869184 bytes (534414 compressed) at 0x00020000 in 4.6 seconds (effective 1521.2 kbit/s)...
+Hash of data verified.
+Compressed 3072 bytes to 156...
+Writing at 0x00008000... (100 %)
+Wrote 3072 bytes (156 compressed) at 0x00008000 in 0.0 seconds (effective 952.5 kbit/s)...
+Hash of data verified.
+Compressed 8192 bytes to 31...
+Writing at 0x0000f000... (100 %)
+Wrote 8192 bytes (31 compressed) at 0x0000f000 in 0.0 seconds (effective 2499.1 kbit/s)...
+Hash of data verified.
+
+Leaving...
+Hard resetting via RTS pin...
