@@ -20,8 +20,8 @@ CONFIG_ISO9660_FS=n
 CONFIG_ROMFS_FS=n
 CONFIG_SQUASHFS=n
 CONFIG_OVERLAY_FS=n
-CONFIG_MAC80211=y
-CONFIG_CFG80211=y
-CONFIG_BRCMUTIL=y
-CONFIG_BRCMFMAC=y
-CONFIG_BRCMFMAC_SDIO=y
+# brcmfmac stays =m (bcmrpi default): built-in would probe the SDIO bus before
+# the rootfs holding its firmware is mounted. S05wifi modprobes it explicitly.
+# Uncompressed modules: BusyBox modprobe cannot load .ko.xz (no kmod on image).
+CONFIG_MODULE_COMPRESS_NONE=y
+CONFIG_MODULE_COMPRESS_XZ=n

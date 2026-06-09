@@ -9,30 +9,37 @@ BCM43438 Wi-Fi). No Ethernet, no RTC.
 - Docker Desktop
 - `sshpass` for `./deploy.sh`: `brew install hudochenkov/sshpass/sshpass`
 
-## Wi-Fi credentials (gitignored)
+## Wi-Fi credentials + SSH key (gitignored)
 
 Copy `buildroot-external/board/ptlabel-pi0/wpa_supplicant.conf.example` to
 `buildroot-external/board/ptlabel-pi0/wpa_supplicant.conf` and set your
-SSID/PSK. The post-build step installs that file into `/etc/wpa_supplicant.conf`
-with mode `0600` and fails the build if it is missing.
+SSID/PSK. Put your SSH public key at
+`buildroot-external/board/ptlabel-pi0/authorized_keys` (e.g.
+`cp ~/.ssh/id_ed25519.pub buildroot-external/board/ptlabel-pi0/authorized_keys`).
+The post-build step installs both into the image and fails the build if either
+is missing — `deploy.sh` and `pi-boot-report.sh` need key auth.
 
 ## One-command build and flash
 
 ```bash
-./scripts/br-build-flash.sh --disk /dev/diskN
-./scripts/br-build-flash.sh --device label --disk /dev/diskN
+./scripts/br-build-flash.sh --device bridge --disk /dev/diskN
+./scripts/br-build-flash.sh --device bridge --build-only
 ```
 
 The command:
 
 1. clones/pins Buildroot into `.cache/buildroot`
 2. builds the Buildroot cross toolchain into the `ptlabel-buildroot-out-pi0` Docker volume
-3. cross-compiles `ptlabel-server` (Rust, ARMv6+VFPv2) using that toolchain into `.cache/ptlabel-server/bin/`
+3. cross-compiles `ptlabel-bridge` (Rust, ARMv6+VFPv2) using that toolchain into `.cache/ptlabel-bridge/bin/`
 4. builds `ptlabel_pi0_defconfig` into `.cache/buildroot-out/pi0`, picking up the local binary
 5. flashes `.cache/buildroot-out/pi0/images/sdcard.img` to the specified disk
 
 Subsequent runs reuse the cached Buildroot toolchain and cargo target dir, so
-only changed Rust files recompile.
+only changed Rust files recompile. The rootfs target dir is scrubbed and the
+kernel config re-merged on every image build — Buildroot's incremental target
+dir never deletes files that overlays/packages stop installing, and it does
+not track config fragment changes, so stale files would otherwise ship
+forever. Use `--build-only` to build the image without flashing.
 
 ## Why the Rust build looks the way it does
 
@@ -63,13 +70,12 @@ Once the Pi has been booted from an SD card once, push code changes straight
 to the running Pi over Wi-Fi:
 
 ```bash
-./deploy.sh                       # defaults to root@192.168.4.58 / ptlabel
-./deploy.sh --device label        # load devices/label.env
+./deploy.sh --device bridge       # load devices/bridge.env
 ./deploy.sh root@192.168.1.42     # different host
 ```
 
 It rebuilds the Rust binary (incremental — usually a few seconds), `scp`s it
-into `/opt/ptlabel/bin/`, restarts `S50ptlabel`, and tails the new logs.
+into `/opt/ptlabel/bin/`, restarts `S20ptlabel`, and probes `/status`.
 
 ## Makefile shortcuts
 
@@ -86,8 +92,8 @@ make deploy                       # cross-build + push to live Pi
 
 - Wi-Fi link + IP + SSH creds
 - `brcmfmac` driver state
-- `/api/status` snapshot
-- tail of `/var/log/wifi.log` (from `S35wifi`) and `/var/log/ptlabel/server.log`
+- `/status` snapshot
+- tail of `/var/log/wifi.log` (from `S05wifi`) and `/var/log/ptlabel/bridge.log`
 
 ## Buildroot outputs
 
@@ -95,5 +101,5 @@ make deploy                       # cross-build + push to live Pi
 - Buildroot per-target build (image + sysroot + host toolchain): Docker volume `ptlabel-buildroot-out-pi0`
 - Buildroot download cache: Docker volume `ptlabel-buildroot-dl`
 - Cargo registry cache: Docker volume `ptlabel-cargo-cache`
-- Rust target dir + rustup toolchains: `.cache/ptlabel-server/`
+- Rust target dir + rustup toolchains: `.cache/ptlabel-bridge/`
 - Flash image: `.cache/buildroot-out/pi0/images/sdcard.img`

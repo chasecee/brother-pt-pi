@@ -1,5 +1,7 @@
 #!/bin/sh
 # Bring up wlan0 + wpa_supplicant + DHCP in background so boot is not delayed.
+# Runs at S05, before mdev coldplug (~2s): devtmpfs provides the nodes and the
+# brcmfmac modprobe below is explicit, so wifi needs nothing from mdev.
 # Live status visible via /var/log/wifi.log (shown on diagnostics screen).
 
 PIDFILE=/run/wpa_supplicant.wlan0.pid
@@ -23,9 +25,9 @@ log() { printf '[wifi %s] %s\n' "$(date '+%H:%M:%S')" "$*" >>"$LOG"; }
 
 wait_iface() {
   i=0
-  while [ $i -lt 30 ]; do
+  while [ $i -lt 150 ]; do
     ip link show "$1" >/dev/null 2>&1 && return 0
-    sleep 1
+    sleep 0.2
     i=$((i + 1))
   done
   return 1
@@ -33,11 +35,11 @@ wait_iface() {
 
 wait_link() {
   i=0
-  while [ $i -lt 45 ]; do
+  while [ $i -lt 225 ]; do
     case "$(iw dev wlan0 link 2>/dev/null | head -n1)" in
       Connected*) return 0 ;;
     esac
-    sleep 1
+    sleep 0.2
     i=$((i + 1))
   done
   return 1
@@ -47,6 +49,8 @@ run() {
   [ -f "$CONF" ] || { log "missing $CONF"; return 1; }
 
   log "run start uptime=$(boot_uptime)s"
+
+  modprobe brcmfmac 2>>"$LOG" || true
 
   log "waiting for wlan0..."
   if ! wait_iface wlan0; then
@@ -100,8 +104,8 @@ run() {
 start() {
   mkdir -p "$(dirname "$LOG")"
   : >"$LOG"
-  log "S35wifi start uptime=$(boot_uptime)s"
-  log "S35wifi: launching in background"
+  log "S05wifi start uptime=$(boot_uptime)s"
+  log "S05wifi: launching in background"
   ( run; log "done" ) >/dev/null 2>&1 &
 }
 

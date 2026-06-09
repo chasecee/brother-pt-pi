@@ -86,8 +86,8 @@ if [[ "$PTLABEL_KIND" == "bridge" ]]; then
     "${OVERLAY}/etc/init.d/S20ptlabel" \
     "${HOST}:/etc/init.d/S20ptlabel"
   scp -O "${SSH_OPTS[@]}" \
-    "${OVERLAY}/etc/init.d/S35wifi" \
-    "${HOST}:/etc/init.d/S35wifi"
+    "${OVERLAY}/etc/init.d/S05wifi" \
+    "${HOST}:/etc/init.d/S05wifi"
   scp -O "${SSH_OPTS[@]}" \
     "${OVERLAY}/etc/init.d/S60ptlabel-diagnostics" \
     "${HOST}:/etc/init.d/S60ptlabel-diagnostics"
@@ -115,9 +115,10 @@ if [ "$STATIC_ONLY" = "0" ]; then
   chmod +x /opt/ptlabel/bin/ptlabel-bridge.new
   mv /opt/ptlabel/bin/ptlabel-bridge.new /opt/ptlabel/bin/ptlabel-bridge
 fi
-chmod +x /etc/init.d/S20ptlabel /etc/init.d/S35wifi /etc/init.d/S60ptlabel-diagnostics /usr/bin/ptlabel-diagnostics
+rm -f /etc/init.d/S35wifi
+chmod +x /etc/init.d/S20ptlabel /etc/init.d/S05wifi /etc/init.d/S60ptlabel-diagnostics /usr/bin/ptlabel-diagnostics
 /etc/init.d/S20ptlabel restart
-/etc/init.d/S35wifi restart || true
+/etc/init.d/S05wifi restart || true
 /etc/init.d/S60ptlabel-diagnostics restart || true
 sleep 2
 echo "--- /status ---"

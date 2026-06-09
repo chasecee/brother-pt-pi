@@ -8,6 +8,6 @@ config BR2_PTLABEL_KERNEL_6_6_HEADERS
 
 menu "PTLabel packages"
 
-source "$BR2_EXTERNAL_PTLABEL_PATH/package/ptlabel-server/Config.in"
+source "$BR2_EXTERNAL_PTLABEL_PATH/package/ptlabel-bridge/Config.in"
 
 endmenu

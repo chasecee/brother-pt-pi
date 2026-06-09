@@ -27,6 +27,7 @@ RUST_OUT_DIR="${ROOT}/.cache/ptlabel-bridge"
 MAX_FLASH_BYTES=$((65 * 1000 * 1000 * 1000))
 DISK=""
 DO_BUILD=1
+DO_FLASH=1
 RUST_ONLY=0
 DEVICE=""
 PTLABEL_KIND="${PTLABEL_KIND:-}"
@@ -46,13 +47,14 @@ load_device() {
 
 usage() {
   cat <<EOF
-usage: $0 [--disk /dev/diskN] [--flash-only] [--rust-only]
+usage: $0 [--disk /dev/diskN] [--flash-only] [--rust-only] [--build-only]
        $0 [--buildroot-dir PATH] [--out-dir PATH] [--defconfig NAME] [--device NAME]
 
   --rust-only   build only the Rust binary into .cache/ptlabel-bridge/bin/
                 (used by ./deploy.sh for the fast Pi dev loop)
   --flash-only  skip building, just flash the existing image
-  --disk        required unless --rust-only is set
+  --build-only  build the image but skip flashing
+  --disk        required unless --rust-only or --build-only is set
   --device      load profile from devices/<name>.env
 EOF
 }
@@ -73,6 +75,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     --device=*) DEVICE="${1#--device=}"; shift ;;
     --flash-only|--no-build) DO_BUILD=0; shift ;;
+    --build-only) DO_FLASH=0; shift ;;
     --rust-only) RUST_ONLY=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "unknown arg: $1" >&2; usage; exit 1 ;;
@@ -97,9 +100,9 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
   exit 1
 fi
 
-if [[ $RUST_ONLY -eq 0 ]]; then
+if [[ $RUST_ONLY -eq 0 && $DO_FLASH -eq 1 ]]; then
   if [[ -z "$DISK" ]]; then
-    echo "--disk is required (unless --rust-only)" >&2
+    echo "--disk is required (unless --rust-only or --build-only)" >&2
     usage
     exit 1
   fi
@@ -245,10 +248,13 @@ echo "$ATTRS" | grep -q "Tag_FP_arch: VFPv2" || { echo "FATAL: FPU beyond VFPv2"
 '
 }
 
-# Full Buildroot build. Dirclean the ptlabel-server package so the freshly
-# built local ptlabel-bridge binary is always re-copied + reinstalled.
+# Full Buildroot build. Buildroot's incremental TARGET_DIR never deletes files
+# that packages/overlays no longer install, so a renamed init script ships as a
+# zombie forever. Scrub target/ and the install stamps every image build so
+# the rootfs is reconstructed from scratch (cheap: reinstall is file copies).
+# Kernel config fragments are also not tracked, so force a kconfig re-merge.
 build_buildroot_image() {
-  echo "==> building Buildroot image"
+  echo "==> building Buildroot image (fresh target dir)"
   docker run --rm \
     -u "$(id -u):$(id -g)" \
     -v "${ROOT}:/work" \
@@ -261,9 +267,24 @@ build_buildroot_image() {
     "$DOCKER_IMAGE" \
     bash -lc "
       set -euo pipefail
+      rm -rf ${CONTAINER_OUT}/target
+      find ${CONTAINER_OUT}/build -name .stamp_target_installed -delete 2>/dev/null || true
+      rm -f ${CONTAINER_OUT}/build/linux-custom/.stamp_dotconfig \
+            ${CONTAINER_OUT}/build/linux-custom/.stamp_configured \
+            ${CONTAINER_OUT}/build/linux-custom/.stamp_kconfig_fixup_done \
+            ${CONTAINER_OUT}/build/linux-custom/.stamp_built \
+            ${CONTAINER_OUT}/build/linux-custom/.stamp_installed \
+            ${CONTAINER_OUT}/build/linux-custom/.stamp_images_installed
       make -C /work/.cache/buildroot O=${CONTAINER_OUT} BR2_EXTERNAL=/work/buildroot-external ${DEFCONFIG}
-      make -C /work/.cache/buildroot O=${CONTAINER_OUT} BR2_EXTERNAL=/work/buildroot-external ptlabel-server-dirclean
+      make -C /work/.cache/buildroot O=${CONTAINER_OUT} BR2_EXTERNAL=/work/buildroot-external ptlabel-bridge-dirclean
       make -C /work/.cache/buildroot O=${CONTAINER_OUT} BR2_EXTERNAL=/work/buildroot-external -j\"$(sysctl -n hw.ncpu)\"
+      # BusyBox modprobe cannot load compressed modules; a .ko.xz here means
+      # an unbootable-wifi image. Fail loudly instead.
+      if find ${CONTAINER_OUT}/target/lib/modules -name '*.ko.*' | grep -q .; then
+        echo 'FATAL: compressed kernel modules in target (BusyBox modprobe cannot load them)' >&2
+        exit 1
+      fi
+      test -e ${CONTAINER_OUT}/target/var/log/ptlabel || { echo 'FATAL: /var/log is not a real directory' >&2; exit 1; }
     "
 }
 
@@ -312,6 +333,11 @@ IMG="${HOST_OUT_DIR}/images/sdcard.img"
 if [[ ! -f "$IMG" ]]; then
   echo "image missing: $IMG" >&2
   exit 1
+fi
+
+if [[ $DO_FLASH -eq 0 ]]; then
+  echo "image ready: $IMG"
+  exit 0
 fi
 
 echo "about to flash ${IMG} to ${DISK}"

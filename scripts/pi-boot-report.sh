@@ -10,7 +10,7 @@ usage() {
 usage: $0 [--device NAME] [--host root@IP]
 
 Examples:
-  $0 --device labelbuddy
+  $0 --device bridge
   $0 --host root@192.168.4.117
 EOF
 }
@@ -87,11 +87,11 @@ else
   echo "missing /var/log/ptlabel/boot.log"
 fi
 echo
-echo "== server start lines =="
-if [ -f /var/log/ptlabel/server.log ]; then
-  grep -E "bind-start|listening on|mdns:" /var/log/ptlabel/server.log | tail -n 20 || true
+echo "== bridge start lines =="
+if [ -f /var/log/ptlabel/bridge.log ]; then
+  grep -E "listening on" /var/log/ptlabel/bridge.log | tail -n 20 || true
 else
-  echo "missing /var/log/ptlabel/server.log"
+  echo "missing /var/log/ptlabel/bridge.log"
 fi
 echo
 echo "== wifi timing lines =="

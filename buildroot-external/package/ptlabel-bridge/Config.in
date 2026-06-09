@@ -1,5 +1,5 @@
-config BR2_PACKAGE_PTLABEL_SERVER
-	bool "ptlabel-server"
+config BR2_PACKAGE_PTLABEL_BRIDGE
+	bool "ptlabel-bridge"
 	depends on BR2_arm
 	select BR2_PACKAGE_LIBUSB
 	help

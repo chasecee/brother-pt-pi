@@ -22,6 +22,12 @@ IMAGE_INFO="${TARGET_DIR}/etc/ptlabel-image-info"
 BUILD_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 GIT_SHA="$(git -C "${SOURCE_ROOT}" rev-parse --short HEAD 2>/dev/null || echo unknown)"
 
+# Skeleton symlinks /var/log into tmpfs; keep logs on the SD card so boot
+# failures survive a power pull.
+if [ -L "${TARGET_DIR}/var/log" ]; then
+  rm "${TARGET_DIR}/var/log"
+fi
+
 mkdir -p \
   "${TARGET_DIR}/opt/ptlabel/bin" \
   "${TARGET_DIR}/opt/ptlabel/data" \
@@ -39,6 +45,15 @@ if [ ! -s "${WPA_CONF_SRC}" ]; then
 fi
 
 install -D -m 0600 "${WPA_CONF_SRC}" "${WPA_CONF_DST}"
+
+AUTH_KEYS_SRC="${EXTERNAL_DIR}/board/ptlabel-pi0/authorized_keys"
+if [ ! -s "${AUTH_KEYS_SRC}" ]; then
+  echo "missing SSH key: ${AUTH_KEYS_SRC}" >&2
+  echo "copy your pubkey there so deploy.sh/pi-boot-report.sh can reach the device" >&2
+  exit 1
+fi
+install -D -m 0600 "${AUTH_KEYS_SRC}" "${TARGET_DIR}/root/.ssh/authorized_keys"
+chmod 700 "${TARGET_DIR}/root/.ssh"
 
 cat >"${INTERFACES_FILE}" <<'EOF'
 auto lo
@@ -68,7 +83,16 @@ BUILD_UTC=${BUILD_UTC}
 GIT_SHA=${GIT_SHA}
 EOF
 
-chmod 0755 "${TARGET_DIR}/etc/init.d/S35wifi"
+chmod 0755 "${TARGET_DIR}/etc/init.d/S05wifi"
+
+# linux-firmware ships the board NVRAM (.txt) but not a board-named .bin;
+# the symlink kills one failed firmware lookup (~0.3s) at wifi probe.
+ln -sf brcmfmac43430-sdio.bin \
+  "${TARGET_DIR}/lib/firmware/brcm/brcmfmac43430-sdio.raspberrypi,model-zero-w.bin"
+test -s "${TARGET_DIR}/lib/firmware/brcm/brcmfmac43430-sdio.raspberrypi,model-zero-w.txt" || {
+  echo "missing board NVRAM for brcmfmac43430" >&2
+  exit 1
+}
 
 if [ -L "${DROPBEAR_DIR}" ] && [ "$(readlink "${DROPBEAR_DIR}")" = "/var/run/dropbear" ]; then
   rm -f "${DROPBEAR_DIR}"

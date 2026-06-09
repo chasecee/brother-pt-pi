@@ -9,6 +9,7 @@ data/
 /bin/
 /.cache/
 buildroot-external/board/ptlabel-pi0/wpa_supplicant.conf
+buildroot-external/board/ptlabel-pi0/authorized_keys
 .DS_Store
 /.astro/
 *.env
