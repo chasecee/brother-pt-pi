@@ -1,8 +1,8 @@
 mod blocks;
+mod bridge;
 mod config;
 mod fonts;
 mod icons;
-mod printer;
 mod state;
 mod sysinfo;
 
@@ -26,13 +26,13 @@ use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::CompressionLevel;
 use tracing_subscriber::EnvFilter;
 
+use crate::bridge::{BridgeClient, BridgePrintLabel};
 use crate::config::{tape_height_mm, LabelDefaults, Limits, CUSTOM_ICON_MAX_UPLOAD_BYTES};
 use crate::icons::{custom_icon_path, save_custom_icon};
-use crate::printer::PrinterService;
 use crate::state::StateStore;
 
 #[derive(Parser)]
-#[command(name = "ptlabel-server")]
+#[command(name = "ptlabel-app")]
 struct Args {
     #[arg(long, default_value = "0.0.0.0")]
     host: String,
@@ -44,7 +44,6 @@ struct Args {
     data_dir: Option<PathBuf>,
     #[arg(long, env = "PTLABEL_DEV", default_value_t = false)]
     dev: bool,
-    /// Hostname to advertise via mDNS. Empty disables mDNS.
     #[arg(long, env = "PTLABEL_MDNS_NAME", default_value = "label")]
     mdns_name: String,
 }
@@ -56,7 +55,7 @@ struct AppState {
     defaults: LabelDefaults,
     limits: Limits,
     store: Arc<StateStore>,
-    printer: Arc<PrinterService>,
+    bridge: Arc<BridgeClient>,
     asset_version: String,
 }
 
@@ -129,9 +128,7 @@ fn boot_uptime_secs() -> Option<f64> {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
-        .with_env_filter(
-            EnvFilter::from_default_env().add_directive("ptlabel_server=info".parse()?),
-        )
+        .with_env_filter(EnvFilter::from_default_env().add_directive("ptlabel_app=info".parse()?))
         .init();
 
     let args = Args::parse();
@@ -150,7 +147,7 @@ async fn main() -> anyhow::Result<()> {
         defaults.clone(),
         limits.clone(),
     ));
-    let printer = Arc::new(PrinterService::from_env());
+    let bridge = Arc::new(BridgeClient::from_env());
 
     let state = AppState {
         root: root.clone(),
@@ -158,7 +155,7 @@ async fn main() -> anyhow::Result<()> {
         defaults,
         limits,
         store,
-        printer,
+        bridge,
         asset_version: deployed_at_from_static_index(&root),
     };
 
@@ -201,10 +198,7 @@ async fn main() -> anyhow::Result<()> {
         )
         .layer(cache_policy.clone());
     let icon_sprite_file = Router::new()
-        .route_service(
-            "/",
-            ServeFile::new(icons_root.join("category-sprite.png")),
-        )
+        .route_service("/", ServeFile::new(icons_root.join("category-sprite.png")))
         .layer(cache_policy.clone());
 
     let app = Router::new()
@@ -237,15 +231,12 @@ async fn main() -> anyhow::Result<()> {
     let addr: SocketAddr = format!("{}:{}", args.host, args.port).parse()?;
     if let Some(boot_s) = boot_uptime_secs() {
         tracing::info!(
-            "ptlabel-server bind-start uptime={boot_s:.3}s host={} port={}",
+            "ptlabel-app bind-start uptime={boot_s:.3}s host={} port={}",
             args.host,
             args.port
         );
     }
-    tracing::info!(
-        "ptlabel-server listening on http://{addr} (dev={})",
-        args.dev
-    );
+    tracing::info!("ptlabel-app listening on http://{addr} (dev={})", args.dev);
 
     advertise_mdns(&args.mdns_name, args.port);
 
@@ -334,30 +325,94 @@ async fn api_state_put(
 }
 
 async fn api_status(State(state): State<AppState>) -> Json<Value> {
+    let bridge_status = state.bridge.status().await;
     let mut body = json!({
-        "ok": state.printer.usb_ready(),
-        "printing": state.printer.is_printing(),
+        "ok": false,
+        "printing": false,
         "info": "",
         "err": "",
         "deployed_at": state.asset_version,
+        "bridge": {
+            "url": state.bridge.base_url(),
+            "connected": false,
+            "ok": false,
+            "printing": false,
+            "err": "",
+        },
     });
-    let map = body.as_object_mut().unwrap();
+    let map = body.as_object_mut().expect("status body object");
+
+    if let Ok(status) = bridge_status {
+        map.insert(
+            "bridge".into(),
+            json!({
+                "url": state.bridge.base_url(),
+                "connected": true,
+                "ok": status.get("ok").and_then(|v| v.as_bool()).unwrap_or(false),
+                "printing": status.get("printing").and_then(|v| v.as_bool()).unwrap_or(false),
+                "err": "",
+            }),
+        );
+        map.insert(
+            "ok".into(),
+            json!(status.get("ok").and_then(|v| v.as_bool()).unwrap_or(false)),
+        );
+        map.insert(
+            "printing".into(),
+            json!(status
+                .get("printing")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)),
+        );
+    } else if let Err(err) = bridge_status {
+        map.insert(
+            "bridge".into(),
+            json!({
+                "url": state.bridge.base_url(),
+                "connected": false,
+                "ok": false,
+                "printing": false,
+                "err": err,
+            }),
+        );
+        map.insert("err".into(), json!(err));
+    }
+
     for (k, v) in sysinfo::linux_sysinfo() {
         map.insert(k, v);
     }
     Json(body)
 }
 
-async fn api_media(
-    State(state): State<AppState>,
-) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
-    if state.printer.is_printing() {
-        return Err((
-            StatusCode::CONFLICT,
-            Json(json!({ "ok": false, "err": "printing" })),
-        ));
+async fn api_media(State(state): State<AppState>) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    match state.bridge.status().await {
+        Ok(status) => {
+            if status
+                .get("printing")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)
+            {
+                return Err((
+                    StatusCode::CONFLICT,
+                    Json(json!({ "ok": false, "err": "printing" })),
+                ));
+            }
+        }
+        Err(err) => {
+            return Err((
+                StatusCode::BAD_GATEWAY,
+                Json(json!({ "ok": false, "err": err })),
+            ));
+        }
     }
-    Ok(Json(state.printer.query_media()))
+
+    match state.bridge.media().await {
+        Ok(media) => Ok(Json(media)),
+        Err(err) => Err((
+            StatusCode::BAD_GATEWAY,
+            Json(json!({ "ok": false, "err": err })),
+        )),
+    }
 }
 
 async fn api_print(
@@ -372,7 +427,7 @@ async fn api_print(
     }
 
     let lim = &state.limits;
-    let mut png_labels: Vec<(Vec<u8>, u32)> = Vec::new();
+    let mut bridge_labels: Vec<BridgePrintLabel> = Vec::new();
     let mut meta_items: Vec<Value> = Vec::new();
 
     for item in &body.labels {
@@ -392,7 +447,10 @@ async fn api_print(
             .qty
             .unwrap_or(1)
             .clamp(lim.qty[0] as u32, lim.qty[1] as u32);
-        png_labels.push((png, qty));
+        bridge_labels.push(BridgePrintLabel {
+            png_b64: base64::engine::general_purpose::STANDARD.encode(png),
+            qty,
+        });
         if let Some(meta) = &item.meta {
             meta_items.push(meta.clone());
         } else {
@@ -400,11 +458,9 @@ async fn api_print(
         }
     }
 
-    match state
-        .printer
-        .print_labels_from_pngs(&png_labels, &state.defaults, &state.limits)
-    {
-        Ok(count) => {
+    match state.bridge.print(&bridge_labels).await {
+        Ok(result) => {
+            let count = result.get("count").and_then(|v| v.as_u64()).unwrap_or(0);
             let recent = state.store.record_print(&meta_items);
             Ok(Json(json!({
                 "ok": true,
@@ -413,9 +469,9 @@ async fn api_print(
                 "recent": recent,
             })))
         }
-        Err(e) => Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "ok": false, "err": e.to_string() })),
+        Err(err) => Err((
+            StatusCode::BAD_GATEWAY,
+            Json(json!({ "ok": false, "err": err })),
         )),
     }
 }

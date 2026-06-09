@@ -1,19 +1,18 @@
 #!/usr/bin/env sh
 set -eu
 
-NAME=ptlabel-server
-PIDFILE=/var/run/ptlabel.pid
+NAME=ptlabel-bridge
+PIDFILE=/var/run/ptlabel-bridge.pid
 ENVFILE=/etc/default/ptlabel
 BOOT_LOG=/var/log/ptlabel/boot.log
 
 [ -r "$ENVFILE" ] && . "$ENVFILE"
 
 ROOT="${PTLABEL_ROOT:-/opt/ptlabel}"
-DATA_DIR="${PTLABEL_DATA_DIR:-$ROOT/data}"
-PORT="${PTLABEL_PORT:-80}"
-MDNS_NAME="${PTLABEL_MDNS_NAME:-label}"
+PORT="${PTLABEL_PORT:-7777}"
+MDNS_NAME="${PTLABEL_MDNS_NAME:-bridge}"
 EXTRA_ARGS="${PTLABEL_EXTRA_ARGS:-}"
-BIN="$ROOT/bin/ptlabel-server"
+BIN="$ROOT/bin/ptlabel-bridge"
 export PTLABEL_MDNS_NAME="$MDNS_NAME"
 
 boot_uptime() {
@@ -22,14 +21,13 @@ boot_uptime() {
 
 start() {
   [ -x "$BIN" ] || return 1
-  mkdir -p "$DATA_DIR" /var/run /var/log/ptlabel
+  mkdir -p /var/run /var/log/ptlabel
   printf '[init] S20ptlabel start uptime=%ss\n' "$(boot_uptime)" >>"$BOOT_LOG"
   if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
     return 0
   fi
   cd "$ROOT"
-  PTLABEL_ROOT="$ROOT" PTLABEL_DATA_DIR="$DATA_DIR" PTLABEL_MDNS_NAME="$MDNS_NAME" \
-    "$BIN" --port "$PORT" --mdns-name "$MDNS_NAME" $EXTRA_ARGS >>/var/log/ptlabel/server.log 2>&1 &
+  "$BIN" --port "$PORT" --mdns-name "$MDNS_NAME" $EXTRA_ARGS >>/var/log/ptlabel/bridge.log 2>&1 &
   echo $! >"$PIDFILE"
 }
 

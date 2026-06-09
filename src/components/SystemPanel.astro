@@ -11,10 +11,14 @@
       </label>
     </div>
     <div class="stat-row">
-      <span>Memory</span><span id="statMem">—</span>
+      <span>Memory</span>
+      <span id="statMem" class="mem-stat">
+        <span class="mem-bar"><span id="statMemFill" class="mem-fill"></span></span>
+        <span id="statMemText" class="mem-text">—</span>
+      </span>
     </div>
     <div class="stat-row">
-      <span>Wi-Fi</span><span id="statWifi">—</span>
+      <span>Bridge</span><span id="statBridge">—</span>
     </div>
     <div class="stat-row">
       <span>CPU temp</span><span id="statTemp">—</span>
@@ -24,13 +28,6 @@
     </div>
     <div class="stat-row">
       <span>Deployed</span><span id="statDeployed">—</span>
-    </div>
-    <div class="stat-row">
-      <a
-        href="https://github.com/chasecee/brother-pt-pi/actions"
-        target="_blank"
-        rel="noopener">GitHub Actions</a
-      >
     </div>
   </div>
 </div>

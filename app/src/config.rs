@@ -9,7 +9,6 @@ pub const CUSTOM_ICON_MAX_UPLOAD_BYTES: usize = 10 * 1024 * 1024;
 pub const CUSTOM_ICON_MAX_DIM: u32 = 512;
 
 pub const BASELINE_MM: f64 = 18.0;
-pub const BASELINE_HEIGHT_PX: i32 = 112;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct Limits {
@@ -79,46 +78,6 @@ impl LabelDefaults {
 
 pub fn tape_height_mm() -> f64 {
     env_float("TAPE_HEIGHT_MM", BASELINE_MM)
-}
-
-pub fn preset_for_width(mm: i32) -> Value {
-    let height_px_map = [(6, 32), (9, 50), (12, 70), (18, 112), (24, 128)];
-    let defaults = LabelDefaults::from_env();
-    let baseline = json!({
-        "font_size": defaults.font_size,
-        "margin_h": defaults.margin_h,
-        "v_align": defaults.v_align,
-    });
-
-    let (mm, h) = height_px_map
-        .iter()
-        .find(|(w, _)| *w == mm)
-        .map(|(w, h)| (*w, *h))
-        .unwrap_or((BASELINE_MM as i32, BASELINE_HEIGHT_PX));
-
-    let s = h as f64 / BASELINE_HEIGHT_PX as f64;
-    let base_font = baseline["font_size"].as_i64().unwrap_or(76) as f64;
-    let base_margin = baseline["margin_h"].as_i64().unwrap_or(24) as f64;
-    let base_v = baseline["v_align"].as_i64().unwrap_or(0) as f64;
-
-    let (font_size, v_align, letter_spacing) = if mm == 12 {
-        (58, -2, -1.0)
-    } else {
-        (
-            (base_font * s).round() as i64,
-            (base_v * s).round() as i64,
-            defaults.letter_spacing,
-        )
-    };
-
-    json!({
-        "width_mm": mm,
-        "height_px": h,
-        "font_size": font_size,
-        "margin_h": (base_margin * s).round() as i64,
-        "v_align": v_align,
-        "letter_spacing": letter_spacing,
-    })
 }
 
 fn env_string(name: &str, default: &str) -> String {

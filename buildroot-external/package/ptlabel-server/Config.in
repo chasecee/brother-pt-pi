@@ -3,4 +3,4 @@ config BR2_PACKAGE_PTLABEL_SERVER
 	depends on BR2_arm
 	select BR2_PACKAGE_LIBUSB
 	help
-	  PTLabel web server and Brother P-Touch print pipeline.
+	  PTLabel USB bridge service for Brother P-Touch printing.

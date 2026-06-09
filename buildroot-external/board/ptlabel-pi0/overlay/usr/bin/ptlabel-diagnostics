@@ -2,8 +2,8 @@
 set -u
 
 TTY=/dev/tty1
-URL=http://127.0.0.1/api/status
-SERVER_LOG=/var/log/ptlabel/server.log
+URL=http://127.0.0.1:7777/status
+SERVER_LOG=/var/log/ptlabel/bridge.log
 WIFI_LOG=/var/log/wifi.log
 BOOT_LOG=/var/log/ptlabel/boot.log
 
@@ -44,13 +44,13 @@ while :; do
     printf 'ip: %s   ssh: root@%s pw: ptlabel\n' "$ip_main" "$ip_main"
     printf 'wifi link: %s\n' "$wlan_link"
     printf 'brcmfmac loaded: %s\n' "$brcm_loaded"
-    printf 'server: ok=%s printing=%s temp=%s mem=%s rssi=%s\n' "$ok" "$printing" "$temp" "$mem" "$wifi"
+    printf 'bridge: ok=%s printing=%s temp=%s mem=%s rssi=%s\n' "$ok" "$printing" "$temp" "$mem" "$wifi"
     if [ -f "$WIFI_LOG" ]; then
       printf '\n--- wifi.log ---\n'
       tail -n 10 "$WIFI_LOG"
     fi
     if [ -f "$SERVER_LOG" ]; then
-      printf '\n--- server.log ---\n'
+      printf '\n--- bridge.log ---\n'
       tail -n 6 "$SERVER_LOG"
     fi
     if [ -f "$BOOT_LOG" ]; then

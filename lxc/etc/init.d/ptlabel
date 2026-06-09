@@ -1,0 +1,25 @@
+#!/sbin/openrc-run
+
+name="ptlabel"
+command="/opt/ptlabel/bin/ptlabel-app"
+command_args="--port ${PTLABEL_PORT:-80} --mdns-name ${PTLABEL_MDNS_NAME:-ptlabel}"
+command_background="yes"
+pidfile="/run/ptlabel.pid"
+output_log="/var/log/ptlabel/app.log"
+error_log="/var/log/ptlabel/app.log"
+command_user="root:root"
+
+depend() {
+  need net
+}
+
+start_pre() {
+  checkpath -d -m 0755 /var/log/ptlabel
+  checkpath -d -m 0755 /opt/ptlabel
+  checkpath -d -m 0755 /opt/ptlabel/bin
+  checkpath -d -m 0755 /opt/ptlabel/static
+  checkpath -d -m 0755 /opt/ptlabel/data
+  export PTLABEL_ROOT="${PTLABEL_ROOT:-/opt/ptlabel}"
+  export PTLABEL_DATA_DIR="${PTLABEL_DATA_DIR:-/opt/ptlabel/data}"
+  export BRIDGE_URL="${BRIDGE_URL:-http://bridge.local:7777}"
+}

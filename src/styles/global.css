@@ -160,6 +160,69 @@ body {
   }
 }
 
+.bridge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  line-height: 1;
+}
+
+.bridge-dot {
+  display: block;
+  align-self: center;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--danger);
+}
+
+.bridge-pill.ok .bridge-dot {
+  background: var(--ok);
+}
+
+.bridge-pill.bad .bridge-dot {
+  background: var(--danger);
+}
+
+.mem-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.mem-bar {
+  width: 6rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: #2b2b2b;
+  overflow: hidden;
+}
+
+.mem-fill {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: var(--ok);
+  transition:
+    width 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.mem-fill.medium {
+  background: #d4a017;
+}
+
+.mem-fill.high {
+  background: var(--danger);
+}
+
+.mem-text {
+  width: 3ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .settings-group {
   display: flex;
   gap: 0.6rem;

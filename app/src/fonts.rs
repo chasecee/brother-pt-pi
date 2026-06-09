@@ -97,4 +97,3 @@ pub fn list_fonts(root: &Path) -> Value {
         .collect();
     json!({ "families": families })
 }
-

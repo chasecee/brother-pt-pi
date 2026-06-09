@@ -11,10 +11,10 @@ mac-print:
 	target/release/chain-print --help >/dev/null
 
 build:
-	cargo build --release -p ptlabel-server
+	cargo build --release -p ptlabel-app
 
-RUST_SRC := server chain-print Cargo.toml Cargo.lock
-DEPLOY_STAMP := .cache/ptlabel-server/.last-deployed
+RUST_SRC := app bridge chain-print Cargo.toml Cargo.lock
+DEPLOY_STAMP := .cache/ptlabel-app/.last-deployed
 
 deploy:
 	@mkdir -p $(dir $(DEPLOY_STAMP))
@@ -52,9 +52,9 @@ help:
 	@echo "mac-dev      - native Mac dev (port 5001, dev cache policy)"
 	@echo "mac-dev-live - mac dev with auto-restart (cargo-watch)"
 	@echo "mac-print - smoke test chain-print binary"
-	@echo "build     - native release ptlabel-server (host arch)"
+	@echo "build     - native release ptlabel-app (host arch)"
 	@echo "deploy    - cross-build for Pi Zero W and push to running Pi"
-	@echo "br-rust   - cross-build ptlabel-server only (.cache/ptlabel-server/bin/)"
+	@echo "br-rust   - cross-build ptlabel-bridge only (.cache/ptlabel-bridge/bin/)"
 	@echo "br-build  - full Buildroot image + flash (set DISK=/dev/diskN)"
 	@echo "br-flash  - flash existing Buildroot image (set DISK=/dev/diskN)"
 	@echo "boot-report - print boot timing report (set DEVICE=name)"

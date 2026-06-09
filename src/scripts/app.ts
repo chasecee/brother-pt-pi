@@ -182,28 +182,36 @@ function formatRelative(seconds) {
   return h ? `${d}d ${h}h` : `${d}d`;
 }
 
-function wifiQuality(dbm) {
-  if (dbm >= -55) return "excellent";
-  if (dbm >= -65) return "good";
-  if (dbm >= -75) return "fair";
-  return "weak";
-}
-
 function updateSystemPanel(r) {
+  const memFill = $("statMemFill");
+  const memText = $("statMemText");
   const mem = r && r.mem;
   if (mem && mem.avail_mb != null && mem.total_mb != null) {
-    $("statMem").textContent = `${mem.avail_mb} / ${mem.total_mb} MB free`;
-    $("statMem").classList.toggle("low", mem.avail_mb < 64);
+    const total = Number(mem.total_mb) || 0;
+    const avail = Number(mem.avail_mb) || 0;
+    const used = Math.max(0, total - avail);
+    const usedRatio = total > 0 ? used / total : 0;
+    const usedPct = Math.max(0, Math.min(100, Math.round(usedRatio * 100)));
+    memFill.style.width = `${usedPct}%`;
+    memFill.classList.toggle("medium", usedRatio >= 0.6 && usedRatio < 0.85);
+    memFill.classList.toggle("high", usedRatio >= 0.85);
+    memText.textContent = `${usedPct}%`;
   } else {
-    $("statMem").textContent = "—";
+    memFill.style.width = "0%";
+    memFill.classList.remove("medium", "high");
+    memText.textContent = "—";
   }
-  const wifi = r && r.wifi;
-  if (wifi && wifi.signal_dbm != null) {
-    $("statWifi").textContent = `${wifi.signal_dbm} dBm (${wifiQuality(
-      wifi.signal_dbm,
-    )})`;
+  const bridge = r && r.bridge;
+  if (bridge) {
+    if (bridge.connected) {
+      $("statBridge").innerHTML =
+        '<span class="bridge-pill ok"><span class="bridge-dot"></span>Connected</span>';
+    } else {
+      $("statBridge").innerHTML =
+        '<span class="bridge-pill bad"><span class="bridge-dot"></span>Disconnected</span>';
+    }
   } else {
-    $("statWifi").textContent = "—";
+    $("statBridge").textContent = "—";
   }
   $("statTemp").textContent =
     r && r.temp_c != null ? `${r.temp_c.toFixed(1)} °C` : "—";

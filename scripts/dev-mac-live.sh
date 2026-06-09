@@ -16,14 +16,14 @@ echo "http://127.0.0.1:5001 (rust api)"
 echo "http://127.0.0.1:4321 (astro ui)"
 
 cargo watch \
-  -w server \
+  -w app \
   -w src \
   -w public \
   -w icons \
   -w fonts \
   -w Cargo.toml \
   -w Cargo.lock \
-  -x "run -p ptlabel-server -- --port 5001 --dev" &
+  -x "run -p ptlabel-app -- --port 5001 --dev" &
 RUST_PID=$!
 
 cleanup() {

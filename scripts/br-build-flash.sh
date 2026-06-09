@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Builds the ptlabel-server Rust binary (ARMv6 + VFPv2) using Buildroot's own
+# Builds the ptlabel-bridge Rust binary (ARMv6 + VFPv2) using Buildroot's own
 # cross toolchain, then builds and (optionally) flashes the Buildroot SD image.
 #
 # Rust build prerequisites that matter:
@@ -23,12 +23,13 @@ DOCKER_DL_VOLUME="${DOCKER_DL_VOLUME:-ptlabel-buildroot-dl}"
 DOCKER_CARGO_VOLUME="${DOCKER_CARGO_VOLUME:-ptlabel-cargo-cache}"
 RUST_DOCKER_IMAGE="${RUST_DOCKER_IMAGE:-rust:latest}"
 CONTAINER_OUT="/br-out"
-RUST_OUT_DIR="${ROOT}/.cache/ptlabel-server"
+RUST_OUT_DIR="${ROOT}/.cache/ptlabel-bridge"
 MAX_FLASH_BYTES=$((65 * 1000 * 1000 * 1000))
 DISK=""
 DO_BUILD=1
 RUST_ONLY=0
 DEVICE=""
+PTLABEL_KIND="${PTLABEL_KIND:-}"
 
 load_device() {
   local device_name="$1"
@@ -48,7 +49,7 @@ usage() {
 usage: $0 [--disk /dev/diskN] [--flash-only] [--rust-only]
        $0 [--buildroot-dir PATH] [--out-dir PATH] [--defconfig NAME] [--device NAME]
 
-  --rust-only   build only the Rust binary into .cache/ptlabel-server/bin/
+  --rust-only   build only the Rust binary into .cache/ptlabel-bridge/bin/
                 (used by ./deploy.sh for the fast Pi dev loop)
   --flash-only  skip building, just flash the existing image
   --disk        required unless --rust-only is set
@@ -83,7 +84,13 @@ if [[ -n "$DEVICE" ]]; then
 fi
 PTLABEL_MDNS_NAME="${PTLABEL_MDNS_NAME:-label}"
 PTLABEL_HOSTNAME="${PTLABEL_HOSTNAME:-ptlabel-pi0}"
-PTLABEL_PORT="${PTLABEL_PORT:-80}"
+PTLABEL_PORT="${PTLABEL_PORT:-7777}"
+PTLABEL_KIND="${PTLABEL_KIND:-bridge}"
+
+if [[ "$PTLABEL_KIND" != "bridge" ]]; then
+  echo "br-build-flash.sh supports PTLABEL_KIND=bridge only" >&2
+  exit 1
+fi
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
   echo "this script supports macOS host only" >&2
@@ -177,11 +184,11 @@ build_buildroot_toolchain() {
     "
 }
 
-# Cross-compiles ptlabel-server for ARMv6+VFPv2 using Buildroot's toolchain
+# Cross-compiles ptlabel-bridge for ARMv6+VFPv2 using Buildroot's toolchain
 # (which has v6-tagged crt, libgcc, libc). Nightly Rust with -Z build-std
 # rebuilds std so the precompiled v7-tagged stdlib doesn't poison ARM ELF
 # attributes via linker tag promotion. Output verified before declaring done.
-build_ptlabel_server_binary() {
+build_ptlabel_bridge_binary() {
   docker volume create "$DOCKER_CARGO_VOLUME" >/dev/null
   docker run --rm \
     -v "${DOCKER_CARGO_VOLUME}:/cargo-home" \
@@ -189,7 +196,7 @@ build_ptlabel_server_binary() {
     chown -R "$(id -u):$(id -g)" /cargo-home
   mkdir -p "${RUST_OUT_DIR}/bin" "${RUST_OUT_DIR}/target" "${RUST_OUT_DIR}/rustup"
 
-  echo "==> building ptlabel-server (Rust, ARMv6+VFPv2) against Buildroot toolchain"
+  echo "==> building ptlabel-bridge (Rust, ARMv6+VFPv2) against Buildroot toolchain"
   docker run --rm \
     -u "$(id -u):$(id -g)" \
     -v "${ROOT}:/work" \
@@ -227,19 +234,19 @@ export RUSTFLAGS="-C target-cpu=arm1176jzf-s -C link-arg=-march=armv6 -C link-ar
 cargo +nightly build --release \
   --target arm-unknown-linux-gnueabihf \
   -Z build-std=std,panic_abort \
-  -p ptlabel-server
+  -p ptlabel-bridge
 
-cp /rust-out/target/arm-unknown-linux-gnueabihf/release/ptlabel-server /rust-out/bin/ptlabel-server
+cp /rust-out/target/arm-unknown-linux-gnueabihf/release/ptlabel-bridge /rust-out/bin/ptlabel-bridge
 
-ATTRS=$(/br-out/host/bin/arm-buildroot-linux-gnueabihf-readelf -A /rust-out/bin/ptlabel-server)
+ATTRS=$(/br-out/host/bin/arm-buildroot-linux-gnueabihf-readelf -A /rust-out/bin/ptlabel-bridge)
 echo "$ATTRS" | grep -E "CPU_arch|FP_arch"
 echo "$ATTRS" | grep -q "Tag_CPU_arch: v6" || { echo "FATAL: binary is not ARMv6"; exit 1; }
 echo "$ATTRS" | grep -q "Tag_FP_arch: VFPv2" || { echo "FATAL: FPU beyond VFPv2"; exit 1; }
 '
 }
 
-# Full Buildroot build. Force ptlabel-server-dirclean so the freshly built
-# local binary always gets re-copied + installed.
+# Full Buildroot build. Dirclean the ptlabel-server package so the freshly
+# built local ptlabel-bridge binary is always re-copied + reinstalled.
 build_buildroot_image() {
   echo "==> building Buildroot image"
   docker run --rm \
@@ -284,8 +291,8 @@ if [[ $RUST_ONLY -eq 1 ]]; then
   ensure_buildroot_volumes
   ensure_buildroot_source
   build_buildroot_toolchain
-  build_ptlabel_server_binary
-  echo "==> rust binary: ${RUST_OUT_DIR}/bin/ptlabel-server"
+  build_ptlabel_bridge_binary
+  echo "==> rust binary: ${RUST_OUT_DIR}/bin/ptlabel-bridge"
   exit 0
 fi
 
@@ -295,7 +302,7 @@ if [[ $DO_BUILD -eq 1 ]]; then
   ensure_buildroot_image
   ensure_buildroot_volumes
   build_buildroot_toolchain
-  build_ptlabel_server_binary
+  build_ptlabel_bridge_binary
   build_buildroot_image
 fi
 
