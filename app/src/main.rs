@@ -6,13 +6,16 @@ mod icons;
 mod state;
 mod sysinfo;
 
+use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Duration;
 
 use axum::body::Bytes;
 use axum::extract::{Multipart, Query, State};
 use axum::http::{header, StatusCode};
+use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
@@ -20,6 +23,9 @@ use base64::Engine;
 use clap::Parser;
 use serde::Deserialize;
 use serde_json::{json, Value};
+use tokio::sync::{watch, Notify};
+use tokio_stream::wrappers::WatchStream;
+use tokio_stream::StreamExt;
 use tower_http::compression::CompressionLayer;
 use tower_http::services::{ServeDir, ServeFile};
 use tower_http::set_header::SetResponseHeaderLayer;
@@ -56,7 +62,8 @@ struct AppState {
     limits: Limits,
     store: Arc<StateStore>,
     bridge: Arc<BridgeClient>,
-    asset_version: String,
+    snapshot: watch::Receiver<Value>,
+    kick: Arc<Notify>,
 }
 
 #[derive(Deserialize)]
@@ -149,6 +156,16 @@ async fn main() -> anyhow::Result<()> {
     ));
     let bridge = Arc::new(BridgeClient::from_env());
 
+    let asset_version = deployed_at_from_static_index(&root);
+    let (snapshot_tx, snapshot_rx) = watch::channel(Value::Null);
+    let kick = Arc::new(Notify::new());
+    tokio::spawn(bridge_watcher(
+        bridge.clone(),
+        asset_version,
+        snapshot_tx,
+        kick.clone(),
+    ));
+
     let state = AppState {
         root: root.clone(),
         data_dir,
@@ -156,7 +173,8 @@ async fn main() -> anyhow::Result<()> {
         limits,
         store,
         bridge,
-        asset_version: deployed_at_from_static_index(&root),
+        snapshot: snapshot_rx,
+        kick,
     };
 
     let cache_policy = SetResponseHeaderLayer::if_not_present(
@@ -206,7 +224,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/config", get(api_config))
         .route("/api/state", get(api_state_get).put(api_state_put))
         .route("/api/status", get(api_status))
-        .route("/api/media", get(api_media))
+        .route("/api/events", get(api_events))
         .route("/api/print", post(api_print))
         .route("/api/fonts", get(api_fonts))
         .route("/api/icons/categories", get(api_icon_categories))
@@ -324,95 +342,98 @@ async fn api_state_put(
     Ok(Json(state.store.update(body.prefs, body.draft, body.queue)))
 }
 
-async fn api_status(State(state): State<AppState>) -> Json<Value> {
-    let bridge_status = state.bridge.status().await;
+async fn build_snapshot(bridge: &BridgeClient, asset_version: &str) -> Value {
     let mut body = json!({
         "ok": false,
         "printing": false,
-        "info": "",
         "err": "",
-        "deployed_at": state.asset_version,
+        "deployed_at": asset_version,
+        "media": Value::Null,
         "bridge": {
-            "url": state.bridge.base_url(),
+            "url": bridge.base_url(),
             "connected": false,
             "ok": false,
             "printing": false,
             "err": "",
         },
     });
-    let map = body.as_object_mut().expect("status body object");
+    let map = body.as_object_mut().expect("snapshot body object");
 
-    if let Ok(status) = bridge_status {
-        map.insert(
-            "bridge".into(),
-            json!({
-                "url": state.bridge.base_url(),
-                "connected": true,
-                "ok": status.get("ok").and_then(|v| v.as_bool()).unwrap_or(false),
-                "printing": status.get("printing").and_then(|v| v.as_bool()).unwrap_or(false),
-                "err": "",
-            }),
-        );
-        map.insert(
-            "ok".into(),
-            json!(status.get("ok").and_then(|v| v.as_bool()).unwrap_or(false)),
-        );
-        map.insert(
-            "printing".into(),
-            json!(status
+    match bridge.status().await {
+        Ok(status) => {
+            let ok = status.get("ok").and_then(|v| v.as_bool()).unwrap_or(false);
+            let printing = status
                 .get("printing")
                 .and_then(|v| v.as_bool())
-                .unwrap_or(false)),
-        );
-    } else if let Err(err) = bridge_status {
-        map.insert(
-            "bridge".into(),
-            json!({
-                "url": state.bridge.base_url(),
-                "connected": false,
-                "ok": false,
-                "printing": false,
-                "err": err,
-            }),
-        );
-        map.insert("err".into(), json!(err));
+                .unwrap_or(false);
+            map.insert(
+                "bridge".into(),
+                json!({
+                    "url": bridge.base_url(),
+                    "connected": true,
+                    "ok": ok,
+                    "printing": printing,
+                    "err": "",
+                }),
+            );
+            map.insert("ok".into(), json!(ok));
+            map.insert("printing".into(), json!(printing));
+            if ok && !printing {
+                if let Ok(media) = bridge.media().await {
+                    map.insert("media".into(), media);
+                }
+            }
+        }
+        Err(err) => {
+            map.insert(
+                "bridge".into(),
+                json!({
+                    "url": bridge.base_url(),
+                    "connected": false,
+                    "ok": false,
+                    "printing": false,
+                    "err": err,
+                }),
+            );
+            map.insert("err".into(), json!(err));
+        }
     }
 
     for (k, v) in sysinfo::linux_sysinfo() {
         map.insert(k, v);
     }
-    Json(body)
+    body
 }
 
-async fn api_media(State(state): State<AppState>) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
-    match state.bridge.status().await {
-        Ok(status) => {
-            if status
-                .get("printing")
-                .and_then(|v| v.as_bool())
-                .unwrap_or(false)
-            {
-                return Err((
-                    StatusCode::CONFLICT,
-                    Json(json!({ "ok": false, "err": "printing" })),
-                ));
-            }
+async fn bridge_watcher(
+    bridge: Arc<BridgeClient>,
+    asset_version: String,
+    tx: watch::Sender<Value>,
+    kick: Arc<Notify>,
+) {
+    loop {
+        let snapshot = build_snapshot(&bridge, &asset_version).await;
+        if tx.send(snapshot).is_err() {
+            return;
         }
-        Err(err) => {
-            return Err((
-                StatusCode::BAD_GATEWAY,
-                Json(json!({ "ok": false, "err": err })),
-            ));
+        tokio::select! {
+            _ = tokio::time::sleep(Duration::from_secs(3)) => {}
+            _ = kick.notified() => {}
         }
     }
+}
 
-    match state.bridge.media().await {
-        Ok(media) => Ok(Json(media)),
-        Err(err) => Err((
-            StatusCode::BAD_GATEWAY,
-            Json(json!({ "ok": false, "err": err })),
-        )),
-    }
+async fn api_status(State(state): State<AppState>) -> Json<Value> {
+    Json(state.snapshot.borrow().clone())
+}
+
+async fn api_events(
+    State(state): State<AppState>,
+) -> Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>> {
+    let stream = WatchStream::new(state.snapshot.clone())
+        .filter(|v| !v.is_null())
+        .map(|v| Ok(Event::default().data(v.to_string())));
+    Sse::new(stream).keep_alive(KeepAlive::default())
 }
 
 async fn api_print(
@@ -458,7 +479,9 @@ async fn api_print(
         }
     }
 
-    match state.bridge.print(&bridge_labels).await {
+    let result = state.bridge.print(&bridge_labels).await;
+    state.kick.notify_one();
+    match result {
         Ok(result) => {
             let count = result.get("count").and_then(|v| v.as_u64()).unwrap_or(0);
             let recent = state.store.record_print(&meta_items);

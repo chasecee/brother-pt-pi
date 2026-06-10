@@ -57,8 +57,8 @@ host-side intervention.
 - `GET /` — UI
 - `GET /api/config` — UI defaults, limits, baseline tape height
 - `GET /api/state` / `PUT /api/state` — prefs, draft, queue, recent
-- `GET /api/status` — bridge + printer presence, printing flag, sysinfo
-- `GET /api/media` — loaded tape via bridge (width, kind, colors, errors)
+- `GET /api/status` — latest cached snapshot (bridge, printer, media, sysinfo)
+- `GET /api/events` — SSE stream of the same snapshot, pushed every ~3s by a server-side bridge watcher (media skipped while printing)
 - `GET /api/fonts` — font catalog with `/fonts/` URLs per variant
 - `GET /api/icons*` — icon catalog, search, custom uploads
 - `POST /api/print` — pre-rendered PNGs (`{ png, qty, meta }` per label)

@@ -21,8 +21,6 @@ let baselineTapeHeightPx = 112;
 let detectedMedia = null;
 let usbOk = false;
 let printInFlight = 0;
-let statusTimer = null;
-let mediaTimer = null;
 let toastTimer = null;
 let stage = null;
 let recent = [];
@@ -252,19 +250,6 @@ function updateStatusDisplay() {
   setStatus("ready", "ok");
 }
 
-async function refreshStatus() {
-  try {
-    const r = await (await fetch("/api/status")).json();
-    usbOk = !!r.ok;
-    updateSystemPanel(r);
-    updateStatusDisplay();
-  } catch {
-    usbOk = false;
-    setStatus("error", "bad");
-    updateSystemPanel(null);
-  }
-}
-
 function applyMedia(data) {
   if (!data || !data.ok) return;
   detectedMedia = data;
@@ -273,27 +258,23 @@ function applyMedia(data) {
   if (stage) stage.setTapeColor(tapeColor(data.tape_color));
 }
 
-async function refreshMedia() {
-  if (printInFlight > 0) return;
-  try {
-    const resp = await fetch("/api/media");
-    if (resp.status === 409) return;
-    const r = await resp.json();
-    if (r.ok) applyMedia(r);
-    updateStatusDisplay();
-  } catch {
-    updateStatusDisplay();
-  }
+function applySnapshot(r) {
+  usbOk = !!r.ok;
+  updateSystemPanel(r);
+  if (r.media) applyMedia(r.media);
+  updateStatusDisplay();
 }
 
-function startStatusPolling() {
-  if (statusTimer) return;
-  statusTimer = setInterval(refreshStatus, printInFlight > 0 ? 2000 : 30000);
-}
-
-function startMediaPolling() {
-  if (mediaTimer) return;
-  mediaTimer = setInterval(refreshMedia, 60000);
+function startEvents() {
+  const es = new EventSource("/api/events");
+  es.onmessage = (e) => {
+    applySnapshot(JSON.parse(e.data));
+  };
+  es.onerror = () => {
+    usbOk = false;
+    setStatus("error", "bad");
+    updateSystemPanel(null);
+  };
 }
 
 async function rowPreviewPng(row, forPrint = false) {
@@ -374,8 +355,7 @@ async function printRows(rows) {
   } finally {
     printInFlight--;
     $("printBtn").disabled = false;
-    refreshStatus();
-    refreshMedia();
+    updateStatusDisplay();
   }
 }
 
@@ -479,9 +459,7 @@ async function init() {
   });
 
   await applyRecent(raw.recent || []);
-  await Promise.all([refreshStatus(), refreshMedia()]);
-  startStatusPolling();
-  startMediaPolling();
+  startEvents();
 }
 
 init().catch((e) => showToast(e.message || "Init failed"));
