@@ -118,18 +118,20 @@ pub fn normalize_blocks(raw: &Value, limits: &Limits) -> Vec<Value> {
                 entry.insert("type".into(), json!("icon"));
                 entry.insert("id".into(), json!(icon_id));
                 if icon_id.starts_with("custom:") {
-                    if let Some(fit) = obj.get("fit").and_then(|v| v.as_str()) {
-                        let normalized_fit = match fit {
-                            "fit" => Some("contain"),
-                            "contain" | "cover" | "crop" => Some(fit),
-                            _ => None,
-                        };
-                        if let Some(value) = normalized_fit {
-                            entry.insert("fit".into(), json!(value));
-                        }
+                    let fit = obj.get("fit").and_then(|v| v.as_str()).unwrap_or("cover");
+                    let normalized_fit = match fit {
+                        "fit" => Some("cover"),
+                        "contain" | "cover" | "crop" => Some(fit),
+                        _ => Some("cover"),
+                    };
+                    if let Some(value) = normalized_fit {
+                        entry.insert("fit".into(), json!(value));
                     }
-                    let width = obj.get("width").and_then(|v| v.as_f64()).unwrap_or(1.0);
-                    entry.insert("width".into(), json!(width.clamp(0.1, 6.0)));
+                    let width = obj.get("width").and_then(|v| v.as_f64()).unwrap_or(3.0);
+                    entry.insert("width".into(), json!(width.max(0.1)));
+                    if let Some(cover_y) = obj.get("cover_y").and_then(|v| v.as_f64()) {
+                        entry.insert("cover_y".into(), json!(cover_y.clamp(0.0, 1.0)));
+                    }
                     if let Some(crop) = normalize_custom_crop(obj) {
                         entry.insert("crop".into(), crop);
                     }

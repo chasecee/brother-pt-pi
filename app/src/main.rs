@@ -104,7 +104,9 @@ fn decode_png_field(raw: &str) -> Result<Vec<u8>, String> {
 
 fn find_root() -> PathBuf {
     if let Ok(cwd) = std::env::current_dir() {
-        if cwd.join("static").join("index.html").is_file() {
+        if cwd.join("static").join("index.html").is_file()
+            && cwd.join("icons").join("catalog.json").is_file()
+        {
             return cwd;
         }
     }

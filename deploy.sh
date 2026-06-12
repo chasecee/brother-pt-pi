@@ -59,7 +59,9 @@ run_deploy_all() {
   else
     echo "==> skipping bridge (no relevant changes)"
   fi
-  [[ $did -eq 0 ]] && echo "==> nothing to deploy"
+  if [[ $did -eq 0 ]]; then
+    echo "==> nothing to deploy"
+  fi
 }
 
 load_device() {

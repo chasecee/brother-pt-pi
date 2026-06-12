@@ -1,3 +1,5 @@
+import { PICKER_ICONS, ROTATE_CW, UPLOAD, X } from "./lucide-icons";
+
 function trackImageLoad(host, img) {
   if (img.complete && img.naturalWidth > 0) return;
   host.classList.add("is-loading");
@@ -239,13 +241,6 @@ function fontDrawer(container, ctx) {
   );
 }
 
-const PICKER_ICONS = {
-  text: '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M5 4h14v3h-2V6h-4v12h2v2H9v-2h2V6H7v1H5z"/></svg>',
-  icon: '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 2a8 8 0 110 16 8 8 0 010-16zM9 9.5a1.25 1.25 0 110 2.5 1.25 1.25 0 010-2.5zm6 0a1.25 1.25 0 110 2.5 1.25 1.25 0 010-2.5zm-6.4 4.9a1 1 0 011.4.1 3.5 3.5 0 005.1 0 1 1 0 111.5 1.4 5.5 5.5 0 01-8.1 0 1 1 0 01.1-1.5z"/></svg>',
-  image:
-    '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M4 5h16a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V6a1 1 0 011-1zm1 2v8.6l4-4 3.5 3.5L16 12l3 3V7H5zm3.5 4a1.5 1.5 0 110-3 1.5 1.5 0 010 3z"/></svg>',
-};
-
 function pickerDrawer(container, ctx) {
   const wrap = setMode(container, "picker", "drawer-picker");
   const mk = (type, label) => {
@@ -286,7 +281,15 @@ function buildCatButton(cat, active, onChooseCategory) {
   return btn;
 }
 
-function buildIconCats(categories, activeId, sprite, onChooseCategory) {
+let lastPaintedCategoryId = null;
+
+function buildIconCats(
+  categories,
+  activeId,
+  sprite,
+  onChooseCategory,
+  scrollCategory,
+) {
   const cats = el("div", { className: "drawer-icon-cats" });
   cats.dataset.catIds = categories.map((c) => c.id).join("|");
   if (sprite?.url) {
@@ -296,16 +299,16 @@ function buildIconCats(categories, activeId, sprite, onChooseCategory) {
   for (const cat of categories) {
     cats.append(buildCatButton(cat, cat.id === activeId, onChooseCategory));
   }
-  centerActiveCat(cats);
+  if (scrollCategory) revealActiveCat(cats);
+  lastPaintedCategoryId = activeId;
   return cats;
 }
 
-function centerActiveCat(cats) {
+function revealActiveCat(cats) {
   const active = cats.querySelector(".drawer-icon-cat.active");
   if (!active) return;
   requestAnimationFrame(() => {
-    const left = active.offsetLeft - (cats.clientWidth - active.offsetWidth) / 2;
-    cats.scrollLeft = Math.max(0, left);
+    active.scrollIntoView({ block: "nearest", inline: "nearest" });
   });
 }
 
@@ -326,14 +329,14 @@ function centerSelectedInGrid(grid) {
   });
 }
 
-function buildIconGrid(icons, onPick, selectedIconId) {
+function buildIconGrid(icons, onPick, selectedIconId, scrollToSelected) {
   const grid = el("div", { className: "drawer-icon-grid" });
   grid.dataset.iconIds = icons.map((i) => i.id).join("|");
   for (const icon of icons) {
     const img = el("img", {
       src: icon.thumb_url,
       alt: "",
-      loading: "lazy",
+      loading: "eager",
       decoding: "async",
     });
     const btn = el(
@@ -351,12 +354,12 @@ function buildIconGrid(icons, onPick, selectedIconId) {
     grid.append(btn);
   }
   syncSelectedIcon(grid, selectedIconId);
-  centerSelectedInGrid(grid);
+  if (scrollToSelected && selectedIconId) centerSelectedInGrid(grid);
   return grid;
 }
 
-function buildIconBody(icons, loaded, onPickIcon, selectedIconId) {
-  if (icons.length) return buildIconGrid(icons, onPickIcon, selectedIconId);
+function buildIconBody(icons, loaded, onPickIcon, selectedIconId, scrollToSelected) {
+  if (icons.length) return buildIconGrid(icons, onPickIcon, selectedIconId, scrollToSelected);
   return el("div", {
     className: "drawer-empty",
     text: loaded ? "No icons" : "Loading icons…",
@@ -364,12 +367,19 @@ function buildIconBody(icons, loaded, onPickIcon, selectedIconId) {
 }
 
 function iconDrawer(container, ctx) {
-  const { iconState, onSearchIcons, onChooseCategory, onPickIcon, selectedIconId } =
-    ctx;
+  const {
+    iconState,
+    onSearchIcons,
+    onChooseCategory,
+    onPickIcon,
+    selectedIconId,
+    scrollToSelected,
+  } = ctx;
   const categories = iconState.categories || [];
   const icons = iconState.icons || [];
   const catSig = categories.map((c) => c.id).join("|");
   const iconSig = icons.map((i) => i.id).join("|");
+  const categoryChanged = iconState.categoryId !== lastPaintedCategoryId;
 
   const existingPanel =
     container.dataset.mode === "icon"
@@ -384,39 +394,56 @@ function iconDrawer(container, ctx) {
     }
 
     const oldCats = existingPanel.querySelector(".drawer-icon-cats");
-    if (oldCats.dataset.catIds === catSig) {
-      for (const btn of oldCats.children) {
-        btn.classList.toggle(
-          "active",
-          btn.dataset.catId === iconState.categoryId,
-        );
-      }
-      centerActiveCat(oldCats);
-    } else {
-      oldCats.replaceWith(
-        buildIconCats(
-          categories,
-          iconState.categoryId,
-          iconState.sprite,
-          onChooseCategory,
-        ),
-      );
-    }
-
     const oldBody = existingPanel.querySelector(
       ".drawer-icon-grid, .drawer-empty",
     );
-    const isGrid = oldBody.classList.contains("drawer-icon-grid");
-    if (isGrid) syncSelectedIcon(oldBody, selectedIconId);
-    if (icons.length && isGrid && oldBody.dataset.iconIds === iconSig) return;
-    if (!icons.length && !isGrid) {
-      oldBody.textContent = iconState.loaded ? "No icons" : "Loading icons…";
+    if (oldCats && oldBody) {
+      if (oldCats.dataset.catIds === catSig) {
+        for (const btn of oldCats.children) {
+          btn.classList.toggle(
+            "active",
+            btn.dataset.catId === iconState.categoryId,
+          );
+        }
+        if (categoryChanged || scrollToSelected) {
+          revealActiveCat(oldCats);
+          lastPaintedCategoryId = iconState.categoryId;
+        }
+      } else {
+        oldCats.replaceWith(
+          buildIconCats(
+            categories,
+            iconState.categoryId,
+            iconState.sprite,
+            onChooseCategory,
+            categoryChanged || scrollToSelected,
+          ),
+        );
+      }
+
+      const isGrid = oldBody.classList.contains("drawer-icon-grid");
+      if (isGrid) {
+        syncSelectedIcon(oldBody, selectedIconId);
+        if (scrollToSelected && selectedIconId) centerSelectedInGrid(oldBody);
+      }
+      if (icons.length && isGrid && oldBody.dataset.iconIds === iconSig) return;
+      if (!icons.length && !isGrid) {
+        oldBody.textContent = iconState.loaded ? "No icons" : "Loading icons…";
+        return;
+      }
+      oldBody.replaceWith(
+        buildIconBody(
+          icons,
+          iconState.loaded,
+          onPickIcon,
+          selectedIconId,
+          scrollToSelected,
+        ),
+      );
       return;
     }
-    oldBody.replaceWith(
-      buildIconBody(icons, iconState.loaded, onPickIcon, selectedIconId),
-    );
-    return;
+
+    existingPanel.remove();
   }
 
   const wrap = setMode(container, "icon");
@@ -436,8 +463,15 @@ function iconDrawer(container, ctx) {
       iconState.categoryId,
       iconState.sprite,
       onChooseCategory,
+      true,
     ),
-    buildIconBody(icons, iconState.loaded, onPickIcon, selectedIconId),
+    buildIconBody(
+      icons,
+      iconState.loaded,
+      onPickIcon,
+      selectedIconId,
+      scrollToSelected,
+    ),
   );
   wrap.append(panel);
 }
@@ -446,75 +480,64 @@ function imageDrawer(container, ctx) {
   const {
     onUploadImage,
     onSetImageMode,
-    onSetImageWidth,
-    onOpenImageCrop,
     onRotateImage,
     onRemoveSegment,
     segment,
   } = ctx;
-  const wrap = setMode(container, "image");
+  const wrap = setMode(container, "image", "drawer-image");
 
-  const upload = el("input", { type: "file", accept: "image/png,image/jpeg" });
-  upload.addEventListener("change", async () => {
-    const file = upload.files?.[0];
+  const uploadInput = el("input", {
+    type: "file",
+    accept: "image/png,image/jpeg",
+  });
+  uploadInput.addEventListener("change", async () => {
+    const file = uploadInput.files?.[0];
     if (file) await onUploadImage(file);
-    upload.value = "";
+    uploadInput.value = "";
   });
-  const uploadWrap = el("label", {}, [document.createTextNode("Upload"), upload]);
-
-  const widthValue = Number(segment.width) || 1;
-  const widthSlider = el("input", {
-    type: "range",
-    min: "0.1",
-    max: "6",
-    step: "0.05",
-    value: widthValue.toFixed(2),
-  });
-  const widthReadout = el("span", {
-    className: "drawer-slider-value",
-    text: `${widthValue.toFixed(2)}x`,
-  });
-  widthSlider.addEventListener("input", () => {
-    const width = parseFloat(widthSlider.value) || widthValue;
-    widthReadout.textContent = `${width.toFixed(2)}x`;
-    onSetImageWidth(width);
-  });
-  const widthWrap = el("div", { className: "drawer-row drawer-slider" }, [
-    el("label", { text: "Width" }),
-    widthSlider,
-    widthReadout,
+  const uploadGlyph = el("span", { className: "drawer-image-glyph" });
+  uploadGlyph.innerHTML = UPLOAD;
+  const uploadBtn = el("label", { className: "drawer-image-upload" }, [
+    uploadInput,
+    uploadGlyph,
+    el("span", { text: "Replace" }),
   ]);
 
-  const modeWrap = el("div", { className: "drawer-row drawer-segmented" });
-  for (const mode of ["contain", "cover", "crop"]) {
+  const modeWrap = el("div", { className: "drawer-image-fit" });
+  for (const mode of ["contain", "cover"]) {
     const btn = el("button", {
       type: "button",
       className: `btn btn-sm${segment.fit === mode ? " active" : ""}`,
       text: mode,
-      onclick: () => {
-        if (mode === "crop") onOpenImageCrop();
-        else onSetImageMode(mode);
-      },
+      onclick: () => onSetImageMode(mode),
     });
     modeWrap.append(btn);
   }
+
   const rotate = el("button", {
     type: "button",
-    className: "btn btn-sm",
-    text: "Rotate",
+    className: "btn btn-sm drawer-image-icon-btn",
+    "aria-label": "Rotate",
+    title: "Rotate",
     onclick: onRotateImage,
   });
+  rotate.innerHTML = ROTATE_CW;
+
   const remove = el("button", {
     type: "button",
-    className: "btn btn-sm btn-danger",
-    text: "Remove",
+    className: "btn btn-sm btn-danger drawer-image-icon-btn",
+    "aria-label": "Remove",
+    title: "Remove",
     onclick: onRemoveSegment,
   });
+  remove.innerHTML = X;
+
   wrap.append(
-    uploadWrap,
-    widthWrap,
-    modeWrap,
-    el("div", { className: "drawer-row" }, [rotate, remove]),
+    el("div", { className: "drawer-image-row" }, [
+      uploadBtn,
+      modeWrap,
+      el("div", { className: "drawer-image-actions" }, [rotate, remove]),
+    ]),
   );
 }
 

@@ -1,7 +1,8 @@
 import { renderDrawer } from "./drawer";
-import { openCropDialog } from "./crop-dialog";
+import { COPY, ELLIPSIS, SEG_ADD, X } from "./lucide-icons";
 import {
   iconThumbUrl,
+  imageAltText,
   isCustomIcon,
   loadIconCategories,
   loadCategoryIcons,
@@ -64,7 +65,7 @@ function normalizeIconBlock(block) {
   const out = { type: "icon", id: block.id };
   if (isCustomIcon(block.id)) {
     const width = Number(block.width);
-    if (Number.isFinite(width) && width > 0) out.width = Math.max(0.1, Math.min(6, width));
+    if (Number.isFinite(width) && width > 0) out.width = Math.max(0.1, width);
     const fit = block.fit === "fit" ? "contain" : block.fit;
     if (fit === "contain" || fit === "cover" || fit === "crop") out.fit = fit;
     if (block.crop) {
@@ -80,6 +81,8 @@ function normalizeIconBlock(block) {
         out.crop = { x, y, w, h };
       }
     }
+    const coverY = Number(block.cover_y);
+    if (Number.isFinite(coverY)) out.cover_y = Math.max(0, Math.min(1, coverY));
   } else if (block.height != null) {
     out.height = block.height;
   }
@@ -87,36 +90,265 @@ function normalizeIconBlock(block) {
   return out;
 }
 
-function clampImageWidth(width, fallback = 1) {
+const DEFAULT_IMAGE_WIDTH = 3;
+
+function clampImageWidth(width, fallback = DEFAULT_IMAGE_WIDTH) {
   const value = Number(width);
   if (!Number.isFinite(value) || value <= 0) return fallback;
-  return Math.max(0.1, Math.min(6, value));
+  return Math.max(0.1, value);
 }
 
 function imageFitMode(fit) {
-  if (fit === "fit") return "contain";
+  if (fit === "fit") return "cover";
   if (fit === "contain" || fit === "cover" || fit === "crop") return fit;
-  return "contain";
+  return "cover";
 }
 
-async function imageAspectFromFile(file) {
-  return new Promise((resolve) => {
-    const src = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      URL.revokeObjectURL(src);
-      if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-        resolve(img.naturalWidth / img.naturalHeight);
-        return;
-      }
-      resolve(1);
+function drawerImageFit(fit) {
+  const mode = imageFitMode(fit);
+  return mode === "crop" ? "cover" : mode;
+}
+
+function clampCoverY(value, fallback = 0.5) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(0, Math.min(1, n));
+}
+
+function setDimPart(el, left, top, width, height) {
+  if (!el) return;
+  if (width <= 0 || height <= 0) {
+    el.style.display = "none";
+    return;
+  }
+  el.style.display = "block";
+  el.style.left = `${left}px`;
+  el.style.top = `${top}px`;
+  el.style.width = `${width}px`;
+  el.style.height = `${height}px`;
+}
+
+function coverImageDraw(boundsW, boundsH, imgW, imgH, coverY) {
+  const drawW = boundsW;
+  const drawH = (imgH * boundsW) / imgW;
+  const drawX = 0;
+  const minDy = boundsH - drawH;
+  const drawY = minDy < 0 ? minDy * (1 - coverY) : (boundsH - drawH) / 2;
+  return { drawW, drawH, drawX, drawY, minDy };
+}
+
+function coverYFromDrawY(boundsH, drawH, drawY) {
+  const minDy = boundsH - drawH;
+  if (minDy >= 0) return 0.5;
+  return clampCoverY(1 - drawY / minDy);
+}
+
+function layoutImageEdit(stage, source, dim, block, lineH) {
+  const fit = drawerImageFit(block.fit);
+  const boundsW = lineH * clampImageWidth(block.width);
+  const boundsH = lineH;
+  const imgW = source.naturalWidth || 1;
+  const imgH = source.naturalHeight || 1;
+  let drawW;
+  let drawH;
+  let drawX;
+  let drawY;
+  if (fit === "cover") {
+    const laid = coverImageDraw(
+      boundsW,
+      boundsH,
+      imgW,
+      imgH,
+      clampCoverY(block.cover_y),
+    );
+    ({ drawW, drawH, drawX, drawY } = laid);
+  } else {
+    const scale = Math.min(boundsW / imgW, boundsH / imgH);
+    drawW = imgW * scale;
+    drawH = imgH * scale;
+    drawX = (boundsW - drawW) / 2;
+    drawY = (boundsH - drawH) / 2;
+  }
+  const stageLeft = Math.min(0, drawX);
+  const stageTop = Math.min(0, drawY);
+  const stageRight = Math.max(boundsW, drawX + drawW);
+  const stageBottom = Math.max(boundsH, drawY + drawH);
+  const stageW = stageRight - stageLeft;
+  const stageH = stageBottom - stageTop;
+  const boundsX = -stageLeft;
+  const boundsY = -stageTop;
+
+  stage.style.left = `${stageLeft}px`;
+  stage.style.top = `${stageTop}px`;
+  stage.style.width = `${stageW}px`;
+  stage.style.height = `${stageH}px`;
+  source.style.width = `${drawW}px`;
+  source.style.height = `${drawH}px`;
+  source.style.left = `${drawX - stageLeft}px`;
+  source.style.top = `${drawY - stageTop}px`;
+
+  setDimPart(dim?.top, 0, 0, stageW, boundsY);
+  setDimPart(dim?.bottom, 0, boundsY + boundsH, stageW, stageH - boundsY - boundsH);
+  if (fit === "cover") {
+    setDimPart(dim?.left, 0, 0, 0, 0);
+    setDimPart(dim?.right, 0, 0, 0, 0);
+  } else {
+    setDimPart(dim?.left, 0, boundsY, boundsX, boundsH);
+    setDimPart(
+      dim?.right,
+      boundsX + boundsW,
+      boundsY,
+      stageW - boundsX - boundsW,
+      boundsH,
+    );
+  }
+}
+
+function unmountImageEdits() {
+  for (const seg of document.querySelectorAll(".seg-image.is-editing")) {
+    seg.classList.remove("is-editing");
+    const edit = seg.querySelector(".seg-image-edit");
+    if (edit) edit.remove();
+    const preview = seg.querySelector(".seg-image-preview");
+    if (preview) preview.hidden = false;
+  }
+  for (const row of document.querySelectorAll(".stage-row.is-image-editing")) {
+    row.classList.remove("is-image-editing");
+  }
+}
+
+function imageEditDim(stage) {
+  const root = stage?.querySelector(".seg-image-dim");
+  if (!root) return null;
+  return {
+    top: root.querySelector(".seg-image-dim-top"),
+    bottom: root.querySelector(".seg-image-dim-bottom"),
+    left: root.querySelector(".seg-image-dim-left"),
+    right: root.querySelector(".seg-image-dim-right"),
+  };
+}
+
+function syncImageEditLayout(seg, block, lineH) {
+  const edit = seg.querySelector(".seg-image-edit");
+  if (!edit) return;
+  const stage = edit.querySelector(".seg-image-edit-stage");
+  const source = edit.querySelector(".seg-image-source");
+  if (!stage || !source || !source.complete) return;
+  layoutImageEdit(stage, source, imageEditDim(stage), block, lineH);
+}
+
+function mountImageEdit(
+  seg,
+  rowIndex,
+  segIndex,
+  block,
+  lineH,
+  getBlock,
+  onWidthChange,
+  onCoverYChange,
+) {
+  const existing = seg.querySelector(".seg-image-edit");
+  if (existing) {
+    syncImageEditLayout(seg, getBlock() || block, lineH);
+    seg.classList.toggle("cover-fit", drawerImageFit((getBlock() || block).fit) === "cover");
+    return;
+  }
+
+  seg.classList.add("is-editing");
+  seg.classList.toggle("cover-fit", drawerImageFit(block.fit) === "cover");
+  const rowNode = seg.closest(".stage-row");
+  if (rowNode) rowNode.classList.add("is-image-editing");
+
+  const preview = seg.querySelector(".seg-image-preview");
+  if (preview) preview.hidden = true;
+
+  const edit = document.createElement("div");
+  edit.className = "seg-image-edit";
+  edit.innerHTML = `
+    <div class="seg-image-edit-stage">
+      <img class="seg-image-source" alt="" draggable="false" />
+      <div class="seg-image-dim" aria-hidden="true">
+        <div class="seg-image-dim-part seg-image-dim-top"></div>
+        <div class="seg-image-dim-part seg-image-dim-left"></div>
+        <div class="seg-image-dim-part seg-image-dim-right"></div>
+        <div class="seg-image-dim-part seg-image-dim-bottom"></div>
+      </div>
+    </div>
+    <div class="seg-image-bounds">
+      <button type="button" class="seg-image-handle" aria-label="Resize width">
+        <span class="seg-image-handle-grip" aria-hidden="true"></span>
+      </button>
+    </div>
+  `;
+  seg.prepend(edit);
+
+  const stage = edit.querySelector(".seg-image-edit-stage");
+  const source = edit.querySelector(".seg-image-source");
+  const bounds = edit.querySelector(".seg-image-bounds");
+  const handle = edit.querySelector(".seg-image-handle");
+  source.alt = imageAltText(block.id);
+  source.src = iconThumbUrl(block.id);
+
+  const relayout = () => {
+    const current = getBlock();
+    if (!current) return;
+    seg.classList.toggle("cover-fit", drawerImageFit(current.fit) === "cover");
+    layoutImageEdit(stage, source, imageEditDim(stage), current, lineH);
+  };
+  source.addEventListener("load", relayout);
+  if (source.complete) relayout();
+
+  handle.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const current = getBlock();
+    if (!current) return;
+    const startWidth = clampImageWidth(current.width);
+    const onMove = (ev) => {
+      const next = clampImageWidth(startWidth + (ev.clientX - startX) / lineH);
+      onWidthChange(next);
     };
-    img.onerror = () => {
-      URL.revokeObjectURL(src);
-      resolve(1);
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
     };
-    img.src = src;
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
   });
+
+  bounds.addEventListener("pointerdown", (e) => {
+    if (e.target === handle || handle.contains(e.target)) return;
+    const current = getBlock();
+    if (!current || drawerImageFit(current.fit) !== "cover") return;
+    if (!source.complete || source.naturalWidth < 1) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const boundsH = lineH;
+    const boundsW = lineH * clampImageWidth(current.width);
+    const { drawH, minDy } = coverImageDraw(
+      boundsW,
+      boundsH,
+      source.naturalWidth,
+      source.naturalHeight,
+      clampCoverY(current.cover_y),
+    );
+    if (minDy >= 0) return;
+    const startY = e.clientY;
+    const startDrawY = minDy * (1 - clampCoverY(current.cover_y));
+    const onMove = (ev) => {
+      const drawY = Math.max(minDy, Math.min(0, startDrawY + ev.clientY - startY));
+      onCoverYChange(coverYFromDrawY(boundsH, drawH, drawY));
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  });
+
+  edit.addEventListener("pointerdown", (e) => e.stopPropagation());
 }
 
 if (typeof document !== "undefined") {
@@ -224,6 +456,7 @@ export function createStageController({
   }
 
   let lastSyncedIconSeg = null;
+  let pendingIconScroll = false;
   let iconStatePromise = null;
   function ensureIconStateLoaded() {
     if (state.iconState.loaded) return Promise.resolve();
@@ -235,10 +468,23 @@ export function createStageController({
         state.iconState.sprite = sprite;
         state.iconState.icons = await loadCategoryIcons(defaultCategoryId);
         state.iconState.loaded = true;
-        applyActiveState();
+      })
+      .catch(async () => {
+        await new Promise((r) => setTimeout(r, 500));
+        const { categories, defaultCategoryId, sprite } =
+          await loadIconCategories();
+        state.iconState.categories = categories;
+        state.iconState.categoryId = defaultCategoryId;
+        state.iconState.sprite = sprite;
+        state.iconState.icons = await loadCategoryIcons(defaultCategoryId);
+        state.iconState.loaded = true;
+      })
+      .catch((e) => {
+        showToast(e.message || "Icons failed to load");
       })
       .finally(() => {
         iconStatePromise = null;
+        applyActiveState();
       });
     return iconStatePromise;
   }
@@ -336,33 +582,44 @@ export function createStageController({
     setActive({ mode: "image", rowIndex, segIndex }, { rebuild: true });
   }
 
+  function rowLineH(rowIndex) {
+    const rowNode = rowsEl.querySelector(`.stage-row[data-row="${rowIndex}"]`);
+    return rowNode
+      ? parseFloat(getComputedStyle(rowNode).getPropertyValue("--row-line-h")) || 28
+      : 28;
+  }
+
   function setImageWidth(rowIndex, segIndex, width) {
     const row = state.rows[rowIndex];
     if (!row) return;
     const block = row.blocks[segIndex];
     if (!block || block.type !== "icon" || !isCustomIcon(block.id)) return;
-    block.width = clampImageWidth(width, clampImageWidth(block.width, 1));
+    block.width = clampImageWidth(width, clampImageWidth(block.width));
     signalChange();
-    setActive({ mode: "image", rowIndex, segIndex }, { rebuild: true });
+    const seg = querySegEl(rowIndex, segIndex);
+    if (seg) {
+      seg.style.setProperty("--seg-width", String(block.width));
+      const lineH = rowLineH(rowIndex);
+      paintCustomPreview(rowIndex, segIndex, lineH);
+      syncImageEditLayout(seg, block, lineH);
+    }
+    requestAnimationFrame(updateDrawerPointer);
   }
 
-  async function openImageCrop(rowIndex, segIndex) {
+  function setCoverY(rowIndex, segIndex, coverY) {
     const row = state.rows[rowIndex];
     if (!row) return;
     const block = row.blocks[segIndex];
     if (!block || block.type !== "icon" || !isCustomIcon(block.id)) return;
-    const imageUrl = iconThumbUrl(block.id);
-    const aspect = clampImageWidth(block.width, 1);
-    const crop = await openCropDialog({
-      imageUrl,
-      aspect,
-      initial: block.crop || null,
-    });
-    if (!crop) return;
-    block.crop = crop;
-    block.fit = "crop";
+    if (drawerImageFit(block.fit) !== "cover") return;
+    block.cover_y = clampCoverY(coverY, clampCoverY(block.cover_y));
     signalChange();
-    setActive({ mode: "image", rowIndex, segIndex }, { rebuild: true });
+    const seg = querySegEl(rowIndex, segIndex);
+    if (seg) {
+      const lineH = rowLineH(rowIndex);
+      syncImageEditLayout(seg, block, lineH);
+      paintCustomPreview(rowIndex, segIndex, lineH);
+    }
   }
 
   async function uploadImageAt(rowIndex, segIndex) {
@@ -374,7 +631,6 @@ export function createStageController({
       const file = input.files?.[0];
       if (!file) return;
       try {
-        const width = await imageAspectFromFile(file);
         const out = await uploadCustomIcon(file);
         const row = state.rows[rowIndex];
         if (!row) return;
@@ -382,8 +638,8 @@ export function createStageController({
           row.blocks[segIndex] = {
             type: "icon",
             id: out.id,
-            fit: "contain",
-            width: clampImageWidth(width),
+            fit: "cover",
+            width: DEFAULT_IMAGE_WIDTH,
           };
           signalChange();
           setActive(
@@ -441,13 +697,12 @@ export function createStageController({
         const file = fakeInput.files?.[0];
         if (!file) return;
         try {
-          const width = await imageAspectFromFile(file);
           const out = await uploadCustomIcon(file);
           insertBlock(targetRow, targetIndex, {
             type: "icon",
             id: out.id,
-            fit: "contain",
-            width: clampImageWidth(width),
+            fit: "cover",
+            width: DEFAULT_IMAGE_WIDTH,
           });
         } catch (e) {
           showToast(e.message || "Upload failed");
@@ -483,24 +738,26 @@ export function createStageController({
         if (lastSyncedIconSeg !== segKey) {
           lastSyncedIconSeg = segKey;
           if (selectedIconId) {
+            pendingIconScroll = true;
             const targetCat = selectedIconId.split(":")[0];
             if (targetCat && targetCat !== state.iconState.categoryId) {
-              setIconCategory(targetCat);
+              void setIconCategory(targetCat);
+              return;
             }
           }
         }
       }
     }
+    const scrollToSelected = pendingIconScroll;
+    pendingIconScroll = false;
     renderDrawer(drawerEl, {
       mode,
+      scrollToSelected,
       segment:
         mode === "font"
           ? segmentToDrawerShape(row, block)
           : mode === "image" && block
-            ? {
-                fit: imageFitMode(block.fit),
-                width: clampImageWidth(block.width, 1),
-              }
+            ? { fit: drawerImageFit(block.fit) }
             : null,
       fonts,
       iconState: state.iconState,
@@ -512,15 +769,14 @@ export function createStageController({
       onPickIcon: pickIcon,
       onUploadImage: async (file) => {
         try {
-          const width = await imageAspectFromFile(file);
           const out = await uploadCustomIcon(file);
           const r = state.rows[rowIndex];
           if (!r) return;
           r.blocks[segIndex] = {
             type: "icon",
             id: out.id,
-            fit: "contain",
-            width: clampImageWidth(width),
+            fit: "cover",
+            width: DEFAULT_IMAGE_WIDTH,
           };
           signalChange();
           setActive(
@@ -532,8 +788,6 @@ export function createStageController({
         }
       },
       onSetImageMode: (fit) => updateImageMode(rowIndex, segIndex, fit),
-      onSetImageWidth: (width) => setImageWidth(rowIndex, segIndex, width),
-      onOpenImageCrop: () => openImageCrop(rowIndex, segIndex),
       onRotateImage: () => rotateImage(rowIndex, segIndex),
       onRemoveSegment: () => removeSegment(rowIndex, segIndex),
     });
@@ -557,13 +811,13 @@ export function createStageController({
     try {
       const canvas = await globalThis.PtRender.iconCanvas(block.id, heightPx, block);
       if (!seg.isConnected || seg.dataset.previewToken !== token) return;
-      const widthScale = clampImageWidth(
-        block.width,
-        canvas.height > 0 ? canvas.width / canvas.height : 1,
-      );
+      const widthScale = clampImageWidth(block.width);
       seg.style.setProperty("--seg-width", String(widthScale));
-      const img = seg.querySelector("img");
-      if (img) img.src = canvas.toDataURL("image/png");
+      const img = seg.querySelector(".seg-image-preview");
+      if (img) {
+        img.src = canvas.toDataURL("image/png");
+        seg.classList.remove("is-loading");
+      }
     } catch {
       // ignore
     }
@@ -573,7 +827,7 @@ export function createStageController({
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = `seg-add seg-add-${position}`;
-    btn.textContent = "+";
+    btn.innerHTML = SEG_ADD;
     btn.dataset.insert = String(insertIndex);
     btn.setAttribute("aria-label", "Add content");
     btn.setAttribute("aria-expanded", "false");
@@ -585,12 +839,23 @@ export function createStageController({
     return btn;
   }
 
-  function rowTrack(row, rowIndex) {
-    const track = document.createElement("div");
-    track.className = "row-track";
+  function applyTapeStyle(track) {
+    track.classList.toggle("tape-unknown", !!state.tape.unknown);
+    if (state.tape.unknown) {
+      track.style.removeProperty("--tape-bg");
+      track.style.removeProperty("--tape-ink");
+      track.style.removeProperty("--tape-border");
+      return;
+    }
     track.style.setProperty("--tape-bg", state.tape.bg);
     track.style.setProperty("--tape-ink", state.tape.ink);
     track.style.setProperty("--tape-border", state.tape.border);
+  }
+
+  function rowTrack(row, rowIndex) {
+    const track = document.createElement("div");
+    track.className = "row-track";
+    applyTapeStyle(track);
     track.append(makeSegAdd(rowIndex, 0, "start"));
     for (let i = 0; i < row.blocks.length; i++) {
       const block = row.blocks[i];
@@ -640,10 +905,11 @@ export function createStageController({
         seg.className = custom ? "seg-icon seg-image" : "seg-icon";
         seg.dataset.seg = String(i);
         if (custom) {
-          seg.style.setProperty("--seg-width", String(clampImageWidth(block.width, 1)));
+          seg.style.setProperty("--seg-width", String(clampImageWidth(block.width)));
         }
         const img = document.createElement("img");
-        img.alt = "";
+        img.alt = imageAltText(block.id);
+        if (custom) img.className = "seg-image-preview";
         if (!custom) {
           img.width = 48;
           img.height = 48;
@@ -761,8 +1027,7 @@ export function createStageController({
       duplicate.className = "row-btn row-duplicate";
       duplicate.setAttribute("aria-label", "Duplicate label line");
       duplicate.title = "Duplicate label line";
-      duplicate.innerHTML =
-        '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M9 3a2 2 0 0 0-2 2v1H5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1h2a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H9zm0 2h10v12h-2V8a2 2 0 0 0-2-2H9V5zM5 8h10v11H5V8z"/></svg><span>Duplicate</span>';
+      duplicate.innerHTML = `${COPY}<span>Duplicate</span>`;
       duplicate.onclick = () => {
         const copy = clone(row);
         const idx = rowIndex + 1;
@@ -794,8 +1059,7 @@ export function createStageController({
       remove.className = "row-btn row-remove";
       remove.setAttribute("aria-label", "Remove label line");
       remove.title = "Remove label line";
-      remove.innerHTML =
-        '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M6.4 5L5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4 17.6 5 12 10.6z"/></svg><span>Delete</span>';
+      remove.innerHTML = `${X}<span>Delete</span>`;
       remove.onclick = () => {
         state.rows.splice(rowIndex, 1);
         ensureNonEmpty();
@@ -820,8 +1084,7 @@ export function createStageController({
       toggle.setAttribute("aria-label", "Row actions");
       toggle.title = "Row actions";
       toggle.setAttribute("aria-expanded", "false");
-      toggle.innerHTML =
-        '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="5" cy="12" r="1.8" fill="currentColor"/><circle cx="12" cy="12" r="1.8" fill="currentColor"/><circle cx="19" cy="12" r="1.8" fill="currentColor"/></svg>';
+      toggle.innerHTML = ELLIPSIS;
 
       const tail = document.createElement("div");
       tail.className = "row-tail";
@@ -874,6 +1137,7 @@ export function createStageController({
   }
 
   function applyActiveState() {
+    unmountImageEdits();
     for (const rowNode of rowsEl.querySelectorAll(".stage-row")) {
       rowNode.classList.remove("active");
     }
@@ -898,6 +1162,24 @@ export function createStageController({
               : ".seg-add-end";
           const add = rowNode.querySelector(selector);
           if (add) add.setAttribute("aria-expanded", "true");
+        }
+        if (state.active.mode === "image" && state.active.segIndex >= 0) {
+          const seg = rowNode.querySelector(
+            `[data-seg="${state.active.segIndex}"].seg-image`,
+          );
+          const block = state.rows[state.active.rowIndex]?.blocks[state.active.segIndex];
+          if (seg && block) {
+            mountImageEdit(
+              seg,
+              state.active.rowIndex,
+              state.active.segIndex,
+              block,
+              rowLineH(state.active.rowIndex),
+              () => state.rows[state.active.rowIndex]?.blocks[state.active.segIndex],
+              (width) => setImageWidth(state.active.rowIndex, state.active.segIndex, width),
+              (coverY) => setCoverY(state.active.rowIndex, state.active.segIndex, coverY),
+            );
+          }
         }
       }
     }
@@ -956,11 +1238,10 @@ export function createStageController({
         bg: next.bg || "#f5f5f5",
         ink: next.ink || "#1a1a1a",
         border: next.border || "transparent",
+        unknown: !!next.unknown,
       };
       for (const track of rowsEl.querySelectorAll(".row-track")) {
-        track.style.setProperty("--tape-bg", state.tape.bg);
-        track.style.setProperty("--tape-ink", state.tape.ink);
-        track.style.setProperty("--tape-border", state.tape.border);
+        applyTapeStyle(track);
       }
     },
     setNewRowDefaults(preset) {

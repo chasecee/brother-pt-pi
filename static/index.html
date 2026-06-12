@@ -1,4 +1,36 @@
-<!DOCTYPE html><html lang="en"> <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Label Buddy</title><link rel="icon" href="/favicon.svg" type="image/svg+xml"><script src="/vendor/opentype.min.js"></script><script type="module" src="/_astro/Layout.astro_astro_type_script_index_0_lang.DMoOABF_.js"></script><script type="module" src="/_astro/Layout.astro_astro_type_script_index_1_lang.BH5tAH0I.js"></script><link rel="stylesheet" href="/_astro/index.CoeTmijg.css"></head> <body>  <header class="topbar"> <h1>
-Label printer <span id="status" class="checking">checking...</span> </h1> <button id="settingsBtn" type="button" class="cog" aria-label="System info" aria-expanded="false" aria-controls="systemPanel"> <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"> <path fill="currentColor" d="M12 8a4 4 0 100 8 4 4 0 000-8zm9.4 4a7.4 7.4 0 00-.1-1.2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 00-2-1.2l-.4-2.6h-4l-.4 2.6a7.4 7.4 0 00-2 1.2l-2.5-1-2 3.5 2.1 1.6a7.6 7.6 0 000 2.4l-2.1 1.6 2 3.5 2.5-1c.6.5 1.3.9 2 1.2l.4 2.6h4l.4-2.6a7.4 7.4 0 002-1.2l2.5 1 2-3.5-2.1-1.6c.1-.4.1-.8.1-1.2z"></path> </svg> </button> </header> <div id="systemPanel" class="system-panel"> <div class="system-panel-inner"> <div class="settings-group"> <label class="settings-field"> <span>Margin</span> <input id="prefMargin" type="number" min="0" max="128" step="1"> </label> <label class="settings-field"> <span>V align</span> <input id="prefVAlign" type="number" min="-32" max="32" step="1"> </label> </div> <div class="stat-row"> <span>Tape</span><span id="statTape">—</span> </div> <div class="stat-row"> <span>Memory</span> <span id="statMem" class="mem-stat"> <span class="mem-bar"><span id="statMemFill" class="mem-fill"></span></span> <span id="statMemText" class="mem-text">—</span> </span> </div> <div class="stat-row"> <span>Bridge</span><span id="statBridge">—</span> </div> <div class="stat-row"> <span>CPU temp</span><span id="statTemp">—</span> </div> <div class="stat-row"> <span>Uptime</span><span id="statUptime">—</span> </div> <div class="stat-row"> <span>Deployed</span><span id="statDeployed">—</span> </div> </div> </div> <main class="editor"> <section id="stage" class="stage" aria-label="Label preview and editor"> <div id="rows" class="rows" role="list"></div> </section> <section id="drawer" class="drawer" data-mode="empty" aria-live="polite"> <svg class="drawer-pointer" viewBox="0 0 38 21" preserveAspectRatio="none" aria-hidden="true"> <path class="drawer-pointer-fill" d="M0 19 L19 0 L38 19 L38 21 L0 21 Z"></path> <polyline class="drawer-pointer-stroke" points="0,19 19,0 38,19"></polyline> </svg> </section> <div class="stage-foot"> <button id="rowAdd" type="button" class="row-add"> <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"> <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M12 5v14M5 12h14"></path> </svg> <span>New</span> </button> <button id="printBtn" type="button" class="btn btn-primary">
+<!DOCTYPE html><html lang="en"> <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Label Buddy</title><link rel="icon" href="/favicon.svg" type="image/svg+xml"><script src="/vendor/opentype.min.js"></script><script type="module" src="/_astro/Layout.astro_astro_type_script_index_0_lang.Ccs2fpav.js"></script><script type="module" src="/_astro/Layout.astro_astro_type_script_index_1_lang.DwMHrB3Y.js"></script><link rel="stylesheet" href="/_astro/index.BvfUzob4.css"></head> <body>  <header class="topbar"> <h1>
+Label printer <span id="status" class="checking">checking...</span> </h1> <button id="settingsBtn" type="button" class="cog" aria-label="System info" aria-expanded="false" aria-controls="systemPanel"><!-- @license lucide-static v1.18.0 - ISC -->
+<svg
+  class="lucide lucide-settings"
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" />
+  <circle cx="12" cy="12" r="3" />
+</svg>
+</button> </header> <div id="systemPanel" class="system-panel"> <div class="system-panel-inner"> <div class="settings-group"> <label class="settings-field"> <span>Margin</span> <input id="prefMargin" type="number" min="0" max="128" step="1"> </label> <label class="settings-field"> <span>V align</span> <input id="prefVAlign" type="number" min="-32" max="32" step="1"> </label> </div> <div class="stat-row"> <span>Tape</span><span id="statTape">—</span> </div> <div class="stat-row"> <span>Memory</span> <span id="statMem" class="mem-stat"> <span class="mem-bar"><span id="statMemFill" class="mem-fill"></span></span> <span id="statMemText" class="mem-text">—</span> </span> </div> <div class="stat-row"> <span>Bridge</span><span id="statBridge">—</span> </div> <div class="stat-row"> <span>CPU temp</span><span id="statTemp">—</span> </div> <div class="stat-row"> <span>Uptime</span><span id="statUptime">—</span> </div> <div class="stat-row"> <span>Deployed</span><span id="statDeployed">—</span> </div> </div> </div> <main class="editor"> <section id="stage" class="stage" aria-label="Label preview and editor"> <div id="rows" class="rows" role="list"></div> </section> <section id="drawer" class="drawer" data-mode="empty" aria-live="polite"> <svg class="drawer-pointer" viewBox="0 0 38 21" preserveAspectRatio="none" aria-hidden="true"> <path class="drawer-pointer-fill" d="M0 19 L19 0 L38 19 L38 21 L0 21 Z"></path> <polyline class="drawer-pointer-stroke" points="0,19 19,0 38,19"></polyline> </svg> </section> <div class="stage-foot"> <button id="rowAdd" type="button" class="row-add"> <span><!-- @license lucide-static v1.18.0 - ISC -->
+<svg
+  class="lucide lucide-plus"
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="M5 12h14" />
+  <path d="M12 5v14" />
+</svg>
+</span> <span>New</span> </button> <button id="printBtn" type="button" class="btn btn-primary">
 Print
 </button> </div> </main> <details id="recentSection" class="recent" hidden> <summary> <span>Recently printed</span> <span id="recentHint" class="recent-hint"></span> </summary> <div id="recent" class="recent-list"></div> </details> <div id="toast" class="toast" role="status" aria-live="polite"></div>  </body></html>

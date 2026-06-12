@@ -101,6 +101,47 @@ const PtRender = (() => {
     return { minX, minY, maxX: maxX + 1, maxY: maxY + 1 };
   }
 
+  function enablePhotoSmoothing(ctx) {
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+  }
+
+  function pixelLuma(r, g, b, a) {
+    return a < 128 ? 255 : Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+  }
+
+  function ditherCanvasTo1Bit(canvas) {
+    const ctx = canvas.getContext("2d");
+    const { width, height } = canvas;
+    const data = ctx.getImageData(0, 0, width, height);
+    const n = width * height;
+    const buf = new Float32Array(n);
+    for (let i = 0, p = 0; i < n; i++, p += 4) {
+      buf[i] = pixelLuma(data.data[p], data.data[p + 1], data.data[p + 2], data.data[p + 3]);
+    }
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const i = y * width + x;
+        const old = buf[i];
+        const bit = old < 128 ? 0 : 255;
+        const p = i * 4;
+        data.data[p] = bit;
+        data.data[p + 1] = bit;
+        data.data[p + 2] = bit;
+        data.data[p + 3] = 255;
+        const err = old - bit;
+        if (x + 1 < width) buf[i + 1] += err * (7 / 16);
+        if (y + 1 < height) {
+          if (x > 0) buf[i + width - 1] += err * (3 / 16);
+          buf[i + width] += err * (5 / 16);
+          if (x + 1 < width) buf[i + width + 1] += err * (1 / 16);
+        }
+      }
+    }
+    ctx.putImageData(data, 0, 0);
+    return canvas;
+  }
+
   function scaleCanvasToHeight(src, targetH) {
     const h = src.height;
     if (h === 0) {
@@ -118,33 +159,9 @@ const PtRender = (() => {
     const ctx = out.getContext("2d");
     ctx.fillStyle = "#fff";
     ctx.fillRect(0, 0, nw, nh);
+    enablePhotoSmoothing(ctx);
     ctx.drawImage(src, 0, 0, nw, nh);
     return out;
-  }
-
-  function imageTo1BitCanvas(img) {
-    const c = document.createElement("canvas");
-    c.width = img.width;
-    c.height = img.height;
-    const ctx = c.getContext("2d");
-    ctx.fillStyle = "#fff";
-    ctx.fillRect(0, 0, c.width, c.height);
-    ctx.drawImage(img, 0, 0);
-    const data = ctx.getImageData(0, 0, c.width, c.height);
-    for (let i = 0; i < data.data.length; i += 4) {
-      const r = data.data[i];
-      const g = data.data[i + 1];
-      const b = data.data[i + 2];
-      const a = data.data[i + 3];
-      const gray = a < 128 ? 255 : Math.round(0.299 * r + 0.587 * g + 0.114 * b);
-      const bit = gray < 128 ? 0 : 255;
-      data.data[i] = bit;
-      data.data[i + 1] = bit;
-      data.data[i + 2] = bit;
-      data.data[i + 3] = 255;
-    }
-    ctx.putImageData(data, 0, 0);
-    return c;
   }
 
   async function loadImage(url) {
@@ -173,6 +190,7 @@ const PtRender = (() => {
     ctx.fillRect(0, 0, nw, nh);
     ctx.translate(nw / 2, nh / 2);
     ctx.rotate(rad);
+    enablePhotoSmoothing(ctx);
     ctx.drawImage(canvas, -w / 2, -h / 2);
     return out;
   }
@@ -202,11 +220,13 @@ const PtRender = (() => {
     const out = document.createElement("canvas");
     out.width = cw;
     out.height = ch;
-    out.getContext("2d").drawImage(src, sx, sy, cw, ch, 0, 0, cw, ch);
+    const ctx = out.getContext("2d");
+    enablePhotoSmoothing(ctx);
+    ctx.drawImage(src, sx, sy, cw, ch, 0, 0, cw, ch);
     return out;
   }
 
-  function drawIntoBox(src, boxW, boxH, mode) {
+  function drawIntoBox(src, boxW, boxH, mode, coverY = 0.5) {
     const out = document.createElement("canvas");
     out.width = boxW;
     out.height = boxH;
@@ -216,12 +236,23 @@ const PtRender = (() => {
     const w = src.width;
     const h = src.height;
     if (w < 1 || h < 1) return out;
+    enablePhotoSmoothing(ctx);
     if (mode === "crop") {
       ctx.drawImage(src, 0, 0, w, h, 0, 0, boxW, boxH);
       return out;
     }
-    const scale =
-      mode === "cover" ? Math.max(boxW / w, boxH / h) : Math.min(boxW / w, boxH / h);
+    if (mode === "cover") {
+      const dw = boxW;
+      const dh = Math.max(1, Math.round((h * boxW) / w));
+      const dx = 0;
+      const minDy = boxH - dh;
+      const y = Number.isFinite(coverY) ? Math.max(0, Math.min(1, coverY)) : 0.5;
+      const dy =
+        minDy < 0 ? Math.floor(minDy * (1 - y)) : Math.floor((boxH - dh) / 2);
+      ctx.drawImage(src, dx, dy, dw, dh);
+      return out;
+    }
+    const scale = Math.min(boxW / w, boxH / h);
     const dw = Math.max(1, Math.round(w * scale));
     const dh = Math.max(1, Math.round(h * scale));
     const dx = Math.floor((boxW - dw) / 2);
@@ -231,26 +262,34 @@ const PtRender = (() => {
   }
 
   function normalizedCustomFit(fit) {
-    if (fit === "fit") return "contain";
+    if (fit === "fit") return "cover";
     if (fit === "contain" || fit === "cover" || fit === "crop") return fit;
-    return "crop";
+    return "cover";
   }
 
-  function customWidthScale(block, src) {
+  function customWidthScale(block) {
     const width = Number(block.width);
     if (Number.isFinite(width) && width > 0) {
-      return Math.max(0.1, Math.min(6, width));
+      return Math.max(0.1, width);
     }
-    if (src.height > 0) return src.width / src.height;
-    return 1;
+    return 3;
   }
 
-  function processCustomImageCanvas(src, targetH, fit, rotate, crop, widthScale) {
+  function processCustomImageCanvas(
+    src,
+    targetH,
+    fit,
+    rotate,
+    crop,
+    widthScale,
+    coverY,
+  ) {
     let c = applyRotate(src, rotate);
     if (fit === "crop" && crop) c = applyCropRect(c, crop);
     const boxH = Math.max(1, targetH);
     const boxW = Math.max(1, Math.round(boxH * widthScale));
-    return drawIntoBox(c, boxW, boxH, fit);
+    const y = Number.isFinite(coverY) ? Math.max(0, Math.min(1, coverY)) : 0.5;
+    return ditherCanvasTo1Bit(drawIntoBox(c, boxW, boxH, fit, y));
   }
 
   async function rasterizeBrotherGlyph(family, codepoint, targetH) {
@@ -293,14 +332,14 @@ const PtRender = (() => {
       const fit = normalizedCustomFit(block.fit);
       const rotate = [0, 90, 180, 270].includes(block.rotate) ? block.rotate : 0;
       const img = await loadImage(`/icons/custom/${uuid}`);
-      const src = imageTo1BitCanvas(img);
       return processCustomImageCanvas(
-        src,
+        img,
         targetH,
         fit,
         rotate,
         block.crop || null,
-        customWidthScale(block, src),
+        customWidthScale(block),
+        block.cover_y,
       );
     }
     await loadIconCatalog();
@@ -320,9 +359,8 @@ const PtRender = (() => {
     return prevKind === "icon" && kind === "icon" ? Math.max(0, gap) : 0;
   }
 
-  function canvasToDataUrl(canvas, forPrint) {
-    const out = forPrint ? imageTo1BitCanvas(canvas) : canvas;
-    return out.toDataURL("image/png");
+  function canvasToDataUrl(canvas) {
+    return canvas.toDataURL("image/png");
   }
 
   function textStyleForBlock(block, opts) {
@@ -339,7 +377,7 @@ const PtRender = (() => {
     };
   }
 
-  async function renderBlocks(blocks, opts, tapeH, forPrint = false) {
+  async function renderBlocks(blocks, opts, tapeH) {
     const margin = Math.max(0, opts.margin_h || 0);
     const iconGap = Math.max(0, parseInt(opts.icon_gap, 10) || 0);
     const prepared = [];
@@ -410,7 +448,7 @@ const PtRender = (() => {
       if (seg.block && seg.block.id && seg.block.id.startsWith("custom:")) {
         return Math.max(
           1,
-          Math.round(seg.canvas.height * customWidthScale(seg.block, seg.canvas)),
+          Math.round(seg.canvas.height * customWidthScale(seg.block)),
         );
       }
       return seg.canvas.width;
@@ -452,12 +490,12 @@ const PtRender = (() => {
       }
     }
 
-    return canvasToDataUrl(canvas, forPrint);
+    return canvasToDataUrl(canvas);
   }
 
-  async function renderLabel(blocks, opts, tapeH, { forPrint = false } = {}) {
+  async function renderLabel(blocks, opts, tapeH, _ctx = {}) {
     if (!blocks || !blocks.length) throw new Error("empty blocks");
-    return renderBlocks(blocks, opts, tapeH, forPrint);
+    return renderBlocks(blocks, opts, tapeH);
   }
 
   return {

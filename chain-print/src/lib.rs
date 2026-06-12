@@ -14,7 +14,9 @@ use serde::Serialize;
 pub struct StatusJson {
     pub media_width_mm: u8,
     pub media_kind: &'static str,
+    pub margin_top_px: usize,
     pub height_px: usize,
+    pub margin_bottom_px: usize,
     pub tape_color: &'static str,
     pub text_color: &'static str,
     pub tape_color_id: u8,
@@ -146,10 +148,13 @@ fn collect_errors(error1: Error1, error2: Error2) -> Vec<&'static str> {
 pub fn status_json(status: &Status, media: &Media) -> StatusJson {
     let errors = collect_errors(status.error1, status.error2);
     let ready = errors.is_empty() && status.media_width > 0;
+    let area = media.area();
     StatusJson {
         media_width_mm: status.media_width,
         media_kind: media_kind_name(status.media_kind),
-        height_px: media.area().1,
+        margin_top_px: area.0,
+        height_px: area.1,
+        margin_bottom_px: area.2,
         tape_color: tape_color_name(status.tape_colour),
         text_color: text_color_name(status.text_colour),
         tape_color_id: status.tape_color_id,

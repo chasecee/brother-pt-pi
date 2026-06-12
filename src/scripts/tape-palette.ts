@@ -2,6 +2,7 @@ export type TapePreview = {
   bg: string;
   ink: string;
   border?: string;
+  unknown?: boolean;
 };
 
 type TapeStyle = {
@@ -106,72 +107,126 @@ function titleCase(value: string): string {
     .join(" ");
 }
 
-function isIncompatibleTape(tape_color: string): boolean {
-  return normalized(tape_color) === "incompatible";
+const TAPE_ID_TO_KEY: Record<number, string> = {
+  0x01: "white",
+  0x02: "other",
+  0x03: "clear_black",
+  0x04: "red",
+  0x05: "blue",
+  0x06: "yellow",
+  0x07: "green",
+  0x08: "black",
+  0x09: "clear_white",
+  0x20: "matte_white",
+  0x21: "matte_clear",
+  0x22: "matte_silver",
+  0x23: "satin_gold",
+  0x24: "satin_silver",
+  0x30: "blue_d",
+  0x31: "red_d",
+  0x40: "fluro_orange",
+  0x41: "fluro_yellow",
+  0x50: "berry_pink_s",
+  0x51: "light_gray_s",
+  0x52: "lime_green_s",
+  0x60: "yellow_f",
+  0x61: "pink_f",
+  0x62: "blue_f",
+  0x70: "white_hst",
+  0x90: "white_flex_id",
+  0x91: "yellow_flex_id",
+  0xf0: "cleaning",
+  0xf1: "stencil",
+};
+
+const TEXT_ID_TO_KEY: Record<number, string> = {
+  0x01: "white",
+  0x02: "other",
+  0x04: "red",
+  0x05: "blue",
+  0x08: "black",
+  0x0a: "gold",
+  0x62: "blue_f",
+  0xf0: "cleaning",
+  0xf1: "stencil",
+};
+
+export function resolveTapeColorKey(
+  tape_color: string,
+  tape_color_id?: number,
+): string {
+  const id = Number(tape_color_id) || 0;
+  if (id && TAPE_ID_TO_KEY[id]) return TAPE_ID_TO_KEY[id];
+  const key = normalized(tape_color);
+  if (key === "incompatible") return "none";
+  return key || "none";
 }
 
-export function resolveTapeColorKey(tape_color: string): string {
-  const key = normalized(tape_color);
-  if (key === "incompatible") return "white";
+function resolveTextColorKey(
+  text_color: string,
+  text_color_id?: number,
+): string {
+  const id = Number(text_color_id) || 0;
+  if (id && TEXT_ID_TO_KEY[id]) return TEXT_ID_TO_KEY[id];
+  const key = normalized(text_color);
+  if (key === "incompatible") return "none";
   return key || "none";
 }
 
 export function formatTapeColor(value: string): string {
   const key = normalized(value);
-  if (key === "incompatible") return "White";
   if (!key || key === "none") return "Unknown";
   return titleCase(key);
 }
 
-export function formatTextColor(value: string, tape_color?: string): string {
-  if (isIncompatibleTape(tape_color || "")) return "Black";
+export function formatTextColor(value: string): string {
   const key = normalized(value);
-  if (!key || key === "other") return "Unknown";
-  if (key === "incompatible") return "Incompatible";
+  if (!key || key === "none" || key === "other") return "Unknown";
   return titleCase(key);
-}
-
-export function formatMediaKind(value: string): string {
-  const labels: Record<string, string> = {
-    none: "None",
-    laminated_tape: "Laminated",
-    non_laminated_tape: "Non-laminated",
-    heat_shrink_tube: "Heat-shrink",
-    flexible_tape: "Flexible",
-    incompatible_tape: "Incompatible",
-  };
-  return labels[normalized(value)] || titleCase(value) || "Unknown";
 }
 
 export function formatMediaLabel(media: {
   width_mm?: number;
   tape_color?: string;
   text_color?: string;
-  kind?: string;
+  tape_color_id?: number;
+  text_color_id?: number;
   errors?: string[];
 } | null | undefined): string {
   if (!media || !media.width_mm) return "—";
   if (media.errors?.includes("no_media")) {
     return `${media.width_mm}mm · No cartridge`;
   }
-  const tape = formatTapeColor(resolveTapeColorKey(media.tape_color || ""));
-  const ink = formatTextColor(media.text_color || "", media.tape_color || "");
-  const kind = formatMediaKind(media.kind || "");
-  return `${media.width_mm}mm · ${ink} on ${tape} · ${kind}`;
+  const tapeKey = resolveTapeColorKey(
+    media.tape_color || "",
+    media.tape_color_id,
+  );
+  const inkKey = resolveTextColorKey(
+    media.text_color || "",
+    media.text_color_id,
+  );
+  const tape = formatTapeColor(tapeKey);
+  const ink = formatTextColor(inkKey);
+  return `${media.width_mm}mm · ${ink} on ${tape}`;
 }
 
-export function tapePreview(tape_color: string, text_color: string): TapePreview {
-  if (isIncompatibleTape(tape_color)) {
-    const white = TAPE_STYLE.white;
-    return {
-      bg: white.bg,
-      ink: "#1a1a1a",
-      border: white.border || "transparent",
-    };
+function isUnknownTapeColor(tapeKey: string, inkKey: string): boolean {
+  return tapeKey === "none" || inkKey === "none" || inkKey === "other";
+}
+
+export function tapePreview(
+  tape_color: string,
+  text_color: string,
+  tape_color_id?: number,
+  text_color_id?: number,
+): TapePreview {
+  const tapeKey = resolveTapeColorKey(tape_color, tape_color_id);
+  const inkKey = resolveTextColorKey(text_color, text_color_id);
+  if (isUnknownTapeColor(tapeKey, inkKey)) {
+    return { bg: "", ink: "", border: "", unknown: true };
   }
-  const key = resolveTapeColorKey(tape_color);
-  const tape = TAPE_STYLE[key] || TAPE_STYLE.none;
-  const ink = tape.ink || TEXT_INK[normalized(text_color)] || "#1a1a1a";
+  const tape = TAPE_STYLE[tapeKey] || TAPE_STYLE.white;
+  const ink = tape.ink || TEXT_INK[inkKey] || "#1a1a1a";
   return {
     bg: tape.bg,
     ink,

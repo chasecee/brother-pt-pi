@@ -11,8 +11,21 @@ export function isCustomIcon(iconId) {
   return iconId.startsWith("custom:");
 }
 
+export function imageAltText(iconId) {
+  if (isCustomIcon(iconId)) return "Label image";
+  const parts = iconId.split(":");
+  if (parts.length === 2) return `Icon ${parts[1]}`;
+  return "Icon";
+}
+
+async function fetchJson(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Icons unavailable (${res.status})`);
+  return res.json();
+}
+
 export async function loadIconCategories() {
-  const data = await (await fetch("/api/icons/categories")).json();
+  const data = await fetchJson("/api/icons/categories");
   const categories = data.categories || [];
   const preferred = categories.find((c) => c.id === DEFAULT_ICON_CATEGORY);
   return {
@@ -24,18 +37,18 @@ export async function loadIconCategories() {
 
 export async function loadCategoryIcons(categoryId) {
   if (!categoryId) return [];
-  const data = await (
-    await fetch(`/api/icons?category=${encodeURIComponent(categoryId)}`)
-  ).json();
+  const data = await fetchJson(
+    `/api/icons?category=${encodeURIComponent(categoryId)}`,
+  );
   return data.icons || [];
 }
 
 export async function searchIcons(query) {
   const q = query.trim();
   if (!q) return [];
-  const data = await (
-    await fetch(`/api/icons/search?q=${encodeURIComponent(q)}`)
-  ).json();
+  const data = await fetchJson(
+    `/api/icons/search?q=${encodeURIComponent(q)}`,
+  );
   return data.icons || [];
 }
 

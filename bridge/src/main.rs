@@ -94,7 +94,9 @@ impl BridgeService {
             "ok": true,
             "width_mm": status.media_width_mm,
             "kind": status.media_kind,
+            "margin_top_px": status.margin_top_px,
             "height_px": status.height_px,
+            "margin_bottom_px": status.margin_bottom_px,
             "tape_color": status.tape_color,
             "text_color": status.text_color,
             "tape_color_id": status.tape_color_id,
@@ -113,7 +115,9 @@ impl BridgeService {
                 "ok": false,
                 "width_mm": 0,
                 "kind": "",
+                "margin_top_px": 0,
                 "height_px": 0,
+                "margin_bottom_px": 0,
                 "tape_color": "",
                 "text_color": "",
                 "tape_color_id": 0,
@@ -190,12 +194,18 @@ fn decode_png_field(raw: &str) -> Result<Vec<u8>, String> {
 }
 
 fn preset_for_width(mm: i32) -> Value {
-    let height_px_map = [(6, 32), (9, 50), (12, 70), (18, 112), (24, 128)];
-    let (mm, h) = height_px_map
+    let media_area_map = [
+        (6, 52, 32, 52),
+        (9, 39, 50, 39),
+        (12, 29, 70, 29),
+        (18, 8, 112, 8),
+        (24, 0, 128, 0),
+    ];
+    let (mm, margin_top, h, margin_bottom) = media_area_map
         .iter()
-        .find(|(w, _)| *w == mm)
-        .map(|(w, h)| (*w, *h))
-        .unwrap_or((18, 112));
+        .find(|(w, _, _, _)| *w == mm)
+        .map(|(w, t, h, b)| (*w, *t, *h, *b))
+        .unwrap_or((18, 8, 112, 8));
     let s = h as f64 / 112.0;
     let base_font = 76.0;
     let base_margin = 24.0;
@@ -207,7 +217,9 @@ fn preset_for_width(mm: i32) -> Value {
     };
     json!({
         "width_mm": mm,
+        "margin_top_px": margin_top,
         "height_px": h,
+        "margin_bottom_px": margin_bottom,
         "font_size": font_size,
         "margin_h": (base_margin * s).round() as i64,
         "v_align": v_align,

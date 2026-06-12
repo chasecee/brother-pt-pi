@@ -107,17 +107,49 @@ async function loadConfig() {
 }
 
 function updateTapeScale() {
-  const dprScale = window.devicePixelRatio > 1 ? 72 / 96 : 1;
-  const displayMm = tapeMm * dprScale;
+  const displayMm = tapeMm;
   document.documentElement.style.setProperty("--tape-display-mm", String(displayMm));
-  const displayPx = (displayMm * 96) / 25.4;
-  const canvasPx = effectiveTapeHeightPx();
-  const scale = canvasPx > 0 ? displayPx / canvasPx : 1;
-  document.documentElement.style.setProperty(
-    "--display-scale",
-    scale.toFixed(4),
-  );
-  stage?.rerenderStyles?.();
+  const area = effectiveMediaAreaPx();
+  const deadZoneScale = 0.5;
+  const topPx = area.top * deadZoneScale;
+  const bottomPx = area.bottom * deadZoneScale;
+  const totalPx = topPx + area.height + bottomPx;
+  let topMm = totalPx > 0 ? (displayMm * topPx) / totalPx : 0;
+  let bottomMm = totalPx > 0 ? (displayMm * bottomPx) / totalPx : 0;
+  const widthMm = Number(detectedMedia?.width_mm || tapeMm);
+  if (widthMm === 12) {
+    const fixedInset = 1;
+    topMm = fixedInset;
+    bottomMm = fixedInset;
+  }
+  const printableMm = Math.max(0, displayMm - topMm - bottomMm);
+  const printablePx = (printableMm * 96) / 25.4;
+  const scale = area.height > 0 ? printablePx / area.height : 1;
+  const next = scale.toFixed(4);
+  const prev = getComputedStyle(document.documentElement)
+    .getPropertyValue("--display-scale")
+    .trim();
+  document.documentElement.style.setProperty("--tape-dead-top", `${topMm}mm`);
+  document.documentElement.style.setProperty("--tape-dead-bottom", `${bottomMm}mm`);
+  document.documentElement.style.setProperty("--display-scale", next);
+  if (prev !== next) stage?.rerenderStyles?.();
+}
+
+function effectiveMediaAreaPx() {
+  if (detectedMedia) {
+    const top = Number(detectedMedia.margin_top_px);
+    const height = Number(detectedMedia.height_px);
+    const bottom = Number(detectedMedia.margin_bottom_px);
+    if (top >= 0 && height > 0 && bottom >= 0) return { top, height, bottom };
+    const preset = detectedMedia.preset || {};
+    const pTop = Number(preset.margin_top_px);
+    const pHeight = Number(preset.height_px);
+    const pBottom = Number(preset.margin_bottom_px);
+    if (pTop >= 0 && pHeight > 0 && pBottom >= 0) {
+      return { top: pTop, height: pHeight, bottom: pBottom };
+    }
+  }
+  return { top: 8, height: baselineTapeHeightPx || 112, bottom: 8 };
 }
 
 function effectiveTapeHeightPx() {
@@ -132,6 +164,13 @@ function currentDisplayScale() {
   return Number.isFinite(v) && v > 0 ? v : 1;
 }
 
+function tapeSwatchHtml(preview) {
+  if (preview.unknown) return '<span class="tape-swatch tape-unknown"></span>';
+  return (
+    '<span class="tape-swatch" style="background:' + preview.bg + '"></span>'
+  );
+}
+
 function setStatus(text, cls) {
   const el = $("status");
   if (!el) return;
@@ -143,15 +182,16 @@ function setStatus(text, cls) {
 function setStatusMedia(media) {
   const el = $("status");
   if (!el) return;
-  const preview = tapePreview(media.tape_color, media.text_color);
+  const preview = tapePreview(
+    media.tape_color,
+    media.text_color,
+    media.tape_color_id,
+    media.text_color_id,
+  );
   el.className = "ok";
-  el.style.setProperty("--ink", preview.ink);
-  el.innerHTML =
-    '<span class="tape-swatch" style="background:' +
-    preview.bg +
-    '"></span>' +
-    media.width_mm +
-    "mm";
+  if (preview.unknown) el.style.removeProperty("--ink");
+  else el.style.setProperty("--ink", preview.ink);
+  el.innerHTML = tapeSwatchHtml(preview) + media.width_mm + "mm";
 }
 
 function formatRelative(seconds) {
@@ -184,14 +224,13 @@ function updateMediaPanel() {
   const preview = tapePreview(
     detectedMedia.tape_color,
     detectedMedia.text_color,
+    detectedMedia.tape_color_id,
+    detectedMedia.text_color_id,
   );
   const label = formatMediaLabel(detectedMedia);
-  el.style.setProperty("--ink", preview.ink);
-  el.innerHTML =
-    '<span class="tape-swatch" style="background:' +
-    preview.bg +
-    '"></span>' +
-    label;
+  if (preview.unknown) el.style.removeProperty("--ink");
+  else el.style.setProperty("--ink", preview.ink);
+  el.innerHTML = tapeSwatchHtml(preview) + label;
   el.title = label;
 }
 
@@ -272,7 +311,16 @@ function applyMedia(data) {
   detectedMedia = data;
   if (data.width_mm) tapeMm = data.width_mm;
   updateTapeScale();
-  if (stage) stage.setTape(tapePreview(data.tape_color, data.text_color));
+  if (stage) {
+    stage.setTape(
+      tapePreview(
+        data.tape_color,
+        data.text_color,
+        data.tape_color_id,
+        data.text_color_id,
+      ),
+    );
+  }
   if (stage && data.preset && widthChanged) {
     stage.setNewRowDefaults(data.preset);
   }

@@ -346,7 +346,7 @@ impl Render {
             for y in 0..d.1 as i32 {
                 let p = i.get_pixel(x as u32, y as u32);
 
-                let c = match p.0[0] == 0 {
+                let c = match p.0[0] < 128 {
                     true => BinaryColor::On,
                     false => BinaryColor::Off,
                 };

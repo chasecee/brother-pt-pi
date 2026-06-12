@@ -1,3 +1,7 @@
+---
+import { SETTINGS } from "../scripts/lucide-icons";
+---
+
 <header class="topbar">
   <h1>
     Label printer <span id="status" class="checking">checking...</span>
@@ -9,12 +13,7 @@
     aria-label="System info"
     aria-expanded="false"
     aria-controls="systemPanel"
+    set:html={SETTINGS}
   >
-    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-      <path
-        fill="currentColor"
-        d="M12 8a4 4 0 100 8 4 4 0 000-8zm9.4 4a7.4 7.4 0 00-.1-1.2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 00-2-1.2l-.4-2.6h-4l-.4 2.6a7.4 7.4 0 00-2 1.2l-2.5-1-2 3.5 2.1 1.6a7.6 7.6 0 000 2.4l-2.1 1.6 2 3.5 2.5-1c.6.5 1.3.9 2 1.2l.4 2.6h4l.4-2.6a7.4 7.4 0 002-1.2l2.5 1 2-3.5-2.1-1.6c.1-.4.1-.8.1-1.2z"
-      />
-    </svg>
   </button>
 </header>

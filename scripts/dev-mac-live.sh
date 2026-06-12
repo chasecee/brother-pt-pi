@@ -15,6 +15,12 @@ fi
 echo "http://127.0.0.1:5001 (rust api)"
 echo "http://127.0.0.1:4321 (astro ui)"
 
+if lsof -tiTCP:5001 -sTCP:LISTEN >/dev/null 2>&1; then
+  echo "stopping existing listener on :5001..."
+  kill $(lsof -tiTCP:5001 -sTCP:LISTEN) 2>/dev/null || true
+  sleep 0.2
+fi
+
 cargo watch \
   -w app \
   -w src \
@@ -23,8 +29,19 @@ cargo watch \
   -w fonts \
   -w Cargo.toml \
   -w Cargo.lock \
-  -x "run -p ptlabel-app -- --port 5001 --dev" &
+  -x "run -p ptlabel-app -- --port 5001 --dev --root \"$ROOT\"" &
 RUST_PID=$!
+
+for _ in $(seq 1 50); do
+  if curl -sf "http://127.0.0.1:5001/api/icons/categories" >/dev/null; then
+    break
+  fi
+  if ! kill -0 "$RUST_PID" 2>/dev/null; then
+    echo "ptlabel-app exited before the api was ready" >&2
+    exit 1
+  fi
+  sleep 0.1
+done
 
 cleanup() {
   kill "$RUST_PID" >/dev/null 2>&1 || true
