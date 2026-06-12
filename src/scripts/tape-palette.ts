@@ -158,7 +158,8 @@ export function resolveTapeColorKey(
   const id = Number(tape_color_id) || 0;
   if (id && TAPE_ID_TO_KEY[id]) return TAPE_ID_TO_KEY[id];
   const key = normalized(tape_color);
-  if (key === "incompatible") return "none";
+  if (key === "incompatible") return id && id !== 0xff ? "other" : "none";
+  if (!key && id && id !== 0xff) return "other";
   return key || "none";
 }
 
@@ -169,7 +170,8 @@ function resolveTextColorKey(
   const id = Number(text_color_id) || 0;
   if (id && TEXT_ID_TO_KEY[id]) return TEXT_ID_TO_KEY[id];
   const key = normalized(text_color);
-  if (key === "incompatible") return "none";
+  if (key === "incompatible") return id && id !== 0xff ? "other" : "none";
+  if (!key && id && id !== 0xff) return "other";
   return key || "none";
 }
 

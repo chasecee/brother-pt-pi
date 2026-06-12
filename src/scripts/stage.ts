@@ -584,9 +584,24 @@ export function createStageController({
 
   function rowLineH(rowIndex) {
     const rowNode = rowsEl.querySelector(`.stage-row[data-row="${rowIndex}"]`);
-    return rowNode
-      ? parseFloat(getComputedStyle(rowNode).getPropertyValue("--row-line-h")) || 28
-      : 28;
+    if (rowNode) {
+      const inlineH = parseFloat(rowNode.style.getPropertyValue("--row-line-h"));
+      if (Number.isFinite(inlineH) && inlineH > 0) return inlineH;
+    }
+    const rootStyle = getComputedStyle(document.documentElement);
+    const printablePx = parseFloat(rootStyle.getPropertyValue("--tape-printable-px"));
+    if (Number.isFinite(printablePx) && printablePx > 0) return printablePx;
+    const tapeMm = parseFloat(rootStyle.getPropertyValue("--tape-display-mm"));
+    const topMm = parseFloat(rootStyle.getPropertyValue("--tape-dead-top"));
+    const bottomMm = parseFloat(rootStyle.getPropertyValue("--tape-dead-bottom"));
+    if (Number.isFinite(tapeMm) && tapeMm > 0) {
+      const printableMm =
+        tapeMm -
+        (Number.isFinite(topMm) ? topMm : 0) -
+        (Number.isFinite(bottomMm) ? bottomMm : 0);
+      if (printableMm > 0) return (printableMm * 96) / 25.4;
+    }
+    return 28;
   }
 
   function setImageWidth(rowIndex, segIndex, width) {
@@ -937,38 +952,7 @@ export function createStageController({
     return track;
   }
 
-  function computeRowLineH(row) {
-    const k = getDisplayScale();
-    let maxAscent = 0;
-    let maxDescent = 0;
-    let allCached = true;
-    for (const block of row.blocks) {
-      if (block.type !== "text") continue;
-      const seg = normalizeTextBlock(block, row);
-      const m = fontMetricsSync(
-        seg.font_family,
-        seg.bold,
-        seg.italic,
-        seg.font_size,
-      );
-      if (!m) {
-        allCached = false;
-        continue;
-      }
-      if (m.ascent > maxAscent) maxAscent = m.ascent;
-      if (m.descent > maxDescent) maxDescent = m.descent;
-    }
-    if (maxAscent <= 0 || maxDescent <= 0) {
-      maxAscent = row.font_size * 1.0;
-      maxDescent = row.font_size * 0.25;
-    }
-    return {
-      lineH: Math.max(8, Math.round((maxAscent + maxDescent) * k)),
-      allCached,
-    };
-  }
-
-  async function applyRowMetricsForIndex(rowIndex) {
+  function applyRowMetricsForIndex(rowIndex) {
     const rowNode = rowsEl.querySelector(
       `.stage-row[data-row="${rowIndex}"]`,
     );
@@ -977,8 +961,8 @@ export function createStageController({
     if (!row) return;
     const iconScale = parseFloat(row.icon_size) || 1;
     rowNode.style.setProperty("--icon-scale", String(iconScale));
-    const sync = computeRowLineH(row);
-    rowNode.style.setProperty("--row-line-h", `${sync.lineH}px`);
+    const lineH = rowLineH(rowIndex);
+    rowNode.style.setProperty("--row-line-h", `${lineH}px`);
     const paintCustoms = (lineH) => {
       for (const icon of rowNode.querySelectorAll(".seg-icon")) {
         const segIndex = parseInt(icon.dataset.seg || "-1", 10);
@@ -988,27 +972,7 @@ export function createStageController({
         }
       }
     };
-    if (sync.allCached) {
-      paintCustoms(sync.lineH);
-      return;
-    }
-    await Promise.all(
-      row.blocks
-        .filter((b) => b.type === "text")
-        .map((block) => {
-          const seg = normalizeTextBlock(block, row);
-          return fontMetrics(
-            seg.font_family,
-            seg.bold,
-            seg.italic,
-            seg.font_size,
-          ).catch(() => null);
-        }),
-    );
-    if (!rowNode.isConnected) return;
-    const refined = computeRowLineH(row);
-    rowNode.style.setProperty("--row-line-h", `${refined.lineH}px`);
-    paintCustoms(refined.lineH);
+    paintCustoms(lineH);
   }
 
   function rebuildRows() {

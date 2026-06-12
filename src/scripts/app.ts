@@ -27,6 +27,22 @@ let toastTimer = null;
 let stage = null;
 let recent = [];
 
+function mmToCssPx(mm) {
+  return (Math.max(0, Number(mm) || 0) * 96) / 25.4;
+}
+
+function clampDeadZoneMm(displayMm, topMm, bottomMm) {
+  let top = Math.max(0, Number(topMm) || 0);
+  let bottom = Math.max(0, Number(bottomMm) || 0);
+  const sum = top + bottom;
+  if (sum > displayMm && sum > 0) {
+    const k = displayMm / sum;
+    top *= k;
+    bottom *= k;
+  }
+  return { top, bottom };
+}
+
 function showToast(text, kind = "error") {
   const el = $("toast");
   if (!el) return;
@@ -107,30 +123,32 @@ async function loadConfig() {
 }
 
 function updateTapeScale() {
-  const displayMm = tapeMm;
+  const displayMm = Math.max(0, Number(tapeMm) || 0);
   document.documentElement.style.setProperty("--tape-display-mm", String(displayMm));
   const area = effectiveMediaAreaPx();
-  const deadZoneScale = 0.5;
-  const topPx = area.top * deadZoneScale;
-  const bottomPx = area.bottom * deadZoneScale;
-  const totalPx = topPx + area.height + bottomPx;
+  const topPx = Math.max(0, Number(area.top) || 0);
+  const midPx = Math.max(0, Number(area.height) || 0);
+  const bottomPx = Math.max(0, Number(area.bottom) || 0);
+  const totalPx = topPx + midPx + bottomPx;
   let topMm = totalPx > 0 ? (displayMm * topPx) / totalPx : 0;
   let bottomMm = totalPx > 0 ? (displayMm * bottomPx) / totalPx : 0;
   const widthMm = Number(detectedMedia?.width_mm || tapeMm);
-  if (widthMm === 12) {
-    const fixedInset = 1;
-    topMm = fixedInset;
-    bottomMm = fixedInset;
+  if (Math.round(widthMm) === 12) {
+    topMm = 1;
+    bottomMm = 1;
   }
-  const printableMm = Math.max(0, displayMm - topMm - bottomMm);
-  const printablePx = (printableMm * 96) / 25.4;
+  const deadZone = clampDeadZoneMm(displayMm, topMm, bottomMm);
+  const printableMm = Math.max(0, displayMm - deadZone.top - deadZone.bottom);
+  const printablePx = mmToCssPx(printableMm);
   const scale = area.height > 0 ? printablePx / area.height : 1;
   const next = scale.toFixed(4);
   const prev = getComputedStyle(document.documentElement)
     .getPropertyValue("--display-scale")
     .trim();
-  document.documentElement.style.setProperty("--tape-dead-top", `${topMm}mm`);
-  document.documentElement.style.setProperty("--tape-dead-bottom", `${bottomMm}mm`);
+  document.documentElement.style.setProperty("--tape-dead-top", `${deadZone.top}mm`);
+  document.documentElement.style.setProperty("--tape-dead-bottom", `${deadZone.bottom}mm`);
+  document.documentElement.style.setProperty("--tape-printable-mm", `${printableMm}mm`);
+  document.documentElement.style.setProperty("--tape-printable-px", `${printablePx}px`);
   document.documentElement.style.setProperty("--display-scale", next);
   if (prev !== next) stage?.rerenderStyles?.();
 }
