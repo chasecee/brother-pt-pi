@@ -13,18 +13,8 @@ mac-print:
 build:
 	cargo build --release -p ptlabel-app
 
-RUST_SRC := app bridge chain-print Cargo.toml Cargo.lock
-DEPLOY_STAMP := .cache/ptlabel-app/.last-deployed
-
 deploy:
-	@mkdir -p $(dir $(DEPLOY_STAMP))
-	@if [ -f $(DEPLOY_STAMP) ] && [ -z "$$(find $(RUST_SRC) -newer $(DEPLOY_STAMP) -print -quit 2>/dev/null)" ]; then \
-	  echo "[deploy] no rust changes since last deploy -> static-only"; \
-	  ./deploy.sh $${DEVICE:+--device $$DEVICE} --static-only; \
-	else \
-	  echo "[deploy] rust changes since last deploy -> full deploy"; \
-	  ./deploy.sh $${DEVICE:+--device $$DEVICE} && touch $(DEPLOY_STAMP); \
-	fi
+	./deploy.sh $${DEVICE:+--device $$DEVICE} $${STATIC_ONLY:+--static-only}
 
 br-rust:
 	./scripts/br-build-flash.sh --rust-only
@@ -53,7 +43,7 @@ help:
 	@echo "mac-dev-live - mac dev with auto-restart (cargo-watch)"
 	@echo "mac-print - smoke test chain-print binary"
 	@echo "build     - native release ptlabel-app (host arch)"
-	@echo "deploy    - cross-build for Pi Zero W and push to running Pi"
+	@echo "deploy    - deploy app + bridge when relevant code changed (DEVICE=lxc|bridge for one)"
 	@echo "br-rust   - cross-build ptlabel-bridge only (.cache/ptlabel-bridge/bin/)"
 	@echo "br-build  - full Buildroot image + flash (set DISK=/dev/diskN)"
 	@echo "br-flash  - flash existing Buildroot image (set DISK=/dev/diskN)"

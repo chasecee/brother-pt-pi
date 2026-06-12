@@ -18,8 +18,10 @@
   --tape-display-mm: 18;
   --tape-bg: #ffffff;
   --tape-ink: #1a1a1a;
+  --tape-border: transparent;
   --pointer-size: 14px;
-  --row-line-h: 2.2rem;
+  --row-line-h: 1.2rem;
+  --tail-buttons-h: 2.2rem;
 }
 
 * {
@@ -82,6 +84,35 @@ body {
   }
 
   .tape-swatch {
+    width: 0.8rem;
+    height: 0.8rem;
+    border-radius: 2px;
+    display: inline-block;
+    border: 1px solid rgba(0, 0, 0, 0.25);
+
+    &::after {
+      content: "";
+      display: block;
+      width: 0.32rem;
+      height: 0.32rem;
+      margin: 0.14rem auto 0;
+      border-radius: 1px;
+      background: var(--ink, currentColor);
+    }
+  }
+}
+
+#statTape {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  text-align: right;
+  max-width: 14rem;
+  line-height: 1.2;
+
+  .tape-swatch {
+    flex: 0 0 auto;
     width: 0.8rem;
     height: 0.8rem;
     border-radius: 2px;
@@ -290,7 +321,7 @@ body {
   gap: 0.2rem;
   padding: 0 0.3rem 0 0.6rem;
   pointer-events: auto;
-  background: linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.5) 50%);
+  background: linear-gradient(to right, transparent 0%, var(--bg) 50%);
 }
 
 .row-menu-items-wrap {
@@ -337,6 +368,8 @@ body {
   padding: 0;
   overflow: hidden;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+  outline: 1px solid var(--tape-border, transparent);
+  outline-offset: -1px;
 }
 
 .seg-add {
@@ -492,7 +525,7 @@ body {
 
 .row-qty {
   width: 2.75rem;
-  height: var(--row-line-h);
+  height: var(--tail-buttons-h);
   align-self: center;
   font: inherit;
   padding: 0.33rem 0.66rem;
@@ -511,7 +544,7 @@ body {
 
 .row-btn {
   align-self: center;
-  height: var(--row-line-h);
+  height: var(--tail-buttons-h);
   padding: 0.33rem 0.66rem;
   gap: 0.35rem;
   border: 1px solid var(--border);
@@ -542,7 +575,7 @@ body {
   width: 2.66rem;
   padding: 0.33rem 0;
   color: var(--muted);
-  height: var(--row-line-h);
+  height: var(--tail-buttons-h);
 
   &:hover {
     color: var(--fg);

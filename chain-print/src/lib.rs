@@ -17,6 +17,8 @@ pub struct StatusJson {
     pub height_px: usize,
     pub tape_color: &'static str,
     pub text_color: &'static str,
+    pub tape_color_id: u8,
+    pub text_color_id: u8,
     pub errors: Vec<&'static str>,
     pub ready: bool,
 }
@@ -72,6 +74,8 @@ fn tape_color_name(color: TapeColour) -> &'static str {
         TapeColour::ClearBlack => "clear_black",
         TapeColour::Red => "red",
         TapeColour::Blue => "blue",
+        TapeColour::Yellow => "yellow",
+        TapeColour::Green => "green",
         TapeColour::Black => "black",
         TapeColour::ClearWhite => "clear_white",
         TapeColour::MatteWhite => "matte_white",
@@ -148,6 +152,8 @@ pub fn status_json(status: &Status, media: &Media) -> StatusJson {
         height_px: media.area().1,
         tape_color: tape_color_name(status.tape_colour),
         text_color: text_color_name(status.text_colour),
+        tape_color_id: status.tape_color_id,
+        text_color_id: status.text_color_id,
         errors,
         ready,
     }

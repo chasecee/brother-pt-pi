@@ -148,7 +148,7 @@ export function createStageController({
 }) {
   const state = {
     rows: [],
-    tapeColor: "#f5f5f5",
+    tape: { bg: "#f5f5f5", ink: "#1a1a1a", border: "transparent" },
     active: { mode: "empty", rowIndex: -1, segIndex: -1, insertIndex: -1 },
     iconState: {
       loaded: false,
@@ -588,7 +588,9 @@ export function createStageController({
   function rowTrack(row, rowIndex) {
     const track = document.createElement("div");
     track.className = "row-track";
-    track.style.setProperty("--tape-bg", state.tapeColor);
+    track.style.setProperty("--tape-bg", state.tape.bg);
+    track.style.setProperty("--tape-ink", state.tape.ink);
+    track.style.setProperty("--tape-border", state.tape.border);
     track.append(makeSegAdd(rowIndex, 0, "start"));
     for (let i = 0; i < row.blocks.length; i++) {
       const block = row.blocks[i];
@@ -948,10 +950,26 @@ export function createStageController({
       rebuildRows();
       applyActiveState();
     },
-    setTapeColor(color) {
-      state.tapeColor = color || "#f5f5f5";
+    setTape(preview) {
+      const next = preview || {};
+      state.tape = {
+        bg: next.bg || "#f5f5f5",
+        ink: next.ink || "#1a1a1a",
+        border: next.border || "transparent",
+      };
       for (const track of rowsEl.querySelectorAll(".row-track")) {
-        track.style.setProperty("--tape-bg", state.tapeColor);
+        track.style.setProperty("--tape-bg", state.tape.bg);
+        track.style.setProperty("--tape-ink", state.tape.ink);
+        track.style.setProperty("--tape-border", state.tape.border);
+      }
+    },
+    setNewRowDefaults(preset) {
+      if (!preset) return;
+      if (preset.font_size != null) defaultPrefs.font_size = preset.font_size;
+      if (preset.margin_h != null) defaultPrefs.margin_h = preset.margin_h;
+      if (preset.v_align != null) defaultPrefs.v_align = preset.v_align;
+      if (preset.letter_spacing != null) {
+        defaultPrefs.letter_spacing = preset.letter_spacing;
       }
     },
     getRows() {

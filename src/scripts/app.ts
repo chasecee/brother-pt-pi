@@ -6,6 +6,7 @@ import {
   fontMetricsSync,
 } from "./fonts";
 import { createStageController } from "./stage";
+import { formatMediaLabel, tapePreview } from "./tape-palette";
 import {
   loadServerState,
   pushServerState,
@@ -19,6 +20,7 @@ let LIMITS = {};
 let tapeMm = 18;
 let baselineTapeHeightPx = 112;
 let detectedMedia = null;
+let lastTapeWidthMm = null;
 let usbOk = false;
 let printInFlight = 0;
 let toastTimer = null;
@@ -130,21 +132,6 @@ function currentDisplayScale() {
   return Number.isFinite(v) && v > 0 ? v : 1;
 }
 
-function tapeColor(name) {
-  const swatch = {
-    white: "#f5f5f5",
-    black: "#1a1a1a",
-    red: "#c62828",
-    blue: "#1565c0",
-    yellow: "#fbc02d",
-    green: "#2e7d32",
-    clear: "#e0e0e0",
-    silver: "#bdbdbd",
-    gold: "#c9a227",
-  };
-  return swatch[(name || "").toLowerCase()] || "#f5f5f5";
-}
-
 function setStatus(text, cls) {
   const el = $("status");
   if (!el) return;
@@ -156,11 +143,12 @@ function setStatus(text, cls) {
 function setStatusMedia(media) {
   const el = $("status");
   if (!el) return;
+  const preview = tapePreview(media.tape_color, media.text_color);
   el.className = "ok";
-  el.style.setProperty("--ink", tapeColor(media.text_color));
+  el.style.setProperty("--ink", preview.ink);
   el.innerHTML =
     '<span class="tape-swatch" style="background:' +
-    tapeColor(media.tape_color) +
+    preview.bg +
     '"></span>' +
     media.width_mm +
     "mm";
@@ -178,6 +166,33 @@ function formatRelative(seconds) {
   const d = Math.floor(seconds / 86400);
   const h = Math.round((seconds - d * 86400) / 3600);
   return h ? `${d}d ${h}h` : `${d}d`;
+}
+
+function updateMediaPanel() {
+  const el = $("statTape");
+  if (!el) return;
+  if (!usbOk) {
+    el.textContent = "Not connected";
+    el.title = "";
+    return;
+  }
+  if (!detectedMedia || !detectedMedia.width_mm) {
+    el.textContent = "—";
+    el.title = "";
+    return;
+  }
+  const preview = tapePreview(
+    detectedMedia.tape_color,
+    detectedMedia.text_color,
+  );
+  const label = formatMediaLabel(detectedMedia);
+  el.style.setProperty("--ink", preview.ink);
+  el.innerHTML =
+    '<span class="tape-swatch" style="background:' +
+    preview.bg +
+    '"></span>' +
+    label;
+  el.title = label;
 }
 
 function updateSystemPanel(r) {
@@ -252,16 +267,24 @@ function updateStatusDisplay() {
 
 function applyMedia(data) {
   if (!data || !data.ok) return;
+  const widthMm = data.width_mm || 0;
+  const widthChanged = widthMm > 0 && widthMm !== lastTapeWidthMm;
   detectedMedia = data;
   if (data.width_mm) tapeMm = data.width_mm;
   updateTapeScale();
-  if (stage) stage.setTapeColor(tapeColor(data.tape_color));
+  if (stage) stage.setTape(tapePreview(data.tape_color, data.text_color));
+  if (stage && data.preset && widthChanged) {
+    stage.setNewRowDefaults(data.preset);
+  }
+  if (widthMm > 0) lastTapeWidthMm = widthMm;
+  updateMediaPanel();
 }
 
 function applySnapshot(r) {
   usbOk = !!r.ok;
   updateSystemPanel(r);
   if (r.media) applyMedia(r.media);
+  else updateMediaPanel();
   updateStatusDisplay();
 }
 
@@ -272,8 +295,11 @@ function startEvents() {
   };
   es.onerror = () => {
     usbOk = false;
+    detectedMedia = null;
+    lastTapeWidthMm = null;
     setStatus("error", "bad");
     updateSystemPanel(null);
+    updateMediaPanel();
   };
 }
 

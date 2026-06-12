@@ -3,12 +3,64 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 STATIC_ONLY=0
+ALL=0
 HOST=""
 DEVICE=""
 DEFAULTS_FILE=""
 CONFD_FILE=""
 APP_BUILD_STAMP="${ROOT}/.cache/ptlabel-app/.last-build-success"
+APP_DEPLOY_STAMP="${ROOT}/.cache/ptlabel-app/.last-deployed"
+BRIDGE_BUILD_STAMP="${ROOT}/.cache/ptlabel-bridge/.last-build-success"
+BRIDGE_DEPLOY_STAMP="${ROOT}/.cache/ptlabel-bridge/.last-deployed"
 APP_BUILT=0
+
+tree_changed_since() {
+  local stamp="$1"
+  shift
+  [[ ! -f "$stamp" ]] && return 0
+  for rel in "$@"; do
+    local path="${ROOT}/${rel}"
+    if [[ -f "$path" && "$path" -nt "$stamp" ]]; then
+      return 0
+    fi
+    if [[ -d "$path" ]] && find "$path" -newer "$stamp" -print -quit 2>/dev/null | grep -q .; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+run_deploy_all() {
+  local extra=()
+  local did=0
+  [[ $STATIC_ONLY -eq 1 ]] && extra+=(--static-only)
+  if [[ ! -f "${ROOT}/devices/lxc.env" || ! -f "${ROOT}/devices/bridge.env" ]]; then
+    echo "devices/lxc.env and devices/bridge.env required for multi-target deploy" >&2
+    exit 1
+  fi
+  if tree_changed_since "$APP_DEPLOY_STAMP" \
+    app src lxc icons fonts astro.config.mjs package.json bun.lock bun.lockb \
+    scripts/precompress.mjs scripts/build-app.sh Cargo.toml Cargo.lock; then
+    echo "==> deploying lxc (app)"
+    "$0" --device lxc "${extra[@]}"
+    mkdir -p "$(dirname "$APP_DEPLOY_STAMP")"
+    touch "$APP_DEPLOY_STAMP"
+    did=1
+  else
+    echo "==> skipping lxc (no relevant changes)"
+  fi
+  if tree_changed_since "$BRIDGE_DEPLOY_STAMP" \
+    bridge chain-print buildroot-external/board/ptlabel-pi0/overlay Cargo.toml Cargo.lock; then
+    echo "==> deploying bridge"
+    "$0" --device bridge "${extra[@]}"
+    mkdir -p "$(dirname "$BRIDGE_DEPLOY_STAMP")"
+    touch "$BRIDGE_DEPLOY_STAMP"
+    did=1
+  else
+    echo "==> skipping bridge (no relevant changes)"
+  fi
+  [[ $did -eq 0 ]] && echo "==> nothing to deploy"
+}
 
 load_device() {
   local device_name="$1"
@@ -26,6 +78,7 @@ load_device() {
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --static-only) STATIC_ONLY=1; shift ;;
+    --all) ALL=1; shift ;;
     --device)
       DEVICE="${2:-}"
       if [[ -z "$DEVICE" ]]; then
@@ -38,6 +91,11 @@ while [[ $# -gt 0 ]]; do
     *) HOST="$1"; shift ;;
   esac
 done
+
+if [[ $ALL -eq 1 ]] || [[ -z "$DEVICE" && -z "$HOST" ]]; then
+  run_deploy_all
+  exit 0
+fi
 
 if [[ -n "$DEVICE" ]]; then
   load_device "$DEVICE"
@@ -69,6 +127,20 @@ fi
 SSH_OPTS=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o BatchMode=yes)
 
 if [[ "$PTLABEL_KIND" == "bridge" ]]; then
+  if [[ $STATIC_ONLY -eq 0 && -f "$BRIDGE_BUILD_STAMP" ]]; then
+    BRIDGE_RUST_CHANGED=0
+    while IFS= read -r relpath; do
+      file="${ROOT}/${relpath}"
+      if [[ ! -f "$file" || "$file" -nt "$BRIDGE_BUILD_STAMP" ]]; then
+        BRIDGE_RUST_CHANGED=1
+        break
+      fi
+    done < <(git -C "$ROOT" ls-files bridge chain-print Cargo.toml Cargo.lock)
+    if [[ $BRIDGE_RUST_CHANGED -eq 0 ]]; then
+      echo "==> no bridge rust changes; skipping binary rebuild"
+      STATIC_ONLY=1
+    fi
+  fi
   if [[ $STATIC_ONLY -eq 0 ]]; then
     "${ROOT}/scripts/br-build-flash.sh" --rust-only ${DEVICE:+--device "$DEVICE"}
     BIN="${ROOT}/.cache/ptlabel-bridge/bin/ptlabel-bridge"
@@ -79,6 +151,8 @@ if [[ "$PTLABEL_KIND" == "bridge" ]]; then
     SIZE_KB=$(( $(stat -f %z "$BIN") / 1024 ))
     echo "==> pushing ${SIZE_KB} KB bridge binary to ${HOST}"
     scp -O "${SSH_OPTS[@]}" "$BIN" "${HOST}:/opt/ptlabel/bin/ptlabel-bridge.new"
+    mkdir -p "$(dirname "$BRIDGE_BUILD_STAMP")"
+    touch "$BRIDGE_BUILD_STAMP"
   fi
 
   OVERLAY="${ROOT}/buildroot-external/board/ptlabel-pi0/overlay"

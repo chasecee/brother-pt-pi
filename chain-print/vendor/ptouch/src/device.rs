@@ -278,6 +278,8 @@ pub enum TapeColour {
     ClearBlack = 0x03,
     Red = 0x04,
     Blue = 0x05,
+    Yellow = 0x06,
+    Green = 0x07,
     Black = 0x08,
     ClearWhite = 0x09,
     MatteWhite = 0x20,
@@ -313,6 +315,8 @@ impl From<u8> for TapeColour {
             0x03 => ClearBlack,
             0x04 => Red,
             0x05 => Blue,
+            0x06 => Yellow,
+            0x07 => Green,
             0x08 => Black,
             0x09 => ClearWhite,
             0x20 => MatteWhite,
@@ -388,6 +392,8 @@ pub struct Status {
     pub status_type: DeviceStatus,
     pub phase: Phase,
 
+    pub tape_color_id: u8,
+    pub text_color_id: u8,
     pub tape_colour: TapeColour,
     pub text_colour: TextColour,
 }
@@ -407,6 +413,8 @@ impl Status {
             },
             status_type: DeviceStatus::Completed,       // Assuming the printer is ready to print
             phase: Phase::Editing,                      // Assuming the printer is not printing
+            tape_color_id: 0x01,
+            text_color_id: 0x08,
             tape_colour: TapeColour::White,             // By default, assuming the tape is white...
             text_colour: TextColour::Black,             // ...and the text colour is black. Would maybe be good to let the user change it in the command
         })
@@ -425,6 +433,8 @@ impl From<[u8; 32]> for Status {
 
             status_type: DeviceStatus::from(r[18]),
             phase: Phase::from(r[20]),
+            tape_color_id: r[24],
+            text_color_id: r[25],
             tape_colour: TapeColour::from(r[24]),
             text_colour: TextColour::from(r[25]),
         }
