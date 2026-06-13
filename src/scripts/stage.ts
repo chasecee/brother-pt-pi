@@ -1,4 +1,5 @@
 import { renderDrawer } from "./drawer";
+import { buildNumberStepper } from "./stepper";
 import { COPY, ELLIPSIS, SEG_ADD, X } from "./lucide-icons";
 import {
   iconThumbUrl,
@@ -115,19 +116,6 @@ function clampCoverY(value, fallback = 0.5) {
   return Math.max(0, Math.min(1, n));
 }
 
-function setDimPart(el, left, top, width, height) {
-  if (!el) return;
-  if (width <= 0 || height <= 0) {
-    el.style.display = "none";
-    return;
-  }
-  el.style.display = "block";
-  el.style.left = `${left}px`;
-  el.style.top = `${top}px`;
-  el.style.width = `${width}px`;
-  el.style.height = `${height}px`;
-}
-
 function coverImageDraw(boundsW, boundsH, imgW, imgH, coverY) {
   const drawW = boundsW;
   const drawH = (imgH * boundsW) / imgW;
@@ -143,7 +131,7 @@ function coverYFromDrawY(boundsH, drawH, drawY) {
   return clampCoverY(1 - drawY / minDy);
 }
 
-function layoutImageEdit(stage, source, dim, block, lineH) {
+function layoutImageEdit(stage, source, block, lineH) {
   const fit = drawerImageFit(block.fit);
   const boundsW = lineH * clampImageWidth(block.width);
   const boundsH = lineH;
@@ -175,8 +163,6 @@ function layoutImageEdit(stage, source, dim, block, lineH) {
   const stageBottom = Math.max(boundsH, drawY + drawH);
   const stageW = stageRight - stageLeft;
   const stageH = stageBottom - stageTop;
-  const boundsX = -stageLeft;
-  const boundsY = -stageTop;
 
   stage.style.left = `${stageLeft}px`;
   stage.style.top = `${stageTop}px`;
@@ -186,22 +172,6 @@ function layoutImageEdit(stage, source, dim, block, lineH) {
   source.style.height = `${drawH}px`;
   source.style.left = `${drawX - stageLeft}px`;
   source.style.top = `${drawY - stageTop}px`;
-
-  setDimPart(dim?.top, 0, 0, stageW, boundsY);
-  setDimPart(dim?.bottom, 0, boundsY + boundsH, stageW, stageH - boundsY - boundsH);
-  if (fit === "cover") {
-    setDimPart(dim?.left, 0, 0, 0, 0);
-    setDimPart(dim?.right, 0, 0, 0, 0);
-  } else {
-    setDimPart(dim?.left, 0, boundsY, boundsX, boundsH);
-    setDimPart(
-      dim?.right,
-      boundsX + boundsW,
-      boundsY,
-      stageW - boundsX - boundsW,
-      boundsH,
-    );
-  }
 }
 
 function unmountImageEdits() {
@@ -273,24 +243,13 @@ function mountTextResize(seg, getSize, onSizeChange) {
   });
 }
 
-function imageEditDim(stage) {
-  const root = stage?.querySelector(".seg-image-dim");
-  if (!root) return null;
-  return {
-    top: root.querySelector(".seg-image-dim-top"),
-    bottom: root.querySelector(".seg-image-dim-bottom"),
-    left: root.querySelector(".seg-image-dim-left"),
-    right: root.querySelector(".seg-image-dim-right"),
-  };
-}
-
 function syncImageEditLayout(seg, block, lineH) {
   const edit = seg.querySelector(".seg-image-edit");
   if (!edit) return;
   const stage = edit.querySelector(".seg-image-edit-stage");
   const source = edit.querySelector(".seg-image-source");
   if (!stage || !source || !source.complete) return;
-  layoutImageEdit(stage, source, imageEditDim(stage), block, lineH);
+  layoutImageEdit(stage, source, block, lineH);
 }
 
 function mountImageEdit(
@@ -320,12 +279,6 @@ function mountImageEdit(
   edit.innerHTML = `
     <div class="seg-image-edit-stage">
       <img class="seg-image-source" alt="" draggable="false" />
-      <div class="seg-image-dim" aria-hidden="true">
-        <div class="seg-image-dim-part seg-image-dim-top"></div>
-        <div class="seg-image-dim-part seg-image-dim-left"></div>
-        <div class="seg-image-dim-part seg-image-dim-right"></div>
-        <div class="seg-image-dim-part seg-image-dim-bottom"></div>
-      </div>
     </div>
   `;
   seg.prepend(edit);
@@ -351,7 +304,7 @@ function mountImageEdit(
     const current = getBlock();
     if (!current) return;
     seg.classList.toggle("cover-fit", drawerImageFit(current.fit) === "cover");
-    layoutImageEdit(stage, source, imageEditDim(stage), current, lineH);
+    layoutImageEdit(stage, source, current, lineH);
   };
   source.addEventListener("load", relayout);
   if (source.complete) relayout();
@@ -1076,20 +1029,19 @@ export function createStageController({
         );
       };
 
-      const qty = document.createElement("input");
-      qty.type = "number";
-      qty.className = "row-qty";
-      qty.min = String(limits.qty[0]);
-      qty.max = String(limits.qty[1]);
-      qty.value = String(row.qty || 1);
-      qty.oninput = () => {
-        row.qty = Math.max(
-          limits.qty[0],
-          Math.min(limits.qty[1], parseInt(qty.value, 10) || 1),
-        );
-        qty.value = String(row.qty);
-        signalChange();
-      };
+      const qty = buildNumberStepper({
+        label: "Qty",
+        value: row.qty || 1,
+        min: limits.qty[0],
+        max: limits.qty[1],
+        step: 1,
+        scrub: true,
+        className: "row-qty-stepper",
+        onChange: (next) => {
+          row.qty = next;
+          signalChange();
+        },
+      });
 
       const remove = document.createElement("button");
       remove.type = "button";

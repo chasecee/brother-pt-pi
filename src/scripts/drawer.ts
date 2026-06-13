@@ -1,4 +1,5 @@
 import { PICKER_ICONS, ROTATE_CW, UPLOAD, X } from "./lucide-icons";
+import { buildNumberStepper, syncNumberStepper } from "./stepper";
 
 function trackImageLoad(host, img) {
   if (img.complete && img.naturalWidth > 0) return;
@@ -174,115 +175,6 @@ function buildFontPicker(segment, fonts, onTextStyleChange) {
   return { trigger, panel };
 }
 
-function clampNum(n, min, max) {
-  return Math.min(max, Math.max(min, n));
-}
-
-function syncNumberStepper(root, { value, min, max }) {
-  root.dataset.value = String(value);
-  const input = root.querySelector(".drawer-stepper-input");
-  const dec = root.querySelector(".drawer-stepper-dec");
-  const inc = root.querySelector(".drawer-stepper-inc");
-  if (input && document.activeElement !== input) input.value = String(value);
-  if (dec) dec.disabled = value <= min;
-  if (inc) inc.disabled = value >= max;
-}
-
-function buildNumberStepper({ label, value, min, max, step = 1, scrub = false, onChange }) {
-  const root = el("div", { className: "drawer-stepper" });
-  root.dataset.value = String(value);
-  root.dataset.min = String(min);
-  root.dataset.max = String(max);
-  root.dataset.step = String(step);
-
-  const labelEl = el("span", {
-    className: "drawer-stepper-label",
-    text: label,
-  });
-  if (scrub) labelEl.dataset.scrub = "";
-
-  const input = el("input", {
-    type: "text",
-    className: "drawer-stepper-input",
-    inputmode: "numeric",
-    value: String(value),
-  });
-
-  const readValue = () => {
-    const parsed = parseInt(input.value, 10);
-    return Number.isFinite(parsed) ? parsed : parseInt(root.dataset.value, 10);
-  };
-
-  const commitInput = () => {
-    const parsed = parseInt(input.value, 10);
-    if (!Number.isFinite(parsed)) {
-      input.value = root.dataset.value;
-      return;
-    }
-    const next = clampNum(parsed, min, max);
-    input.value = String(next);
-    const current = parseInt(root.dataset.value, 10);
-    if (next !== current) onChange(next);
-  };
-
-  input.addEventListener("change", commitInput);
-  input.addEventListener("blur", commitInput);
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      input.blur();
-    }
-  });
-
-  const dec = el("button", {
-    type: "button",
-    className: "drawer-stepper-btn drawer-stepper-dec",
-    "aria-label": `Decrease ${label}`,
-    text: "−",
-  });
-  dec.addEventListener("click", () => {
-    const current = readValue();
-    const next = clampNum(current - step, min, max);
-    if (next !== current) onChange(next);
-  });
-
-  const inc = el("button", {
-    type: "button",
-    className: "drawer-stepper-btn drawer-stepper-inc",
-    "aria-label": `Increase ${label}`,
-    text: "+",
-  });
-  inc.addEventListener("click", () => {
-    const current = readValue();
-    const next = clampNum(current + step, min, max);
-    if (next !== current) onChange(next);
-  });
-
-  if (scrub) {
-    labelEl.addEventListener("pointerdown", (e) => {
-      e.preventDefault();
-      const startX = e.clientX;
-      const startValue = readValue();
-      const onMove = (ev) => {
-        const delta = Math.round((ev.clientX - startX) / 2);
-        const next = clampNum(startValue + delta, min, max);
-        if (next !== readValue()) onChange(next);
-      };
-      const onUp = () => {
-        window.removeEventListener("pointermove", onMove);
-        window.removeEventListener("pointerup", onUp);
-      };
-      window.addEventListener("pointermove", onMove);
-      window.addEventListener("pointerup", onUp);
-    });
-  }
-
-  const group = el("div", { className: "drawer-stepper-group" }, [dec, input, inc]);
-  root.append(labelEl, group);
-  syncNumberStepper(root, { value, min, max });
-  return root;
-}
-
 function syncFontPicker(body, segment, fonts) {
   const current = fonts.find((f) => f.name === segment.font_family) || null;
   const triggerName = body.querySelector(".drawer-font-current-name");
@@ -324,14 +216,23 @@ function syncFontDrawer(body, ctx) {
     });
   }
 
-  const spacing = row.querySelector(".drawer-font-spacing input");
-  if (spacing && document.activeElement !== spacing) {
-    spacing.value = String(segment.letter_spacing);
+  const spacingStepper = row.querySelector('.drawer-stepper[data-key="letter_spacing"]');
+  if (spacingStepper) {
+    syncNumberStepper(spacingStepper, {
+      value: segment.letter_spacing,
+      min: -5,
+      max: 20,
+      step: 0.5,
+    });
   }
 
-  const valign = row.querySelector(".drawer-font-valign input");
-  if (valign && document.activeElement !== valign) {
-    valign.value = String(segment.v_align);
+  const valignStepper = row.querySelector('.drawer-stepper[data-key="v_align"]');
+  if (valignStepper) {
+    syncNumberStepper(valignStepper, {
+      value: segment.v_align,
+      min: -32,
+      max: 32,
+    });
   }
 }
 
@@ -372,6 +273,7 @@ function fontDrawer(container, ctx) {
 
   const sizeStepper = buildNumberStepper({
     label: "Size",
+    fieldLabel: "Size",
     value: segment.font_size,
     min: 10,
     max: 128,
@@ -381,36 +283,29 @@ function fontDrawer(container, ctx) {
   });
   sizeStepper.dataset.key = "font_size";
 
-  const spacing = el("input", {
-    type: "number",
-    min: "-5",
-    max: "20",
-    step: "0.5",
-    value: String(segment.letter_spacing),
+  const spacingStepper = buildNumberStepper({
+    label: "Spacing",
+    fieldLabel: "Space",
+    value: segment.letter_spacing,
+    min: -5,
+    max: 20,
+    step: 0.5,
+    scrub: true,
+    onChange: (next) => onTextStyleChange({ letter_spacing: next }),
   });
-  spacing.addEventListener("input", () =>
-    onTextStyleChange({
-      letter_spacing: parseFloat(spacing.value) || 0,
-    }),
-  );
-  const spacingWrap = el("label", { className: "drawer-font-spacing" }, [
-    document.createTextNode("Spacing"),
-    spacing,
-  ]);
+  spacingStepper.dataset.key = "letter_spacing";
 
-  const valign = el("input", {
-    type: "number",
-    min: "-32",
-    max: "32",
-    value: String(segment.v_align),
+  const valignStepper = buildNumberStepper({
+    label: "V align",
+    fieldLabel: "Valign",
+    value: segment.v_align,
+    min: -32,
+    max: 32,
+    step: 1,
+    scrub: true,
+    onChange: (next) => onTextStyleChange({ v_align: next }),
   });
-  valign.addEventListener("input", () =>
-    onTextStyleChange({ v_align: parseInt(valign.value, 10) || 0 }),
-  );
-  const valignWrap = el("label", { className: "drawer-font-valign" }, [
-    document.createTextNode("V align"),
-    valign,
-  ]);
+  valignStepper.dataset.key = "v_align";
 
   wrapper.append(
     el("div", { className: "drawer-row" }, [
@@ -418,8 +313,8 @@ function fontDrawer(container, ctx) {
       boldWrap,
       italicWrap,
       sizeStepper,
-      spacingWrap,
-      valignWrap,
+      spacingStepper,
+      valignStepper,
     ]),
     panel,
   );
