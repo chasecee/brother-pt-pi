@@ -449,7 +449,7 @@ body {
   line-height: 1;
   padding: 0 0.15em;
   outline: 3px dashed transparent;
-  outline-offset: 2px;
+  outline-offset: -1px;
   transition: outline-color 0.25s;
   transform: translateY(var(--seg-valign, 0px));
   caret-color: var(--accent);
@@ -458,12 +458,12 @@ body {
   cursor: text;
 
   &:hover {
-    outline-color: color-mix(in srgb, var(--accent) 20%, transparent);
+    outline-color: color-mix(in srgb, var(--accent) 50%, transparent);
   }
 
   &:focus,
   &:focus-visible {
-    outline-color: color-mix(in srgb, var(--accent) 50%, transparent);
+    outline-color: var(--accent);
     outline-style: solid;
   }
 
@@ -536,6 +536,8 @@ body {
     height: 100%;
     width: 100%;
     object-fit: contain;
+    position: relative;
+    pointer-events: none;
   }
 }
 
@@ -562,11 +564,21 @@ body {
   outline-color: transparent;
 }
 
+.seg-image-chrome {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  z-index: 2;
+  pointer-events: none;
+}
+
 .seg-image-edit {
   position: absolute;
   inset: 0;
   overflow: visible;
   line-height: 0;
+  opacity: 0.5;
+  z-index: 1;
 }
 
 .seg-image-edit-stage {
@@ -598,15 +610,28 @@ body {
 .seg-image-bounds {
   position: absolute;
   inset: 0;
-  border: 2px dashed var(--accent);
+  outline: 3px solid var(--accent);
   pointer-events: none;
   z-index: 1;
   box-sizing: border-box;
+  border-radius: 3px;
 }
 
-.seg-image.is-editing.cover-fit .seg-image-bounds {
+.seg-image.is-editing.cover-fit .seg-image-edit-stage {
   pointer-events: auto;
   cursor: ns-resize;
+}
+
+.seg-text-wrap {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  position: relative;
+  max-width: 100%;
+}
+
+.seg-text-wrap .seg-text {
+  flex: 0 1 auto;
 }
 
 .seg-image-handle {
@@ -627,29 +652,42 @@ body {
   transform: translateX(50%);
 }
 
-.seg-image-handle-grip {
-  width: 10px;
+.seg-text-handle {
+  position: absolute;
+  right: 0;
+  top: 0;
+  z-index: 2;
+  width: 14px;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  cursor: ew-resize;
+  pointer-events: none;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translateX(50%);
+  opacity: 0;
+}
+
+.seg-text-wrap:focus-within .seg-text-handle {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.seg-image-handle-grip,
+.seg-text-handle-grip {
+  width: 5px;
   height: 50%;
   min-height: 12px;
-  border: 1px solid var(--accent);
-  background: var(--bg);
+  outline: 3px solid var(--accent);
+  background: var(--tape-bg);
   border-radius: 999px;
   display: flex;
   align-items: center;
   justify-content: center;
   pointer-events: none;
-
-  &::after {
-    content: "";
-    width: 2px;
-    height: 50%;
-    border-radius: 1px;
-    background: var(--accent);
-  }
-}
-
-.seg-image.is-editing .seg-image-preview {
-  visibility: hidden;
 }
 
 .seg-icon,
@@ -663,7 +701,8 @@ body {
   }
 
   &.seg-active {
-    outline-color: color-mix(in srgb, var(--accent) 50%, transparent);
+    outline-color: var(--accent);
+    outline-style: solid;
   }
 }
 
@@ -918,6 +957,67 @@ body {
     background: color-mix(in srgb, var(--fg) 10%, transparent);
     color: var(--fg);
     font: inherit;
+  }
+}
+
+.drawer-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+}
+
+.drawer-stepper-label[data-scrub] {
+  cursor: ew-resize;
+  user-select: none;
+}
+
+.drawer-stepper-group {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid color-mix(in srgb, var(--fg) 25%, transparent);
+  border-radius: 4px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--fg) 10%, transparent);
+}
+
+.drawer-stepper-btn {
+  font: inherit;
+  width: 1.6rem;
+  padding: 0.25rem 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+  line-height: 1;
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--fg) 18%, transparent);
+  }
+
+  &:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+}
+
+.drawer-stepper-input {
+  width: 2.4rem;
+  min-width: 2.4rem;
+  flex: 0 0 2.4rem;
+  padding: 0.25rem 0.2rem;
+  border: 0;
+  border-left: 1px solid color-mix(in srgb, var(--fg) 20%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--fg) 20%, transparent);
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  text-align: center;
+
+  &:focus {
+    outline: none;
+    background: color-mix(in srgb, var(--fg) 8%, transparent);
   }
 }
 

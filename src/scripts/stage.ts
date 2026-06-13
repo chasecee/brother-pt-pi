@@ -207,14 +207,70 @@ function layoutImageEdit(stage, source, dim, block, lineH) {
 function unmountImageEdits() {
   for (const seg of document.querySelectorAll(".seg-image.is-editing")) {
     seg.classList.remove("is-editing");
-    const edit = seg.querySelector(".seg-image-edit");
-    if (edit) edit.remove();
-    const preview = seg.querySelector(".seg-image-preview");
-    if (preview) preview.hidden = false;
+    seg.querySelector(".seg-image-edit")?.remove();
+    seg.querySelector(".seg-image-chrome")?.remove();
   }
   for (const row of document.querySelectorAll(".stage-row.is-image-editing")) {
     row.classList.remove("is-image-editing");
   }
+}
+
+function clampFontSize(n) {
+  return Math.min(128, Math.max(10, Math.round(n)));
+}
+
+function unmountTextResizes(keepSeg = null) {
+  for (const wrap of document.querySelectorAll(".seg-text-wrap")) {
+    const seg = wrap.querySelector(".seg-text");
+    if (seg === keepSeg) continue;
+    const parent = wrap.parentNode;
+    if (seg && parent) {
+      parent.insertBefore(seg, wrap);
+      wrap.remove();
+    }
+  }
+  for (const seg of document.querySelectorAll(".seg-text")) {
+    if (seg === keepSeg) continue;
+    seg.querySelector(".seg-text-handle")?.remove();
+  }
+}
+
+function mountTextResize(seg, getSize, onSizeChange) {
+  if (seg.closest(".seg-text-wrap")?.querySelector(".seg-text-handle")) return;
+
+  let wrap = seg.closest(".seg-text-wrap");
+  if (!wrap) {
+    wrap = document.createElement("span");
+    wrap.className = "seg-text-wrap";
+    const parent = seg.parentNode;
+    if (!parent) return;
+    parent.insertBefore(wrap, seg);
+    wrap.appendChild(seg);
+  }
+
+  const handle = document.createElement("button");
+  handle.type = "button";
+  handle.className = "seg-text-handle";
+  handle.setAttribute("aria-label", "Resize font size");
+  handle.tabIndex = -1;
+  handle.innerHTML = '<span class="seg-text-handle-grip" aria-hidden="true"></span>';
+  wrap.appendChild(handle);
+
+  handle.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startSize = getSize();
+    const onMove = (ev) => {
+      onSizeChange(clampFontSize(startSize + Math.round((ev.clientX - startX) / 2)));
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  });
 }
 
 function imageEditDim(stage) {
@@ -259,9 +315,6 @@ function mountImageEdit(
   const rowNode = seg.closest(".stage-row");
   if (rowNode) rowNode.classList.add("is-image-editing");
 
-  const preview = seg.querySelector(".seg-image-preview");
-  if (preview) preview.hidden = true;
-
   const edit = document.createElement("div");
   edit.className = "seg-image-edit";
   edit.innerHTML = `
@@ -274,18 +327,23 @@ function mountImageEdit(
         <div class="seg-image-dim-part seg-image-dim-bottom"></div>
       </div>
     </div>
+  `;
+  seg.prepend(edit);
+
+  const chrome = document.createElement("div");
+  chrome.className = "seg-image-chrome";
+  chrome.innerHTML = `
     <div class="seg-image-bounds">
       <button type="button" class="seg-image-handle" aria-label="Resize width">
         <span class="seg-image-handle-grip" aria-hidden="true"></span>
       </button>
     </div>
   `;
-  seg.prepend(edit);
+  seg.append(chrome);
 
   const stage = edit.querySelector(".seg-image-edit-stage");
   const source = edit.querySelector(".seg-image-source");
-  const bounds = edit.querySelector(".seg-image-bounds");
-  const handle = edit.querySelector(".seg-image-handle");
+  const handle = chrome.querySelector(".seg-image-handle");
   source.alt = imageAltText(block.id);
   source.src = iconThumbUrl(block.id);
 
@@ -317,8 +375,7 @@ function mountImageEdit(
     window.addEventListener("pointerup", onUp);
   });
 
-  bounds.addEventListener("pointerdown", (e) => {
-    if (e.target === handle || handle.contains(e.target)) return;
+  stage.addEventListener("pointerdown", (e) => {
     const current = getBlock();
     if (!current || drawerImageFit(current.fit) !== "cover") return;
     if (!source.complete || source.naturalWidth < 1) return;
@@ -559,6 +616,22 @@ export function createStageController({
     if (input) applyTextStyleToInput(input, normalizeTextBlock(block, row));
     applyRowMetricsForIndex(rowIndex);
     applyActiveState();
+  }
+
+  function setFontSize(rowIndex, segIndex, fontSize) {
+    const row = state.rows[rowIndex];
+    if (!row) return;
+    const block = row.blocks[segIndex];
+    if (!block || block.type !== "text") return;
+    const next = clampFontSize(fontSize);
+    if (block.font_size === next) return;
+    block.font_size = next;
+    signalChange();
+    const input = querySegEl(rowIndex, segIndex);
+    if (input) applyTextStyleToInput(input, normalizeTextBlock(block, row));
+    applyRowMetricsForIndex(rowIndex);
+    openDrawerForCurrent();
+    requestAnimationFrame(updateDrawerPointer);
   }
 
   function updateImageMode(rowIndex, segIndex, fit) {
@@ -1102,6 +1175,13 @@ export function createStageController({
 
   function applyActiveState() {
     unmountImageEdits();
+    let keepTextSeg = null;
+    if (state.active.mode === "font" && state.active.segIndex >= 0) {
+      const rowNode = rowNodeAt(state.active.rowIndex);
+      keepTextSeg =
+        rowNode?.querySelector(`[data-seg="${state.active.segIndex}"].seg-text`) ?? null;
+    }
+    unmountTextResizes(keepTextSeg);
     for (const rowNode of rowsEl.querySelectorAll(".stage-row")) {
       rowNode.classList.remove("active");
     }
@@ -1142,6 +1222,19 @@ export function createStageController({
               () => state.rows[state.active.rowIndex]?.blocks[state.active.segIndex],
               (width) => setImageWidth(state.active.rowIndex, state.active.segIndex, width),
               (coverY) => setCoverY(state.active.rowIndex, state.active.segIndex, coverY),
+            );
+          }
+        }
+        if (state.active.mode === "font" && state.active.segIndex >= 0) {
+          const seg = rowNode.querySelector(
+            `[data-seg="${state.active.segIndex}"].seg-text`,
+          );
+          const block = state.rows[state.active.rowIndex]?.blocks[state.active.segIndex];
+          if (seg && block?.type === "text") {
+            mountTextResize(
+              seg,
+              () => state.rows[state.active.rowIndex]?.blocks[state.active.segIndex]?.font_size,
+              (next) => setFontSize(state.active.rowIndex, state.active.segIndex, next),
             );
           }
         }
