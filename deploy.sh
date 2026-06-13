@@ -39,7 +39,7 @@ run_deploy_all() {
     exit 1
   fi
   if tree_changed_since "$APP_DEPLOY_STAMP" \
-    app src lxc icons fonts astro.config.mjs package.json bun.lock bun.lockb \
+    app src lxc icons fonts astro.config.mjs package.json bun.lock \
     scripts/precompress.mjs scripts/build-app.sh Cargo.toml Cargo.lock; then
     echo "==> deploying lxc (app)"
     "$0" --device lxc "${extra[@]}"
@@ -250,8 +250,14 @@ scp -O -r "${SSH_OPTS[@]}" "$DIST" "${HOST}:/opt/ptlabel/static.new"
 RSYNC_SSH="ssh ${SSH_OPTS[*]}"
 echo "==> rsyncing fonts/ and icons/ to ${HOST} (delta)"
 rsync -az --delete -e "$RSYNC_SSH" \
+  --exclude 'catalog.json.br' \
+  --exclude 'catalog.json.gz' \
   "${ROOT}/fonts/" "${HOST}:/opt/ptlabel/fonts/"
 rsync -az --delete -e "$RSYNC_SSH" \
+  --exclude 'source/' \
+  --exclude 'tag-cache.json' \
+  --exclude 'catalog.json.br' \
+  --exclude 'catalog.json.gz' \
   "${ROOT}/icons/" "${HOST}:/opt/ptlabel/icons/"
 
 scp -O "${SSH_OPTS[@]}" \

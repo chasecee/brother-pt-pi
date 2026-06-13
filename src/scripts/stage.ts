@@ -1134,9 +1134,6 @@ export function createStageController({
         rowNode?.querySelector(`[data-seg="${state.active.segIndex}"].seg-text`) ?? null;
     }
     unmountTextResizes(keepTextSeg);
-    for (const rowNode of rowsEl.querySelectorAll(".stage-row")) {
-      rowNode.classList.remove("active");
-    }
     for (const seg of rowsEl.querySelectorAll(".seg-text, .seg-icon")) {
       seg.classList.remove("seg-active");
     }
@@ -1146,7 +1143,6 @@ export function createStageController({
     if (state.active.mode !== "empty") {
       const rowNode = rowNodeAt(state.active.rowIndex);
       if (rowNode) {
-        rowNode.classList.add("active");
         if (state.active.segIndex >= 0 && state.active.mode !== "picker") {
           const seg = rowNode.querySelector(`[data-seg="${state.active.segIndex}"]`);
           if (seg) seg.classList.add("seg-active");

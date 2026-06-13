@@ -1,17 +1,7 @@
-.PHONY: mac-dev mac-dev-live mac-print build deploy br-build br-flash br-rust boot-report fonts icons help
+.PHONY: mac-dev deploy br-build br-flash br-rust boot-report fonts icons help
 
 mac-dev:
 	./scripts/dev-mac.sh
-
-mac-dev-live:
-	./scripts/dev-mac-live.sh
-
-mac-print:
-	cargo build --release -p chain-print
-	target/release/chain-print --help >/dev/null
-
-build:
-	cargo build --release -p ptlabel-app
 
 deploy:
 	./deploy.sh $${DEVICE:+--device $$DEVICE} $${STATIC_ONLY:+--static-only}
@@ -40,13 +30,10 @@ icons:
 
 help:
 	@echo "mac-dev      - native Mac dev (port 5001, dev cache policy)"
-	@echo "mac-dev-live - mac dev with auto-restart (cargo-watch)"
-	@echo "mac-print - smoke test chain-print binary"
-	@echo "build     - native release ptlabel-app (host arch)"
-	@echo "deploy    - deploy app + bridge when relevant code changed (DEVICE=lxc|bridge for one)"
-	@echo "br-rust   - cross-build ptlabel-bridge only (.cache/ptlabel-bridge/bin/)"
-	@echo "br-build  - full Buildroot image + flash (set DISK=/dev/diskN)"
-	@echo "br-flash  - flash existing Buildroot image (set DISK=/dev/diskN)"
-	@echo "boot-report - print boot timing report (set DEVICE=name)"
-	@echo "fonts     - sync Brother fonts from P-touch Editor"
-	@echo "icons     - sync icon catalog"
+	@echo "deploy       - deploy app + bridge when relevant code changed (DEVICE=lxc|bridge for one)"
+	@echo "br-rust      - cross-build ptlabel-bridge only (.cache/ptlabel-bridge/bin/)"
+	@echo "br-build     - full Buildroot image + flash (set DISK=/dev/diskN)"
+	@echo "br-flash     - flash existing Buildroot image (set DISK=/dev/diskN)"
+	@echo "boot-report  - print boot timing report (set DEVICE=name)"
+	@echo "fonts        - sync Brother fonts from P-touch Editor"
+	@echo "icons        - sync icon catalog"

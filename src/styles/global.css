@@ -213,10 +213,6 @@ body {
   & > span:first-child {
     opacity: 0.6;
   }
-
-  .low {
-    color: var(--warn);
-  }
 }
 
 .bridge-pill {
@@ -654,7 +650,7 @@ body {
   position: absolute;
   right: 0;
   top: 0;
-  z-index: 2;
+  z-index: 1;
   width: 14px;
   height: 100%;
   border: 0;
@@ -952,50 +948,6 @@ body {
       background: var(--fg-10);
       color: var(--fg);
       font: inherit;
-    }
-  }
-
-  .drawer-slider {
-    width: min(32rem, 100%);
-    gap: 0.7rem;
-
-    label {
-      min-width: 3.2rem;
-    }
-
-    input[type="range"] {
-      flex: 1;
-    }
-  }
-
-  .drawer-slider-value {
-    min-width: 3rem;
-    text-align: right;
-    font-size: 0.82rem;
-  }
-
-  .drawer-segmented {
-    gap: 0;
-    border: 1px solid var(--fg-25);
-    border-radius: 999px;
-    overflow: hidden;
-
-    .btn {
-      border: 0;
-      border-radius: 0;
-      background: transparent;
-      color: var(--fg-75);
-      min-width: 5.4rem;
-
-      &.active {
-        background: var(--fg-24);
-        color: var(--fg);
-      }
-
-      &:hover {
-        background: var(--fg-18);
-        color: var(--fg);
-      }
     }
   }
 

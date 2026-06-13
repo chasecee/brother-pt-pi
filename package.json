@@ -8,7 +8,6 @@
   },
   "devDependencies": {
     "astro": "^6.4.4",
-    "opentype.js": "^2.0.0",
     "typescript": "^6.0.3"
   },
   "dependencies": {

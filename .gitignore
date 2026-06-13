@@ -12,4 +12,11 @@ buildroot-external/board/ptlabel-pi0/wpa_supplicant.conf
 buildroot-external/board/ptlabel-pi0/authorized_keys
 .DS_Store
 /.astro/
+/static/
+/out/
+/icons/tag-cache.json
+/fonts/catalog.json.br
+/fonts/catalog.json.gz
+/icons/catalog.json.br
+/icons/catalog.json.gz
 *.env
